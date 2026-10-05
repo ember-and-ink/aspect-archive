@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     # list: nothing else on disk can reproduce a decision. See
     # proxy/state/lorebook_decisions.py.
     lorebook_decisions_file: Path = ROOT / "data" / "lorebooks.json"
+    # Each card's lorebook as it was before the first lorebook sync rewrote it
+    # -- the only way back from a sync, which overwrites the card in place.
+    # User data, not a cache. See proxy/state/lorebook_snapshots.py.
+    lorebook_snapshots_dir: Path = ROOT / "data" / "lorebook_snapshots"
 
     # Server-side working state, kept beside the archive rather than inside it:
     # `data/` is the one directory that has to be mounted (and backed up), and

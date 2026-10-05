@@ -281,3 +281,224 @@ def test_a_damaged_decisions_file_is_reported_not_overwritten(client, archive_di
     archive_dirs["lorebook_decisions"].write_text("{not json")
     assert client.get("/api/v1/lorebooks").status_code == 500
     assert archive_dirs["lorebook_decisions"].read_text() == "{not json"
+
+
+# --- sync --------------------------------------------------------------------
+
+
+def _book_on(archive_dirs, filename: str) -> dict | None:
+    from proxy.cards import pngtools
+
+    return pngtools.extract_embedded_card((archive_dirs["characters"] / filename).read_bytes()).get("character_book")
+
+
+def _texts(book: dict | None) -> list[tuple[str, str]]:
+    return [(e["comment"], e["content"]) for e in (book or {}).get("entries", [])]
+
+
+def test_sync_writes_chosen_versions_and_keeps_the_original(client, archive_dirs):
+    from proxy.cards import pngtools
+
+    world = _by_name(client)["World"]
+    client.post(f"/api/v1/lorebooks/{world['id']}/choose-newest")
+    path = archive_dirs["characters"] / "Abbie_aaaaaaaa.png"
+    pixels = pngtools.non_text_chunks(path.read_bytes())
+    original = _book_on(archive_dirs, "Abbie_aaaaaaaa.png")
+
+    plan = client.get("/api/v1/lorebooks/sync").json()["cards"]
+    assert [(c["card"]["name"], c["upgrades"], c["attach"], c["detach"], c["has_original"]) for c in plan] == [
+        ("Abbie", 1, [], [], False),
+        ("Bea", 1, [], [], False),
+    ]
+    # Reading the plan wrote nothing.
+    assert _book_on(archive_dirs, "Abbie_aaaaaaaa.png") == original
+
+    result = client.post("/api/v1/lorebooks/sync", json={}).json()
+    assert result == {
+        "synced": 2,
+        "upgraded": 2,
+        "removed": 0,
+        "attached": 0,
+        "detached": 0,
+        "originals_saved": 2,
+        "failed": [],
+    }
+
+    book = _book_on(archive_dirs, "Abbie_aaaaaaaa.png")
+    assert _texts(book) == [("Town", "A small town, now with a market."), ("River", "A river.")]
+    # Only the embedded card changed, and the book says what it holds.
+    assert pngtools.non_text_chunks(path.read_bytes()) == pixels
+    assert book["extensions"]["jai_lorebooks"] == [
+        {"refs": ["jai:w"], "title": "World", "kind": "janitor", "entry_count": 2, "prefix": ""}
+    ]
+
+    after = _by_name(client)["World"]
+    assert (after["id"], after["card_count"], after["revision_count"], after["pending_cards"]) == (world["id"], 3, 1, 0)
+    assert client.get("/api/v1/lorebooks/sync").json() == {"cards": []}
+    # A second sync has nothing to do and saves nothing.
+    assert client.post("/api/v1/lorebooks/sync", json={}).json()["synced"] == 0
+
+    saved = client.get("/api/v1/characters/Abbie_aaaaaaaa.png/lorebook-original").json()
+    assert (saved["exists"], saved["entry_count"], saved["differs"]) == (True, 2, True)
+    restored = client.post("/api/v1/characters/Abbie_aaaaaaaa.png/lorebook-original/restore").json()
+    assert (restored["exists"], restored["differs"]) == (True, False)
+    assert _book_on(archive_dirs, "Abbie_aaaaaaaa.png") == original
+    # The choice still stands, so the restored card is simply pending again --
+    # and its original is not saved a second time.
+    assert [c["has_original"] for c in client.get("/api/v1/lorebooks/sync").json()["cards"]] == [True]
+    assert client.post("/api/v1/lorebooks/sync", json={}).json()["originals_saved"] == 0
+    assert len(list(archive_dirs["lorebook_snapshots"].glob("*.json"))) == 2
+
+
+def test_sync_can_be_scoped_to_a_lorebook_or_a_card(client):
+    books = _by_name(client)
+    client.post(f"/api/v1/lorebooks/{books['World']['id']}/choose-newest")
+    assert client.get("/api/v1/lorebooks/sync", params={"lorebook": books["People"]["id"]}).json() == {"cards": []}
+    assert client.post("/api/v1/lorebooks/sync", json={"lorebook": books["People"]["id"]}).json()["synced"] == 0
+    assert client.post("/api/v1/lorebooks/sync", json={"cards": ["Bea_bbbbbbbb.png"]}).json()["synced"] == 1
+    assert _by_name(client)["World"]["pending_cards"] == 1
+    assert client.post("/api/v1/lorebooks/sync", json={"lorebook": "nope"}).status_code == 404
+    assert client.get("/api/v1/characters/Eve_eeeeeeee.png/lorebook-original").json()["exists"] is False
+    assert client.post("/api/v1/characters/Eve_eeeeeeee.png/lorebook-original/restore").status_code == 404
+
+
+def test_a_merged_book_with_no_source_id_stays_merged_through_a_sync(client, archive_dirs):
+    _add_retitled_world(archive_dirs)
+    books = _by_name(client)
+    merged_id = client.post(
+        f"/api/v1/lorebooks/{books['World (old export)']['id']}/merge", json={"into": books["World"]["id"]}
+    ).json()["id"]
+    entries = {e["title"]: e for e in client.get(f"/api/v1/lorebooks/{merged_id}").json()["entries"]}
+    line_id = client.post(
+        f"/api/v1/lorebooks/entries/{entries['The Town']['id']}/merge", json={"into": entries["Town"]["id"]}
+    ).json()["id"]
+    line = client.get(f"/api/v1/lorebooks/entries/{line_id}").json()
+    market = next(v for v in line["versions"] if v["content"] == "A small town, now with a market.")
+    client.put(f"/api/v1/lorebooks/entries/{line_id}/chosen", json={"hash": market["hash"]})
+
+    assert client.post("/api/v1/lorebooks/sync", json={}).json()["synced"] == 3
+    # Gia's copy was identified by its content alone, and the sync changed its
+    # content -- the retitled entry took the chosen version, title and all.
+    gia = _book_on(archive_dirs, "Gia_99999999.png")
+    assert _texts(gia) == [("Town", "A small town, now with a market."), ("River", "A river.")]
+    assert [s["refs"][0][:3] for s in gia["extensions"]["jai_lorebooks"]] == ["fp:"]
+    world = client.get(f"/api/v1/lorebooks/{merged_id}").json()
+    assert (world["card_count"], world["revision_count"], world["entry_count"], world["pending_cards"]) == (4, 1, 2, 0)
+    assert world["refs"] == ["jai:w"] and len(world["merges"]) == 1
+    assert "World (old export)" not in _by_name(client)
+
+
+def test_attach_and_detach_wait_for_the_sync(client, archive_dirs):
+    books = _by_name(client)
+    people, world = books["People"]["id"], books["World"]["id"]
+    eve, cleo = "/api/v1/characters/Eve_eeeeeeee.png", "/api/v1/characters/Cleo_cccccccc.png"
+
+    attaching = client.put(f"{eve}/lorebooks/{people}").json()
+    assert [(b["name"], b["state"], b["entry_count"]) for b in attaching] == [("People", "attaching", 1)]
+    detaching = client.delete(f"{cleo}/lorebooks/{people}").json()
+    assert [(b["name"], b["state"]) for b in detaching] == [("World", "attached"), ("People", "detaching")]
+    # Decisions only: no card has changed, and both show as work for a sync.
+    assert _book_on(archive_dirs, "Eve_eeeeeeee.png") is None
+    detail = client.get(f"/api/v1/lorebooks/{people}").json()
+    assert ([c["name"] for c in detail["attaching"]], [c["name"] for c in detail["detaching"]]) == (["Eve"], ["Cleo"])
+    assert (detail["card_count"], detail["pending_cards"]) == (2, 2)
+    assert client.get("/api/v1/lorebooks").json()["stats"]["pending_cards"] == 2
+
+    # Asking for what the card already is withdraws the decision.
+    assert [b["state"] for b in client.put(f"{cleo}/lorebooks/{people}").json()] == ["attached", "attached"]
+    assert client.get(f"/api/v1/lorebooks/{people}").json()["pending_cards"] == 1
+    client.delete(f"{cleo}/lorebooks/{people}")
+    # And attaching what is already attached records nothing.
+    client.put(f"{cleo}/lorebooks/{world}")
+    assert _by_name(client)["World"]["pending_cards"] == 0
+
+    plan = client.get("/api/v1/lorebooks/sync").json()["cards"]
+    assert [(c["card"]["name"], c["attach"], c["detach"]) for c in plan] == [
+        ("Cleo", [], ["People"]),
+        ("Eve", ["People"], []),
+    ]
+    result = client.post("/api/v1/lorebooks/sync", json={}).json()
+    assert (result["synced"], result["attached"], result["detached"], result["originals_saved"]) == (2, 1, 1, 2)
+
+    assert _texts(_book_on(archive_dirs, "Eve_eeeeeeee.png")) == [("Mayor", "The mayor.")]
+    # Cleo keeps World exactly as it was, prefix included.
+    assert _texts(_book_on(archive_dirs, "Cleo_cccccccc.png")) == [
+        ("[World] Town", "A small town, now with a market."),
+        ("[World] River", "A river."),
+    ]
+    assert [b["name"] for b in client.get(f"{cleo}/lorebooks").json()] == ["World"]
+    after = client.get(f"/api/v1/lorebooks/{people}").json()
+    assert sorted(c["name"] for r in after["revisions"] for c in r["cards"]) == ["Dana", "Eve"]
+    assert (after["attaching"], after["detaching"], after["pending_cards"]) == ([], [], 0)
+
+    # Eve had no lorebook, and that is what restoring gives back.
+    assert client.get(f"{eve}/lorebook-original").json()["entry_count"] == 0
+    client.post(f"{eve}/lorebook-original/restore")
+    assert _book_on(archive_dirs, "Eve_eeeeeeee.png") is None
+    assert client.get(f"{eve}/lorebooks").json() == []
+
+
+def test_detaching_a_cards_only_lorebook_leaves_it_with_none(client, archive_dirs):
+    people = _by_name(client)["People"]["id"]
+    client.delete(f"/api/v1/characters/Dana_dddddddd.png/lorebooks/{people}")
+    assert client.post("/api/v1/lorebooks/sync", json={}).json()["detached"] == 1
+    assert _book_on(archive_dirs, "Dana_dddddddd.png") is None
+    assert _by_name(client)["People"]["card_count"] == 1
+
+
+def test_attach_refuses_unknown_cards_and_lorebooks(client):
+    people = _by_name(client)["People"]["id"]
+    assert client.put(f"/api/v1/characters/Nobody.png/lorebooks/{people}").status_code == 404
+    assert client.put("/api/v1/characters/Eve_eeeeeeee.png/lorebooks/nope").status_code == 404
+
+
+def test_sync_follows_the_cards_own_entry_when_the_same_text_sits_on_two_lines(client, archive_dirs):
+    # Zoe's copy of World has the old Town text under another title: by title a
+    # different entry, by content the very version Abbie and Bea are behind on.
+    hamlet = [_entry("Zzz Hamlet", "A small town."), _entry("River", "A river.")]
+    (archive_dirs["characters"] / "Zoe_22222222.png").write_bytes(
+        card_png(
+            "Zoe",
+            extensions=jai_extensions("22222222-0000", gallery_id="222222220000"),
+            envelope_extra={"create_date": "2026-01-15T00:00:00Z"},
+            character_book=_jai_book("Zoe", ("w", "World", hamlet)),
+        )
+    )
+    from proxy.api.v1 import _shared
+
+    _shared.index().refresh(force=True)
+    world = _by_name(client)["World"]
+    client.post(f"/api/v1/lorebooks/{world['id']}/choose-newest")
+
+    result = client.post("/api/v1/lorebooks/sync", json={}).json()
+    assert (result["synced"], result["upgraded"], result["failed"]) == (2, 2, [])
+    assert _texts(_book_on(archive_dirs, "Abbie_aaaaaaaa.png"))[0] == ("Town", "A small town, now with a market.")
+    # Zoe's entry is its own line with one version, and is left alone.
+    assert _texts(_book_on(archive_dirs, "Zoe_22222222.png"))[0] == ("Zzz Hamlet", "A small town.")
+    assert _by_name(client)["World"]["pending_cards"] == 0
+
+
+def test_a_card_holding_old_and_new_of_one_entry_keeps_only_the_chosen(client, archive_dirs):
+    # Hal's copy had the new Town appended without the old one being removed.
+    both = [*WORLD_V1, _entry("Town", "A small town, now with a market.")]
+    (archive_dirs["characters"] / "Hal_33333333.png").write_bytes(
+        card_png(
+            "Hal",
+            extensions=jai_extensions("33333333-0000", gallery_id="333333330000"),
+            envelope_extra={"create_date": "2026-01-20T00:00:00Z"},
+            character_book=_jai_book("Hal", ("w", "World", both)),
+        )
+    )
+    from proxy.api.v1 import _shared
+
+    _shared.index().refresh(force=True)
+    client.post(f"/api/v1/lorebooks/{_by_name(client)['World']['id']}/choose-newest")
+
+    plan = {c["card"]["name"]: (c["upgrades"], c["duplicates"]) for c in client.get("/api/v1/lorebooks/sync").json()["cards"]}
+    assert plan == {"Abbie": (1, 0), "Bea": (1, 0), "Hal": (0, 1)}
+    result = client.post("/api/v1/lorebooks/sync", json={}).json()
+    assert (result["synced"], result["upgraded"], result["removed"]) == (3, 2, 1)
+    assert _texts(_book_on(archive_dirs, "Hal_33333333.png")) == [
+        ("River", "A river."),
+        ("Town", "A small town, now with a market."),
+    ]

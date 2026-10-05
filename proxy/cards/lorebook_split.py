@@ -21,6 +21,11 @@ How much can be recovered depends on what the importer stamped:
   by the linked project's path when there is one.
 * **Everything else** (saucepan, hand-dropped PNGs) -- one part, no provider id.
   It is still deduplicated, but only against books with identical entries.
+* **A synced book** -- `proxy.cards.lorebook_sync` stamps `extensions.jai_lorebooks`
+  on every book it writes: the same tiling `jai_sources` gives a JanitorAI
+  book, for any source, carrying each part's identity explicitly. It is read
+  first, and it is what lets a card hold a lorebook attached by hand and still
+  be taken apart again.
 """
 
 from __future__ import annotations
@@ -90,6 +95,24 @@ class BookPart:
     comment_prefix: str = ""
 
 
+@dataclass(frozen=True, slots=True)
+class Segment:
+    """A run of a card's book belonging to one source lorebook, *before* the
+    unusable entries are dropped. `split_book` reads through these; the sync
+    rewrites through them, because a stamp's counts tile the raw entry list and
+    a rewrite has to put back everything it did not mean to change."""
+
+    title: str
+    kind: str
+    refs: tuple[str, ...]
+    entries: tuple[Any, ...]
+    comment_prefix: str = ""
+
+
+# Where a synced book records the lorebooks it holds -- see the module docstring.
+STAMP_KEY = "jai_lorebooks"
+
+
 def _entries(book: dict[str, Any]) -> list[Any]:
     entries = book.get("entries")
     # SillyTavern's own world-info files key entries by index; a card that
@@ -99,7 +122,10 @@ def _entries(book: dict[str, Any]) -> list[Any]:
     return entries if isinstance(entries, list) else []
 
 
-def _usable(entries: list[Any]) -> tuple[dict[str, Any], ...]:
+def usable(entries: list[Any] | tuple[Any, ...]) -> tuple[dict[str, Any], ...]:
+    """The entries that are entries: an object with text or something to
+    trigger on. Cards carry the odd empty row, and it is nobody's version of
+    anything."""
     return tuple(
         e
         for e in entries
@@ -107,41 +133,70 @@ def _usable(entries: list[Any]) -> tuple[dict[str, Any], ...]:
     )
 
 
-def _jai_parts(book: dict[str, Any], entries: list[Any]) -> list[BookPart] | None:
+def _tiles(counts: list[Any], entries: list[Any]) -> bool:
+    """Whether stamped per-part entry counts account for `entries` exactly.
+
+    A split is only trusted when they do. A book edited since (an entry deleted
+    in a console and the card re-adopted) no longer tiles, and guessing the
+    seams would mis-attribute entries -- it falls back to one unidentified part
+    instead."""
+    if not all(isinstance(c, int) and not isinstance(c, bool) and c >= 0 for c in counts):
+        return False
+    return sum(counts) == len(entries)
+
+
+def _stamped_segments(book: dict[str, Any], entries: list[Any]) -> list[Segment] | None:
+    extensions = book.get("extensions")
+    stamps = extensions.get(STAMP_KEY) if isinstance(extensions, dict) else None
+    if not isinstance(stamps, list) or not stamps or not all(isinstance(s, dict) for s in stamps):
+        return None
+    counts = [s.get("entry_count") for s in stamps]
+    if not _tiles(counts, entries):
+        return None
+    segments: list[Segment] = []
+    start = 0
+    for stamp, count in zip(stamps, counts):
+        refs = stamp.get("refs")
+        segments.append(
+            Segment(
+                title=stamp["title"].strip() if isinstance(stamp.get("title"), str) else "",
+                kind=stamp["kind"] if isinstance(stamp.get("kind"), str) and stamp["kind"] else "embedded",
+                refs=tuple(r for r in refs if isinstance(r, str) and r) if isinstance(refs, list) else (),
+                entries=tuple(entries[start : start + count]),
+                comment_prefix=stamp["prefix"] if isinstance(stamp.get("prefix"), str) else "",
+            )
+        )
+        start += count
+    return segments
+
+
+def _jai_segments(book: dict[str, Any], entries: list[Any]) -> list[Segment] | None:
     extensions = book.get("extensions")
     sources = extensions.get("jai_sources") if isinstance(extensions, dict) else None
     if not isinstance(sources, list) or not sources:
         return None
     counts = [s.get("entry_count") if isinstance(s, dict) else None for s in sources]
-    # The split is only trusted when the stamped counts tile the entries
-    # exactly. A book edited since (an entry deleted in a console and the card
-    # re-adopted) no longer does, and guessing the seams would mis-attribute
-    # entries -- it falls back to one unidentified part instead.
-    if not all(isinstance(c, int) and not isinstance(c, bool) and c >= 0 for c in counts):
-        return None
-    if sum(counts) != len(entries):
+    if not _tiles(counts, entries):
         return None
 
     multi = len(sources) > 1
-    parts: list[BookPart] = []
+    segments: list[Segment] = []
     start = 0
     for source, count in zip(sources, counts):
-        chunk = _usable(entries[start : start + count])
+        chunk = entries[start : start + count]
         start += count
-        if not chunk:
-            continue
         title = source.get("title") if isinstance(source.get("title"), str) else ""
         script_id = source.get("id") if isinstance(source.get("id"), str) else ""
-        parts.append(
-            BookPart(
+        segments.append(
+            Segment(
                 title=title.strip(),
                 kind="janitor",
                 refs=(f"jai:{script_id}",) if script_id else (),
-                entries=chunk,
+                entries=tuple(chunk),
                 comment_prefix=f"[{title}] " if multi and title else "",
             )
         )
-    return parts
+    return segments
 
 
 def _chub_path(value: Any) -> str:
@@ -179,22 +234,38 @@ def _chub_refs(book: dict[str, Any], card_extensions: dict[str, Any], entries: t
     return tuple(dict.fromkeys(f"chub:{p}" for p in paths if p))
 
 
-def split_book(book: Any, card_extensions: dict[str, Any] | None = None) -> list[BookPart]:
-    """The lorebooks a card's `character_book` was assembled from, in entry
-    order. Empty when the card has no usable lore."""
+def segments(book: Any, card_extensions: dict[str, Any] | None = None) -> list[Segment]:
+    """A card's `character_book` cut along its source lorebooks, every raw
+    entry accounted for. Empty when there is no book or it has no entries."""
     if not isinstance(book, dict):
         return []
     raw = _entries(book)
     if not raw:
         return []
-
-    jai = _jai_parts(book, raw)
-    if jai is not None:
-        return jai
-
-    entries = _usable(raw)
-    if not entries:
-        return []
+    found = _stamped_segments(book, raw)
+    if found is None:
+        found = _jai_segments(book, raw)
+    if found is not None:
+        return found
     name = book.get("name") if isinstance(book.get("name"), str) else ""
-    refs = _chub_refs(book, card_extensions or {}, entries)
-    return [BookPart(title=name.strip(), kind="chub" if refs else "embedded", refs=refs, entries=entries)]
+    refs = _chub_refs(book, card_extensions or {}, usable(raw))
+    return [Segment(title=name.strip(), kind="chub" if refs else "embedded", refs=refs, entries=tuple(raw))]
+
+
+def split_book(book: Any, card_extensions: dict[str, Any] | None = None) -> list[BookPart]:
+    """The lorebooks a card's `character_book` was assembled from, in entry
+    order. Empty when the card has no usable lore."""
+    parts: list[BookPart] = []
+    for segment in segments(book, card_extensions):
+        entries = usable(segment.entries)
+        if entries:
+            parts.append(
+                BookPart(
+                    title=segment.title,
+                    kind=segment.kind,
+                    refs=segment.refs,
+                    entries=entries,
+                    comment_prefix=segment.comment_prefix,
+                )
+            )
+    return parts

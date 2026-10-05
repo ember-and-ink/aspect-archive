@@ -861,7 +861,9 @@ class LorebookOut(BaseModel):
     changed_entries: int = Field(description="Entries with more than one version across the copies.")
     similar_count: int = Field(description="Other lorebooks sharing entries with this one -- merge candidates.")
     unresolved_entries: int = Field(description="Changed entries with no version chosen yet.")
-    pending_cards: int = Field(description="Cards holding a version other than the chosen one -- what a sync would rewrite.")
+    pending_cards: int = Field(
+        description="Cards a sync would rewrite for this lorebook: those holding a version other than the chosen one, and those it is waiting to be attached to or detached from."
+    )
     chars: int
 
 
@@ -934,6 +936,12 @@ class LorebookDetailOut(LorebookOut):
     entries: list[LorebookEntryOut]
     similar: list[LorebookSimilarOut]
     merges: list[LorebookMergeOut] = Field(description="Manual merges that make up this lorebook.")
+    attaching: list[LorebookCardOut] = Field(
+        default_factory=list, description="Cards this lorebook will be attached to at the next sync."
+    )
+    detaching: list[LorebookCardOut] = Field(
+        default_factory=list, description="Cards this lorebook will be taken off at the next sync."
+    )
 
 
 class LorebookEntryCandidateOut(BaseModel):
@@ -993,7 +1001,8 @@ class LorebookEntriesOut(BaseModel):
 
 
 class CardLorebookOut(BaseModel):
-    """One of the lorebooks a card's embedded book was assembled from."""
+    """One of the lorebooks a card's embedded book was assembled from -- or one
+    waiting to be attached to it."""
 
     lorebook_id: str
     name: str
@@ -1003,3 +1012,58 @@ class CardLorebookOut(BaseModel):
     revision: str = Field(description="Fingerprint of the copy this card holds.")
     is_newest: bool = Field(description="Whether that copy is the lorebook's newest revision.")
     revision_count: int
+    state: Literal["attached", "attaching", "detaching"] = Field(
+        default="attached",
+        description="`attaching`: not on the card yet, will be after a sync. `detaching`: on the card, will be removed by one.",
+    )
+    pending_upgrades: int = Field(
+        default=0, description="Entries of this copy a sync would replace with their chosen version."
+    )
+
+
+class LorebookSyncCardOut(BaseModel):
+    """What a sync would do to one card."""
+
+    card: LorebookCardOut
+    upgrades: int = Field(description="Entries that would be replaced by their chosen version.")
+    duplicates: int = Field(
+        default=0,
+        description="Entries that would be removed: the card holds the chosen version already, beside this stale one.",
+    )
+    attach: list[str] = Field(description="Names of the lorebooks that would be attached.")
+    detach: list[str] = Field(description="Names of the lorebooks that would be detached.")
+    has_original: bool = Field(description="Whether this card's original lorebook is already saved from an earlier sync.")
+
+
+class LorebookSyncPlanOut(BaseModel):
+    cards: list[LorebookSyncCardOut]
+
+
+class LorebookSyncIn(BaseModel):
+    lorebook: str = Field(default="", description="Only this lorebook's changes. Empty for every lorebook.")
+    cards: list[str] = Field(default_factory=list, description="Only these cards. Empty for every card.")
+
+
+class LorebookSyncFailureOut(BaseModel):
+    id: str
+    name: str
+    error: str
+
+
+class LorebookSyncOut(BaseModel):
+    synced: int = Field(description="Cards rewritten.")
+    upgraded: int = Field(description="Entries replaced by their chosen version, across those cards.")
+    removed: int = Field(default=0, description="Stale entries dropped from cards that already held the chosen version.")
+    attached: int
+    detached: int
+    originals_saved: int = Field(description="Cards whose original lorebook was saved by this sync, being their first.")
+    failed: list[LorebookSyncFailureOut] = Field(default_factory=list)
+
+
+class LorebookOriginalOut(BaseModel):
+    """The lorebook a card had before its first sync."""
+
+    exists: bool
+    taken_at: str = ""
+    entry_count: int = 0
+    differs: bool = Field(default=False, description="Whether the card's lorebook is no longer its original.")

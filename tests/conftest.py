@@ -137,6 +137,9 @@ def archive_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, P
     # real file holds judgements nothing else on disk can reproduce.
     dirs["lorebook_decisions"] = tmp_path / "lorebooks.json"
     monkeypatch.setattr(settings, "lorebook_decisions_file", dirs["lorebook_decisions"])
+    # And the snapshots a lorebook sync takes before it rewrites a card.
+    dirs["lorebook_snapshots"] = tmp_path / "lorebook_snapshots"
+    monkeypatch.setattr(settings, "lorebook_snapshots_dir", dirs["lorebook_snapshots"])
     # The index and the thumbnail store are process-wide singletons bound at
     # import time; both have to be re-pointed or a test reads the real 3 GB
     # archive on the developer's machine and passes for the wrong reason.

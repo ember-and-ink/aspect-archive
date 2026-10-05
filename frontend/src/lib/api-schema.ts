@@ -1315,6 +1315,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/lorebooks/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a sync would do: every card it would rewrite, and how */
+        get: operations["sync_plan_api_v1_lorebooks_sync_get"];
+        put?: never;
+        /**
+         * Write the stored decisions onto the cards
+         * @description Rewrite each pending card's embedded lorebook in place: chosen versions
+         *     replace the ones it holds, lorebooks waiting to be attached are appended,
+         *     those waiting to be detached are removed. A card holding both a stale
+         *     version of an entry and the chosen one keeps only the chosen one.
+         *
+         *     The first time a card is rewritten its lorebook is saved as it was
+         *     (`proxy.state.lorebook_snapshots`), and `.../lorebook-original/restore`
+         *     puts it back. Nothing but the card's embedded book changes -- its pixels
+         *     are byte-identical afterwards, like any other field edit.
+         */
+        post: operations["sync_api_v1_lorebooks_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/lorebooks/entries": {
         parameters: {
             query?: never;
@@ -1484,6 +1513,62 @@ export interface paths {
         get: operations["card_lorebooks_api_v1_characters__card_id__lorebooks_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/characters/{card_id}/lorebooks/{lorebook_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Attach a lorebook to a card at the next sync */
+        put: operations["attach_lorebook_api_v1_characters__card_id__lorebooks__lorebook_id__put"];
+        post?: never;
+        /** Detach a lorebook from a card at the next sync */
+        delete: operations["detach_lorebook_api_v1_characters__card_id__lorebooks__lorebook_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/characters/{card_id}/lorebook-original": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The lorebook a card had before its first sync, if a sync has rewritten it */
+        get: operations["lorebook_original_api_v1_characters__card_id__lorebook_original_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/characters/{card_id}/lorebook-original/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put back the lorebook a card had before its first sync
+         * @description Undo every sync of this card at once. Decisions are left alone, so a
+         *     card restored while a chosen version still stands is simply pending again.
+         */
+        post: operations["restore_lorebook_original_api_v1_characters__card_id__lorebook_original_restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2314,7 +2399,8 @@ export interface components {
         };
         /**
          * CardLorebookOut
-         * @description One of the lorebooks a card's embedded book was assembled from.
+         * @description One of the lorebooks a card's embedded book was assembled from -- or one
+         *     waiting to be attached to it.
          */
         CardLorebookOut: {
             /** Lorebook Id */
@@ -2342,6 +2428,19 @@ export interface components {
             is_newest: boolean;
             /** Revision Count */
             revision_count: number;
+            /**
+             * State
+             * @description `attaching`: not on the card yet, will be after a sync. `detaching`: on the card, will be removed by one.
+             * @default attached
+             * @enum {string}
+             */
+            state: "attached" | "attaching" | "detaching";
+            /**
+             * Pending Upgrades
+             * @description Entries of this copy a sync would replace with their chosen version.
+             * @default 0
+             */
+            pending_upgrades: number;
         };
         /**
          * CardOut
@@ -3166,7 +3265,7 @@ export interface components {
             unresolved_entries: number;
             /**
              * Pending Cards
-             * @description Cards holding a version other than the chosen one -- what a sync would rewrite.
+             * @description Cards a sync would rewrite for this lorebook: those holding a version other than the chosen one, and those it is waiting to be attached to or detached from.
              */
             pending_cards: number;
             /** Chars */
@@ -3182,6 +3281,16 @@ export interface components {
              * @description Manual merges that make up this lorebook.
              */
             merges: components["schemas"]["LorebookMergeOut"][];
+            /**
+             * Attaching
+             * @description Cards this lorebook will be attached to at the next sync.
+             */
+            attaching?: components["schemas"]["LorebookCardOut"][];
+            /**
+             * Detaching
+             * @description Cards this lorebook will be taken off at the next sync.
+             */
+            detaching?: components["schemas"]["LorebookCardOut"][];
         };
         /** LorebookEntriesOut */
         LorebookEntriesOut: {
@@ -3341,6 +3450,30 @@ export interface components {
             at: string;
         };
         /**
+         * LorebookOriginalOut
+         * @description The lorebook a card had before its first sync.
+         */
+        LorebookOriginalOut: {
+            /** Exists */
+            exists: boolean;
+            /**
+             * Taken At
+             * @default
+             */
+            taken_at: string;
+            /**
+             * Entry Count
+             * @default 0
+             */
+            entry_count: number;
+            /**
+             * Differs
+             * @description Whether the card's lorebook is no longer its original.
+             * @default false
+             */
+            differs: boolean;
+        };
+        /**
          * LorebookOut
          * @description A lorebook as the browse list sees it: one row per distinct book,
          *     however many cards embed a copy.
@@ -3397,7 +3530,7 @@ export interface components {
             unresolved_entries: number;
             /**
              * Pending Cards
-             * @description Cards holding a version other than the chosen one -- what a sync would rewrite.
+             * @description Cards a sync would rewrite for this lorebook: those holding a version other than the chosen one, and those it is waiting to be attached to or detached from.
              */
             pending_cards: number;
             /** Chars */
@@ -3476,6 +3609,97 @@ export interface components {
             unresolved_entries: number;
             /** Pending Cards */
             pending_cards: number;
+        };
+        /**
+         * LorebookSyncCardOut
+         * @description What a sync would do to one card.
+         */
+        LorebookSyncCardOut: {
+            card: components["schemas"]["LorebookCardOut"];
+            /**
+             * Upgrades
+             * @description Entries that would be replaced by their chosen version.
+             */
+            upgrades: number;
+            /**
+             * Duplicates
+             * @description Entries that would be removed: the card holds the chosen version already, beside this stale one.
+             * @default 0
+             */
+            duplicates: number;
+            /**
+             * Attach
+             * @description Names of the lorebooks that would be attached.
+             */
+            attach: string[];
+            /**
+             * Detach
+             * @description Names of the lorebooks that would be detached.
+             */
+            detach: string[];
+            /**
+             * Has Original
+             * @description Whether this card's original lorebook is already saved from an earlier sync.
+             */
+            has_original: boolean;
+        };
+        /** LorebookSyncFailureOut */
+        LorebookSyncFailureOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Error */
+            error: string;
+        };
+        /** LorebookSyncIn */
+        LorebookSyncIn: {
+            /**
+             * Lorebook
+             * @description Only this lorebook's changes. Empty for every lorebook.
+             * @default
+             */
+            lorebook: string;
+            /**
+             * Cards
+             * @description Only these cards. Empty for every card.
+             */
+            cards?: string[];
+        };
+        /** LorebookSyncOut */
+        LorebookSyncOut: {
+            /**
+             * Synced
+             * @description Cards rewritten.
+             */
+            synced: number;
+            /**
+             * Upgraded
+             * @description Entries replaced by their chosen version, across those cards.
+             */
+            upgraded: number;
+            /**
+             * Removed
+             * @description Stale entries dropped from cards that already held the chosen version.
+             * @default 0
+             */
+            removed: number;
+            /** Attached */
+            attached: number;
+            /** Detached */
+            detached: number;
+            /**
+             * Originals Saved
+             * @description Cards whose original lorebook was saved by this sync, being their first.
+             */
+            originals_saved: number;
+            /** Failed */
+            failed?: components["schemas"]["LorebookSyncFailureOut"][];
+        };
+        /** LorebookSyncPlanOut */
+        LorebookSyncPlanOut: {
+            /** Cards */
+            cards: components["schemas"]["LorebookSyncCardOut"][];
         };
         /** LorebooksOut */
         LorebooksOut: {
@@ -5998,6 +6222,71 @@ export interface operations {
             };
         };
     };
+    sync_plan_api_v1_lorebooks_sync_get: {
+        parameters: {
+            query?: {
+                /** @description Only this lorebook's changes. */
+                lorebook?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LorebookSyncPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_api_v1_lorebooks_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LorebookSyncIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LorebookSyncOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_entries_api_v1_lorebooks_entries_get: {
         parameters: {
             query?: {
@@ -6344,6 +6633,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CardLorebookOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attach_lorebook_api_v1_characters__card_id__lorebooks__lorebook_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+                lorebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardLorebookOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detach_lorebook_api_v1_characters__card_id__lorebooks__lorebook_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+                lorebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardLorebookOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lorebook_original_api_v1_characters__card_id__lorebook_original_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LorebookOriginalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_lorebook_original_api_v1_characters__card_id__lorebook_original_restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LorebookOriginalOut"];
                 };
             };
             /** @description Validation Error */

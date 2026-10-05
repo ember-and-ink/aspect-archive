@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router'
 import {
   ActionButton,
@@ -10,11 +11,14 @@ import {
   Pill,
   SearchField,
 } from '@/components/lorebooks/parts'
+import { SyncButton } from '@/components/lorebooks/sync'
 import {
+  type LorebookCard,
   useLorebook,
   useLorebookActions,
   useLorebooks,
 } from '@/hooks/use-lorebooks'
+import { apiClient, unwrap } from '@/lib/api-client'
 import { toast } from '@/lib/toast'
 
 const RELATION = {
@@ -28,8 +32,10 @@ type Show = 'all' | 'changed' | 'undecided'
 /**
  * One lorebook (`/lore/:id`): the revisions its cards hold, its entries
  * (undecided ones first), and the lorebooks it shares entries with -- plus the
- * two decisions made at this level: merging another lorebook into this one,
- * and accepting the newest version of every undecided entry at once.
+ * decisions made at this level: merging another lorebook into this one,
+ * accepting the newest version of every undecided entry at once, and attaching
+ * it to a card or detaching it from one. Sync, scoped to this lorebook, is what
+ * writes any of that to the cards.
  */
 export function LorebookDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
@@ -39,6 +45,11 @@ export function LorebookDetailPage() {
   const [show, setShow] = useState<Show>('all')
   const book = query.data
   const onError = (error: Error) => toast(error.message, 'bad')
+  const attaching = actions.attach.isPending || actions.detach.isPending
+  const attach = (card: LorebookCard) =>
+    actions.attach.mutate({ card: card.id, lorebook: id }, { onError })
+  const detach = (card: LorebookCard) =>
+    actions.detach.mutate({ card: card.id, lorebook: id }, { onError })
 
   const merge = (other: string) =>
     actions.mergeLorebooks.mutate(
@@ -95,9 +106,10 @@ export function LorebookDetailPage() {
                 <span className="text-muted">
                   {book.unresolved_entries > 0
                     ? 'Cards carrying this lorebook disagree on these entries.'
-                    : 'Every entry is decided. Nothing is written to a card until a sync.'}
+                    : 'Nothing is written to a card until a sync.'}
                 </span>
                 <span className="flex-1" />
+                <SyncButton count={book.pending_cards} lorebook={book.id} />
                 {book.unresolved_entries > 0 && (
                   <ActionButton
                     tone="sage"
@@ -145,10 +157,65 @@ export function LorebookDetailPage() {
                       </span>
                     )}
                   </div>
-                  <CardStrip cards={revision.cards} />
+                  <CardStrip
+                    cards={revision.cards.filter(
+                      (card) => !book.detaching.some((d) => d.id === card.id),
+                    )}
+                    action={{
+                      label: 'Detach',
+                      disabled: attaching,
+                      run: detach,
+                    }}
+                  />
                 </div>
               ))}
             </div>
+
+            {(book.attaching.length > 0 || book.detaching.length > 0) && (
+              <div className="mt-2.5 space-y-2.5 rounded-[15px] border border-line-soft bg-surface px-4 py-3">
+                {book.attaching.length > 0 && (
+                  <div>
+                    <div className="mb-2 text-[12.5px] text-muted">
+                      Attach on the next sync
+                    </div>
+                    <CardStrip
+                      cards={book.attaching}
+                      action={{
+                        label: 'Undo',
+                        disabled: attaching,
+                        run: detach,
+                      }}
+                    />
+                  </div>
+                )}
+                {book.detaching.length > 0 && (
+                  <div>
+                    <div className="mb-2 text-[12.5px] text-muted">
+                      Detach on the next sync
+                    </div>
+                    <CardStrip
+                      cards={book.detaching}
+                      action={{
+                        label: 'Undo',
+                        disabled: attaching,
+                        run: attach,
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <CardPicker
+              exclude={[
+                ...book.revisions.flatMap((r) => r.cards.map((c) => c.id)),
+                ...book.attaching.map((c) => c.id),
+              ]}
+              disabled={attaching}
+              onAttach={(card) =>
+                actions.attach.mutate({ card, lorebook: id }, { onError })
+              }
+            />
 
             {book.similar.length > 0 && (
               <>
@@ -349,6 +416,92 @@ function MergePicker({
       ))}
       {needle && matches.length === 0 && all.data && (
         <p className="mt-2 text-[12.5px] text-faint">No lorebooks match.</p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Attach this lorebook to a card that does not carry it, found by name. A
+ * decision like the others: the card is rewritten at the next sync.
+ */
+function CardPicker({
+  exclude,
+  disabled,
+  onAttach,
+}: {
+  exclude: string[]
+  disabled: boolean
+  onAttach: (card: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const needle = search.trim()
+  const found = useQuery({
+    queryKey: ['characters', 'lorebook-attach', needle],
+    enabled: open && needle.length > 1,
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/api/v1/characters', {
+          params: { query: { q: needle, scope: 'name', limit: 12 } },
+        }),
+        'could not search the archive',
+      ),
+  })
+  const matches = (found.data?.items ?? [])
+    .filter((card) => !exclude.includes(card.id))
+    .slice(0, 8)
+
+  if (!open)
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-3 block text-[12.5px] text-faint hover:text-text"
+      >
+        Attach this lorebook to a card…
+      </button>
+    )
+
+  return (
+    <div className="mt-3 rounded-[15px] border border-line-soft bg-surface px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Find a card by name"
+        />
+        <span className="text-[12.5px] text-faint">
+          The card takes every entry, each in its chosen or newest version, at
+          the next sync.
+        </span>
+      </div>
+      {matches.map((card) => (
+        <div
+          key={card.id}
+          className="mt-2 flex flex-wrap items-center gap-3 text-[13.5px]"
+        >
+          <img
+            src={card.thumb_url}
+            alt=""
+            loading="lazy"
+            className="size-6 rounded-full object-cover object-top"
+          />
+          <Link
+            to={`/characters/${encodeURIComponent(card.id)}`}
+            className="hover:underline"
+          >
+            {card.name}
+          </Link>
+          <span className="text-[12.5px] text-faint">{card.creator}</span>
+          <span className="flex-1" />
+          <ActionButton disabled={disabled} onClick={() => onAttach(card.id)}>
+            Attach
+          </ActionButton>
+        </div>
+      ))}
+      {found.data && matches.length === 0 && (
+        <p className="mt-2 text-[12.5px] text-faint">No other cards match.</p>
       )}
     </div>
   )

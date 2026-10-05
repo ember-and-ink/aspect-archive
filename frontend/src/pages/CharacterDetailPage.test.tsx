@@ -67,6 +67,18 @@ const listHandler = (items = [detailCard({ id: 'Abbie_0d162f5f.png' })]) =>
     HttpResponse.json({ total: items.length, limit: 100, offset: 0, items }),
   )
 
+/** What the Lorebook tab reads beside the card: the lorebooks its book was
+ *  assembled from, and whether a sync has rewritten it. */
+const loreHandlers = (
+  books: Record<string, unknown>[] = [],
+  original: Record<string, unknown> = { exists: false },
+) => [
+  http.get('*/api/v1/characters/:id/lorebooks', () => HttpResponse.json(books)),
+  http.get('*/api/v1/characters/:id/lorebook-original', () =>
+    HttpResponse.json(original),
+  ),
+]
+
 /** The Description section's own Edit button, scoped so a click can't land on
  *  Scenario's or Personality's -- Overview shows all three now. */
 function descriptionEditButton() {
@@ -156,13 +168,56 @@ describe('CharacterDetailPage', () => {
   })
 
   it('the lorebook tab shows the entry keys', async () => {
-    server.use(detailHandler(), listHandler())
+    server.use(detailHandler(), listHandler(), ...loreHandlers())
     renderDetail('/characters/Abbie_0d162f5f.png')
     await screen.findByRole('heading', { name: 'Abbie', level: 1 })
 
     await userEvent.click(screen.getByRole('button', { name: /Lorebook/ }))
     expect(screen.getByText('the tower')).toBeInTheDocument()
     expect(screen.getByText('tall and cold')).toBeInTheDocument()
+  })
+
+  it('the lorebook tab lists the card’s lorebooks and detaches one', async () => {
+    const book = {
+      lorebook_id: 'abc123',
+      name: 'Abbie world',
+      kind: 'embedded',
+      entry_count: 1,
+      card_count: 3,
+      revision: 'f1',
+      is_newest: true,
+      revision_count: 1,
+      state: 'attached',
+      pending_upgrades: 0,
+    }
+    let detached = false
+    server.use(
+      detailHandler(),
+      listHandler(),
+      ...loreHandlers([book], {
+        exists: true,
+        taken_at: '2026-10-05T12:00:00+00:00',
+        entry_count: 4,
+        differs: true,
+      }),
+      http.delete('*/api/v1/characters/:id/lorebooks/:lorebook', () => {
+        detached = true
+        return HttpResponse.json([{ ...book, state: 'detaching' }])
+      }),
+    )
+    renderDetail('/characters/Abbie_0d162f5f.png?tab=lore')
+    await screen.findByRole('heading', { name: 'Abbie', level: 1 })
+
+    expect(
+      await screen.findByRole('link', { name: 'Abbie world' }),
+    ).toHaveAttribute('href', '/lore/abc123')
+    // A synced card offers its original back.
+    expect(
+      screen.getByRole('button', { name: 'Restore the original' }),
+    ).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Detach' }))
+    await waitFor(() => expect(detached).toBe(true))
   })
 
   it('the dialogue tab renders mes_example as a transcript, macro speaker resolved', async () => {
@@ -265,7 +320,7 @@ describe('CharacterDetailPage', () => {
 
   it('a card with no lorebook shows the empty state', async () => {
     const bare = detailCard({ card: { character_book: null } })
-    server.use(detailHandler(bare), listHandler([bare]))
+    server.use(detailHandler(bare), listHandler([bare]), ...loreHandlers())
     renderDetail('/characters/x.png')
     await screen.findByRole('heading', { name: 'Abbie', level: 1 })
 

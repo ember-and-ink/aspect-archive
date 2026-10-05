@@ -10,10 +10,15 @@ derive is judgement, and that is what lives here:
   entries (a retitled entry, say) that are versions of the same one.
 * **Chosen versions** -- for an entry with several versions, the one every card
   should end up carrying.
+* **Attachments** -- a lorebook to put on a card that does not carry it, or to
+  take off one that does.
 
-Nothing here touches a card. These are inputs to the index and, later, to the
-sync that writes chosen versions back; until that runs, recording or undoing a
-decision changes only what the Lorebooks pages show.
+Nothing here touches a card. These are inputs to the index and to the sync
+(`proxy.archive.lorebook_sync`) that writes them onto cards; until that runs,
+recording or undoing a decision changes only what the Lorebooks pages show. An
+attachment is dropped once a sync has carried it out -- the card says it from
+then on. A chosen version stays: a card acquired later with an older version
+should be offered the same upgrade.
 
 Everything is keyed on content or provider identity -- an entry version's hash,
 a lorebook's provider ref or content fingerprint -- never on the index's derived
@@ -65,6 +70,29 @@ class Merge:
         return digest("\x00".join(sorted((self.a, self.b))))[:12]
 
 
+@dataclass(frozen=True, slots=True)
+class Attachment:
+    """A lorebook to attach to a card, or detach from it, at the next sync.
+
+    The card is named by its filename -- what the rest of the API calls it --
+    with its source id alongside for the case where the file was renamed since.
+    The lorebook is named by its anchor, like a merge, and the names are kept
+    for the same reason: so the pending list can say what it means when one
+    side has gone."""
+
+    card: str
+    lorebook: str
+    op: str  # "attach" or "detach"
+    card_id: str = ""
+    at: str = ""
+    card_name: str = ""
+    lorebook_name: str = ""
+
+    @property
+    def id(self) -> str:
+        return digest("\x00".join((self.card, self.lorebook)))[:12]
+
+
 @dataclass(slots=True)
 class Decisions:
     lorebook_merges: list[Merge] = field(default_factory=list)
@@ -72,6 +100,19 @@ class Decisions:
     # Entry-version hash -> when it was chosen. Where one entry holds two
     # chosen versions (possible after a merge), the later choice stands.
     chosen: dict[str, str] = field(default_factory=dict)
+    attachments: list[Attachment] = field(default_factory=list)
+
+
+def _attachments(value: Any) -> list[Attachment]:
+    out: list[Attachment] = []
+    for row in value if isinstance(value, list) else []:
+        if not isinstance(row, dict):
+            continue
+        card, lorebook, op = row.get("card"), row.get("lorebook"), row.get("op")
+        if isinstance(card, str) and card and isinstance(lorebook, str) and lorebook and op in ("attach", "detach"):
+            extra = {k: row[k] for k in ("card_id", "at", "card_name", "lorebook_name") if isinstance(row.get(k), str)}
+            out.append(Attachment(card=card, lorebook=lorebook, op=op, **extra))
+    return out
 
 
 def _merges(value: Any) -> list[Merge]:
@@ -128,6 +169,7 @@ class DecisionsStore:
             chosen={
                 k: v for k, v in (chosen if isinstance(chosen, dict) else {}).items() if isinstance(v, str)
             },
+            attachments=_attachments(blob.get("attachments")),
         )
 
     def _write(self, decisions: Decisions) -> None:
@@ -143,6 +185,18 @@ class DecisionsStore:
                 "lorebook_merges": rows(decisions.lorebook_merges, True),
                 "entry_merges": rows(decisions.entry_merges, False),
                 "chosen": decisions.chosen,
+                "attachments": [
+                    {
+                        "card": a.card,
+                        "card_id": a.card_id,
+                        "lorebook": a.lorebook,
+                        "op": a.op,
+                        "at": a.at,
+                        "card_name": a.card_name,
+                        "lorebook_name": a.lorebook_name,
+                    }
+                    for a in decisions.attachments
+                ],
             },
             ensure_ascii=False,
             indent=1,
@@ -202,3 +256,44 @@ class DecisionsStore:
         for value in hashes:
             decisions.chosen[value] = stamp
         self._write(decisions)
+
+    def set_attachment(
+        self,
+        card: str,
+        lorebook: str,
+        op: str | None,
+        *,
+        card_id: str = "",
+        card_name: str = "",
+        lorebook_name: str = "",
+    ) -> None:
+        """Record that `lorebook` should be attached to (or detached from)
+        `card` at the next sync, replacing any earlier decision about the pair.
+        `op=None` only withdraws one."""
+        decisions = self.read()
+        attachment = Attachment(
+            card=card,
+            lorebook=lorebook,
+            op=op or "attach",
+            card_id=card_id,
+            at=_now(),
+            card_name=card_name,
+            lorebook_name=lorebook_name,
+        )
+        kept = [a for a in decisions.attachments if a.id != attachment.id]
+        if op is not None:
+            kept.append(attachment)
+        elif len(kept) == len(decisions.attachments):
+            return
+        decisions.attachments = kept
+        self._write(decisions)
+
+    def drop_attachments(self, ids: set[str]) -> None:
+        """Forget attachments a sync has carried out, or found moot."""
+        if not ids:
+            return
+        decisions = self.read()
+        kept = [a for a in decisions.attachments if a.id not in ids]
+        if len(kept) != len(decisions.attachments):
+            decisions.attachments = kept
+            self._write(decisions)

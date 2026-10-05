@@ -7,6 +7,7 @@ import {
   Pill,
   SearchField,
 } from '@/components/lorebooks/parts'
+import { SyncButton } from '@/components/lorebooks/sync'
 import { type Lorebook, useLorebooks } from '@/hooks/use-lorebooks'
 
 type Filter = 'all' | 'shared' | 'undecided' | 'pending' | 'similar'
@@ -34,7 +35,8 @@ const FILTERS: {
 /**
  * Lorebooks (`/lore`) -- every distinct lorebook in the archive, one row
  * each however many cards embed a copy. Derived server-side from the cards
- * (`proxy.archive.lorebooks`); nothing here writes.
+ * (`proxy.archive.lorebooks`). The one thing here that writes is Sync, which
+ * carries every stored decision out onto the cards after a confirmation.
  */
 export function LorebooksPage() {
   const query = useLorebooks()
@@ -84,10 +86,9 @@ export function LorebooksPage() {
             {stats.cards.toLocaleString()} cards ·{' '}
             {stats.entries_embedded.toLocaleString()} entries embedded,{' '}
             {stats.entries_unique.toLocaleString()} distinct
-            {stats.pending_cards > 0 &&
-              ` · ${stats.pending_cards.toLocaleString()} cards to sync`}
           </span>
         )}
+        {stats && <SyncButton count={stats.pending_cards} />}
       </LorebooksBar>
 
       <div className="mx-auto max-w-[1320px] px-5 pt-4 pb-24">
@@ -132,10 +133,7 @@ function LorebookRow({ book }: { book: Lorebook }) {
         )
       )}
       {book.pending_cards > 0 && (
-        <Pill
-          tone="sage"
-          title="Cards holding a version other than the chosen one"
-        >
+        <Pill tone="sage" title="Cards a sync would rewrite for this lorebook">
           {book.pending_cards} card{book.pending_cards === 1 ? '' : 's'} to sync
         </Pill>
       )}

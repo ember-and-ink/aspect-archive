@@ -50,6 +50,7 @@ import {
 import { setDialogue, setField, setGreetings } from '@/lib/card-edit'
 import { groupExpressions } from '@/lib/expressions'
 import { cn } from '@/lib/utils'
+import { CardLorebooks } from '@/components/lorebooks/CardLorebooks'
 import { CreatorNotes } from './CreatorNotes'
 import { EditActions, EditButton, useEdit } from './edit-context'
 import { InlineTextField } from './editors'
@@ -441,24 +442,38 @@ function DialogueEditor({
 
 // ---- Lorebook --------------------------------------------------------------
 
-export function LorebookPane({ card }: { card: PaneCard }) {
+/**
+ * `cardId` is given for a card in the archive and absent for a Discover
+ * preview, which is on no lorebook's books yet -- there is nothing to attach
+ * to or detach from until it has been acquired.
+ */
+export function LorebookPane({
+  card,
+  cardId,
+}: {
+  card: PaneCard
+  cardId?: string
+}) {
   const entries = loreEntries(card.card)
   const name = lorebookName(card.card)
 
-  if (entries.length === 0)
-    return (
-      <Section title={name || 'Lorebook'}>
-        <EmptyState>No lorebook on this card.</EmptyState>
-      </Section>
-    )
   return (
-    <Section title={name || 'Lorebook'} count={`${entries.length} entries`}>
-      <div className="mt-2 flex flex-col gap-2">
-        {entries.map((entry) => (
-          <LoreEntryRow key={entry.id} entry={entry} />
-        ))}
-      </div>
-    </Section>
+    <>
+      {cardId && <CardLorebooks cardId={cardId} />}
+      {entries.length === 0 ? (
+        <Section title={name || 'Lorebook'}>
+          <EmptyState>No lorebook on this card.</EmptyState>
+        </Section>
+      ) : (
+        <Section title={name || 'Lorebook'} count={`${entries.length} entries`}>
+          <div className="mt-2 flex flex-col gap-2">
+            {entries.map((entry) => (
+              <LoreEntryRow key={entry.id} entry={entry} />
+            ))}
+          </div>
+        </Section>
+      )}
+    </>
   )
 }
 

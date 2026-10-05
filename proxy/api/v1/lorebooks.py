@@ -4,11 +4,15 @@ The reads are derived from the cards by `proxy.archive.lorebooks`: which
 distinct lorebooks the archive holds, which cards carry each, where copies have
 drifted apart.
 
-The writes record *decisions* -- these two lorebooks are one, these two entries
-are one, this is the version to keep -- in `proxy.state.lorebook_decisions`.
-None of them touches a card: a decision changes what these routes report, and
-is undone by its matching DELETE. Writing chosen versions back onto cards is the
-sync, which is separate.
+Most writes record *decisions* -- these two lorebooks are one, these two entries
+are one, this is the version to keep, this lorebook belongs on that card -- in
+`proxy.state.lorebook_decisions`. None of them touches a card: a decision
+changes what these routes report, and is undone by its matching DELETE.
+
+Two routes do write cards, and only when called: `POST /lorebooks/sync` carries
+the decisions out (`proxy.archive.lorebook_sync`), saving each card's original
+lorebook first, and `POST /characters/{id}/lorebook-original/restore` puts one
+back.
 """
 
 from __future__ import annotations
@@ -26,7 +30,13 @@ from proxy.api.schemas import (
     LorebookEntryCandidateOut,
     LorebookMergeIn,
     LorebookMergeOut,
+    LorebookOriginalOut,
     LorebookRefOut,
+    LorebookSyncCardOut,
+    LorebookSyncFailureOut,
+    LorebookSyncIn,
+    LorebookSyncOut,
+    LorebookSyncPlanOut,
     LorebookCardOut,
     LorebookDetailOut,
     LorebookEntriesOut,
@@ -40,10 +50,10 @@ from proxy.api.schemas import (
     LorebookStatsOut,
 )
 from proxy.api.v1 import _shared
-from proxy.archive import catalog, lorebooks
-from proxy.cards import lorebook_split
+from proxy.archive import catalog, lorebook_sync, lorebooks
+from proxy.cards import edit, lorebook_split
 from proxy.config import settings
-from proxy.state import lorebook_decisions
+from proxy.state import lorebook_decisions, lorebook_snapshots
 
 router = APIRouter()
 
@@ -77,11 +87,22 @@ def _indexes() -> tuple[catalog.ArchiveIndex, lorebooks.LorebookIndex]:
     return idx, lorebooks.index(idx, _decisions_cache[1], key)
 
 
+def _waiting(idx: catalog.ArchiveIndex, lore: lorebooks.LorebookIndex) -> lorebook_sync.Pending:
+    """The attach/detach decisions as they stand against `idx`. Call after
+    `_indexes()`, which is what loads the decisions."""
+    decisions = _decisions_cache[1] if _decisions_cache else lorebook_decisions.Decisions()
+    return lorebook_sync.pending(idx, lore, decisions)
+
+
+def _snapshots() -> lorebook_snapshots.SnapshotStore:
+    return lorebook_snapshots.SnapshotStore(settings.lorebook_snapshots_dir)
+
+
 def _write(action: Any) -> Any:
     """Run one store mutation, turning a failed write into a 500 that says why."""
     try:
         return action()
-    except lorebook_decisions.DecisionsError as exc:
+    except (lorebook_decisions.DecisionsError, lorebook_snapshots.SnapshotError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
@@ -101,7 +122,7 @@ def _card_out(idx: catalog.ArchiveIndex, filename: str) -> LorebookCardOut:
     )
 
 
-def _book_fields(book: lorebooks.Lorebook) -> dict:
+def _book_fields(book: lorebooks.Lorebook, waiting: lorebook_sync.Pending) -> dict:
     return {
         "id": book.id,
         "name": book.name,
@@ -114,7 +135,7 @@ def _book_fields(book: lorebooks.Lorebook) -> dict:
         "changed_entries": book.changed_lines,
         "similar_count": len(book.similar),
         "unresolved_entries": book.unresolved_lines,
-        "pending_cards": len(book.pending_cards),
+        "pending_cards": len(book.pending_cards | waiting.cards_of(book.id)),
         "chars": book.chars,
     }
 
@@ -187,10 +208,12 @@ def _candidates(
 
 @router.get("/lorebooks", response_model=LorebooksOut, summary="Every distinct lorebook in the archive")
 def list_lorebooks() -> LorebooksOut:
-    _idx, lore = _indexes()
+    idx, lore = _indexes()
+    waiting = _waiting(idx, lore)
     stats = lore.stats
+    pending_cards = len({c for book in lore.lorebooks() for c in book.pending_cards} | set(waiting.by_card))
     return LorebooksOut(
-        lorebooks=[LorebookOut(**_book_fields(book)) for book in lore.lorebooks()],
+        lorebooks=[LorebookOut(**_book_fields(book, waiting)) for book in lore.lorebooks()],
         stats=LorebookStatsOut(
             cards=stats.cards,
             lorebooks=stats.lorebooks,
@@ -199,8 +222,93 @@ def list_lorebooks() -> LorebooksOut:
             entries_unique=stats.entries_unique,
             changed_entries=stats.changed_lines,
             unresolved_entries=stats.unresolved_lines,
-            pending_cards=stats.pending_cards,
+            pending_cards=pending_cards,
         ),
+    )
+
+
+def _plan_out(
+    idx: catalog.ArchiveIndex, lore: lorebooks.LorebookIndex, plans: list[lorebook_sync.CardPlan]
+) -> LorebookSyncPlanOut:
+    def names(ids: tuple[str, ...]) -> list[str]:
+        return [book.name for book_id in ids if (book := lore.get(book_id))]
+
+    cards: list[LorebookSyncCardOut] = []
+    for card in plans:
+        record = idx.get(card.filename)
+        cards.append(
+            LorebookSyncCardOut(
+                card=_card_out(idx, card.filename),
+                upgrades=card.upgrades,
+                duplicates=card.duplicates,
+                attach=names(card.attach),
+                detach=names(card.detach),
+                has_original=bool(record and lorebook_snapshots.pointer(record.extensions)),
+            )
+        )
+    return LorebookSyncPlanOut(cards=cards)
+
+
+# Registered before `/lorebooks/{lorebook_id}` so "sync" is not taken for an id.
+@router.get(
+    "/lorebooks/sync",
+    response_model=LorebookSyncPlanOut,
+    summary="What a sync would do: every card it would rewrite, and how",
+)
+def sync_plan(lorebook: str = Query("", description="Only this lorebook's changes.")) -> LorebookSyncPlanOut:
+    idx, lore = _indexes()
+    if lorebook:
+        _require_book(lore, lorebook)
+    return _plan_out(idx, lore, lorebook_sync.plan(lore, _waiting(idx, lore), lorebook_id=lorebook))
+
+
+@router.post(
+    "/lorebooks/sync",
+    response_model=LorebookSyncOut,
+    summary="Write the stored decisions onto the cards",
+)
+def sync(body: LorebookSyncIn) -> LorebookSyncOut:
+    """Rewrite each pending card's embedded lorebook in place: chosen versions
+    replace the ones it holds, lorebooks waiting to be attached are appended,
+    those waiting to be detached are removed. A card holding both a stale
+    version of an entry and the chosen one keeps only the chosen one.
+
+    The first time a card is rewritten its lorebook is saved as it was
+    (`proxy.state.lorebook_snapshots`), and `.../lorebook-original/restore`
+    puts it back. Nothing but the card's embedded book changes -- its pixels
+    are byte-identical afterwards, like any other field edit."""
+    idx, lore = _indexes()
+    if body.lorebook:
+        _require_book(lore, body.lorebook)
+    waiting = _waiting(idx, lore)
+    cards = {_shared.require(idx, card_id).filename for card_id in body.cards} if body.cards else None
+    plans = lorebook_sync.plan(lore, waiting, lorebook_id=body.lorebook, cards=cards)
+    results = _write(lambda: lorebook_sync.apply(idx, lore, plans, _snapshots()))
+
+    # An attachment is a decision until it is carried out; after that the card
+    # says it. Ones that had stopped meaning anything go with them.
+    written = {r.filename for r in results if not r.error}
+    carried_out = {
+        attachment.id
+        for filename in written
+        for attachment, book_id in waiting.by_card.get(filename, ())
+        if not body.lorebook or book_id == body.lorebook
+    }
+    _write(lambda: _store().drop_attachments(carried_out | {a.id for a in waiting.moot}))
+    catalog.index().refresh(force=True)
+
+    return LorebookSyncOut(
+        synced=len(written),
+        upgraded=sum(r.upgraded for r in results),
+        removed=sum(r.removed for r in results),
+        attached=sum(r.attached for r in results),
+        detached=sum(r.detached for r in results),
+        originals_saved=sum(1 for r in results if r.snapshot_taken),
+        failed=[
+            LorebookSyncFailureOut(id=r.filename, name=_card_out(idx, r.filename).name, error=r.error)
+            for r in results
+            if r.error
+        ],
     )
 
 
@@ -413,6 +521,7 @@ def get_lorebook(lorebook_id: str) -> LorebookDetailOut:
     book = lore.get(lorebook_id)
     if book is None:
         raise HTTPException(status_code=404, detail=f"no lorebook {lorebook_id!r}")
+    waiting = _waiting(idx, lore)
 
     similar: list[LorebookSimilarOut] = []
     for other in book.similar:
@@ -431,7 +540,7 @@ def get_lorebook(lorebook_id: str) -> LorebookDetailOut:
         )
 
     return LorebookDetailOut(
-        **_book_fields(book),
+        **_book_fields(book, waiting),
         revisions=[
             LorebookRevisionOut(
                 fingerprint=revision.fingerprint,
@@ -449,6 +558,8 @@ def get_lorebook(lorebook_id: str) -> LorebookDetailOut:
         ],
         similar=similar,
         merges=[_merge_out(m) for m in book.merges],
+        attaching=[_card_out(idx, filename) for filename in waiting.attach.get(book.id, ())],
+        detaching=[_card_out(idx, filename) for filename in waiting.detach.get(book.id, ())],
     )
 
 
@@ -460,11 +571,18 @@ def get_lorebook(lorebook_id: str) -> LorebookDetailOut:
 def card_lorebooks(card_id: str) -> list[CardLorebookOut]:
     idx, lore = _indexes()
     record = _shared.require(idx, card_id)
+    waiting = _waiting(idx, lore)
+    detaching = {book_id for a, book_id in waiting.by_card.get(record.filename, ()) if a.op == "detach"}
     out: list[CardLorebookOut] = []
     for part, lorebook_id in lore.for_card(record.filename):
         book = lore.get(lorebook_id)
         if book is None:
             continue
+        behind = sum(
+            1
+            for digest, line in zip(part.hashes, lore.part_lines(part))
+            if line is not None and line.chosen and line.chosen != digest
+        )
         out.append(
             CardLorebookOut(
                 lorebook_id=lorebook_id,
@@ -475,6 +593,118 @@ def card_lorebooks(card_id: str) -> list[CardLorebookOut]:
                 revision=part.fingerprint,
                 is_newest=book.revisions[0].fingerprint == part.fingerprint,
                 revision_count=len(book.revisions),
+                state="detaching" if lorebook_id in detaching else "attached",
+                pending_upgrades=0 if lorebook_id in detaching else behind,
+            )
+        )
+    for attachment, lorebook_id in waiting.by_card.get(record.filename, ()):
+        book = lore.get(lorebook_id)
+        if attachment.op != "attach" or book is None:
+            continue
+        out.append(
+            CardLorebookOut(
+                lorebook_id=lorebook_id,
+                name=book.name,
+                kind=book.kinds[0] if book.kinds else "embedded",
+                entry_count=len(book.lines),
+                card_count=len(book.cards),
+                revision="",
+                is_newest=True,
+                revision_count=len(book.revisions),
+                state="attaching",
             )
         )
     return out
+
+
+def _set_attached(card_id: str, lorebook_id: str, want: bool) -> list[CardLorebookOut]:
+    """Record that a card should (or should not) carry a lorebook. Asking for
+    what the card already is withdraws any decision to the contrary -- which is
+    how a pending attach or detach is undone."""
+    idx, lore = _indexes()
+    record = _shared.require(idx, card_id)
+    book = _require_book(lore, lorebook_id)
+    waiting = _waiting(idx, lore)
+    store = _store()
+    # Whatever anchor an earlier decision about this pair was stored under.
+    earlier = {a.id for a, book_id in waiting.by_card.get(record.filename, ()) if book_id == book.id}
+    _write(lambda: store.drop_attachments(earlier))
+    if (book.id in lorebook_sync.carried(lore, record.filename)) != want:
+        _write(
+            lambda: store.set_attachment(
+                record.filename,
+                book.anchor,
+                "attach" if want else "detach",
+                card_id=record.card_id,
+                card_name=record.name,
+                lorebook_name=book.name,
+            )
+        )
+    return card_lorebooks(record.filename)
+
+
+@router.put(
+    "/characters/{card_id}/lorebooks/{lorebook_id}",
+    response_model=list[CardLorebookOut],
+    summary="Attach a lorebook to a card at the next sync",
+)
+def attach_lorebook(card_id: str, lorebook_id: str) -> list[CardLorebookOut]:
+    return _set_attached(card_id, lorebook_id, True)
+
+
+@router.delete(
+    "/characters/{card_id}/lorebooks/{lorebook_id}",
+    response_model=list[CardLorebookOut],
+    summary="Detach a lorebook from a card at the next sync",
+)
+def detach_lorebook(card_id: str, lorebook_id: str) -> list[CardLorebookOut]:
+    return _set_attached(card_id, lorebook_id, False)
+
+
+def _entry_count(book: Any) -> int:
+    return sum(len(lorebook_split.usable(s.entries)) for s in lorebook_split.segments(book))
+
+
+@router.get(
+    "/characters/{card_id}/lorebook-original",
+    response_model=LorebookOriginalOut,
+    summary="The lorebook a card had before its first sync, if a sync has rewritten it",
+)
+def lorebook_original(card_id: str) -> LorebookOriginalOut:
+    idx = _shared.index()
+    record = _shared.require(idx, card_id)
+    token = lorebook_snapshots.pointer(record.extensions)
+    snapshot = _write(lambda: _snapshots().get(token))
+    if snapshot is None:
+        return LorebookOriginalOut(exists=False)
+    try:
+        _outer, data = edit.read_card(idx.root / record.filename)
+    except edit.WriteError as exc:
+        raise _shared.write_error(exc) from exc
+    current = data.get("character_book")
+    return LorebookOriginalOut(
+        exists=True,
+        taken_at=snapshot.taken_at,
+        entry_count=_entry_count(snapshot.book),
+        differs=(current if isinstance(current, dict) else None) != snapshot.book,
+    )
+
+
+@router.post(
+    "/characters/{card_id}/lorebook-original/restore",
+    response_model=LorebookOriginalOut,
+    summary="Put back the lorebook a card had before its first sync",
+)
+def restore_lorebook_original(card_id: str) -> LorebookOriginalOut:
+    """Undo every sync of this card at once. Decisions are left alone, so a
+    card restored while a chosen version still stands is simply pending again."""
+    idx = _shared.index()
+    record = _shared.require(idx, card_id)
+    try:
+        restored = _write(lambda: lorebook_sync.restore(idx, record.filename, _snapshots()))
+    except edit.WriteError as exc:
+        raise _shared.write_error(exc) from exc
+    if not restored:
+        raise HTTPException(status_code=404, detail="this card's lorebook has never been synced")
+    catalog.index().refresh(force=True)
+    return lorebook_original(record.filename)

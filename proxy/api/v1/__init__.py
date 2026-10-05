@@ -36,5 +36,5 @@ router.include_router(userscripts.router)
 router.include_router(discover.router)
 # Same-creator duplicate detection (Tools -> Duplicates).
 router.include_router(duplicates.router)
-# Lorebooks as entities, derived from the cards (read-only).
+# Lorebooks as entities, derived from the cards; its sync route writes them.
 router.include_router(lorebooks.router)

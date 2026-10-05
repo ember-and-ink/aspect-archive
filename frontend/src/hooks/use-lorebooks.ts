@@ -13,6 +13,9 @@ export type LorebookEntry = components['schemas']['LorebookEntryOut']
 export type LorebookEntryDetail =
   components['schemas']['LorebookEntryDetailOut']
 export type LorebookCard = components['schemas']['LorebookCardOut']
+export type CardLorebook = components['schemas']['CardLorebookOut']
+export type SyncPlanCard = components['schemas']['LorebookSyncCardOut']
+export type SyncResult = components['schemas']['LorebookSyncOut']
 
 /** Every distinct lorebook, whole. A few hundred rows even on the full
  *  archive, so filtering and sorting happen client-side over one response. */
@@ -74,15 +77,72 @@ export function useLorebookEntry(id: string) {
   })
 }
 
-const FAMILY = ['lorebooks', 'lorebook', 'lorebook-entries', 'lorebook-entry']
+/** What a sync would do, card by card. `lorebook` scopes it to one lorebook's
+ *  changes; empty is everything. Fetched only while something is showing it. */
+export function useSyncPlan(lorebook: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['lorebook-sync', lorebook],
+    enabled,
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/api/v1/lorebooks/sync', {
+          params: { query: lorebook ? { lorebook } : {} },
+        }),
+        'could not work out the sync',
+      ),
+  })
+}
 
-function useAction<A, R>(run: (args: A) => Promise<R>) {
+/** The lorebooks on one card, plus any waiting to be attached to it. */
+export function useCardLorebooks(card: string) {
+  return useQuery({
+    queryKey: ['card-lorebooks', card],
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/api/v1/characters/{card_id}/lorebooks', {
+          params: { path: { card_id: card } },
+        }),
+        'could not read the card’s lorebooks',
+      ),
+  })
+}
+
+/** Whether a sync has rewritten this card's lorebook, and can be undone. */
+export function useLorebookOriginal(card: string) {
+  return useQuery({
+    queryKey: ['lorebook-original', card],
+    queryFn: () =>
+      unwrap(
+        apiClient.GET('/api/v1/characters/{card_id}/lorebook-original', {
+          params: { path: { card_id: card } },
+        }),
+        'could not check for the original lorebook',
+      ),
+  })
+}
+
+const FAMILY = [
+  'lorebooks',
+  'lorebook',
+  'lorebook-entries',
+  'lorebook-entry',
+  'lorebook-sync',
+  'card-lorebooks',
+  'lorebook-original',
+]
+/** What else goes stale when an action rewrites cards rather than recording a
+ *  decision: the cards themselves. */
+const CARDS = ['character', 'characters']
+
+function useAction<A, R>(run: (args: A) => Promise<R>, writesCards = false) {
   const client = useQueryClient()
   return useMutation<R, Error, A>({
     mutationFn: run,
     onSuccess: () =>
       Promise.all(
-        FAMILY.map((key) => client.invalidateQueries({ queryKey: [key] })),
+        [...FAMILY, ...(writesCards ? CARDS : [])].map((key) =>
+          client.invalidateQueries({ queryKey: [key] }),
+        ),
       ),
   })
 }
@@ -96,12 +156,14 @@ async function done(call: Promise<{ response: Response }>, what: string) {
 
 /**
  * The lorebook decisions: choose a version, merge two entries or two
- * lorebooks, and the undo of each.
+ * lorebooks, attach a lorebook to a card or detach it, and the undo of each.
  *
- * None of them writes to a card -- they are recorded server-side
+ * None of those writes to a card -- they are recorded server-side
  * (`data/lorebooks.json`) and change what these pages report. Every one moves
  * counts on every lorebook view at once (a merge even changes ids), so they
  * all invalidate the whole family rather than patching caches.
+ *
+ * `sync` and `restoreOriginal` are the two that do rewrite cards.
  */
 export function useLorebookActions() {
   return {
@@ -165,6 +227,51 @@ export function useLorebookActions() {
         }),
         'could not undo the merge',
       ),
+    ),
+    /** Also how a pending detach is withdrawn. */
+    attach: useAction(
+      ({ card, lorebook }: { card: string; lorebook: string }) =>
+        unwrap(
+          apiClient.PUT(
+            '/api/v1/characters/{card_id}/lorebooks/{lorebook_id}',
+            {
+              params: { path: { card_id: card, lorebook_id: lorebook } },
+            },
+          ),
+          'could not attach the lorebook',
+        ),
+    ),
+    /** Also how a pending attach is withdrawn. */
+    detach: useAction(
+      ({ card, lorebook }: { card: string; lorebook: string }) =>
+        unwrap(
+          apiClient.DELETE(
+            '/api/v1/characters/{card_id}/lorebooks/{lorebook_id}',
+            { params: { path: { card_id: card, lorebook_id: lorebook } } },
+          ),
+          'could not detach the lorebook',
+        ),
+    ),
+    sync: useAction(
+      ({ lorebook = '' }: { lorebook?: string }) =>
+        unwrap(
+          apiClient.POST('/api/v1/lorebooks/sync', {
+            body: { lorebook, cards: [] },
+          }),
+          'could not sync the lorebooks',
+        ),
+      true,
+    ),
+    restoreOriginal: useAction(
+      (card: string) =>
+        unwrap(
+          apiClient.POST(
+            '/api/v1/characters/{card_id}/lorebook-original/restore',
+            { params: { path: { card_id: card } } },
+          ),
+          'could not restore the original lorebook',
+        ),
+      true,
     ),
   }
 }

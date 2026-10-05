@@ -116,25 +116,54 @@ export function SearchField({
   )
 }
 
-/** Small avatar tiles linking to the cards that carry something. */
-export function CardStrip({ cards }: { cards: LorebookCard[] }) {
+/** Small avatar tiles linking to the cards that carry something. With
+ *  `action`, each tile grows a small button beside its name -- detach, undo. */
+export function CardStrip({
+  cards,
+  action,
+}: {
+  cards: LorebookCard[]
+  action?: {
+    label: string
+    disabled?: boolean
+    run: (card: LorebookCard) => void
+  }
+}) {
   return (
     <div className="flex flex-wrap gap-2">
       {cards.map((card) => (
-        <Link
+        <span
           key={card.id}
-          to={`/characters/${encodeURIComponent(card.id)}`}
-          title={card.creator ? `${card.name} · ${card.creator}` : card.name}
-          className="flex items-center gap-2 rounded-full border border-line-soft bg-raised py-1 pr-3 pl-1 text-[12.5px] hover:border-line hover:text-text"
+          className="flex items-center rounded-full border border-line-soft bg-raised text-[12.5px] hover:border-line"
         >
-          <img
-            src={card.thumb_url}
-            alt=""
-            loading="lazy"
-            className="size-6 rounded-full object-cover object-top"
-          />
-          <span className="max-w-[160px] truncate">{card.name}</span>
-        </Link>
+          <Link
+            to={`/characters/${encodeURIComponent(card.id)}`}
+            title={card.creator ? `${card.name} · ${card.creator}` : card.name}
+            className={cn(
+              'flex items-center gap-2 py-1 pl-1 hover:text-text',
+              action ? 'pr-2' : 'pr-3',
+            )}
+          >
+            <img
+              src={card.thumb_url}
+              alt=""
+              loading="lazy"
+              className="size-6 rounded-full object-cover object-top"
+            />
+            <span className="max-w-[160px] truncate">{card.name}</span>
+          </Link>
+          {action && (
+            <button
+              type="button"
+              disabled={action.disabled}
+              onClick={() => action.run(card)}
+              aria-label={`${action.label} ${card.name}`}
+              className="mr-1 rounded-full px-2 py-0.5 text-[11.5px] text-faint hover:bg-hi hover:text-text disabled:opacity-50"
+            >
+              {action.label}
+            </button>
+          )}
+        </span>
       ))}
     </div>
   )

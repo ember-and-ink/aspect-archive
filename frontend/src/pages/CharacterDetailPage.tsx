@@ -240,7 +240,7 @@ export function CharacterDetailPage() {
         {activeTab === 'notes' && <NotesPane card={card} />}
         {activeTab === 'greetings' && <GreetingsPane card={card} />}
         {activeTab === 'dialogue' && <DialoguePane card={card} />}
-        {activeTab === 'lore' && <LorebookPane card={card} />}
+        {activeTab === 'lore' && <LorebookPane card={card} cardId={card.id} />}
         {activeTab === 'gallery' && <GalleryPane card={card} />}
         {activeTab === 'expressions' && <ExpressionsPane card={card} />}
         {activeTab === 'related' && <RelatedPane card={card} />}

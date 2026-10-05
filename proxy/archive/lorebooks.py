@@ -213,6 +213,10 @@ class LorebookIndex:
         self._lorebooks: dict[str, Lorebook] = {}
         self._lines: dict[str, EntryLine] = {}
         self._by_card: dict[str, tuple[tuple[CardPart, str], ...]] = {}
+        # Identity key (a provider ref, or `fp:<fingerprint>`) -> lorebook id.
+        self._by_key: dict[str, str] = {}
+        # (filename, part position) -> per entry of that part, its line's id.
+        self._part_lines: dict[tuple[str, int], tuple[str, ...]] = {}
         self.stats = LorebookStats()
 
     # --- reading -------------------------------------------------------------
@@ -235,6 +239,24 @@ class LorebookIndex:
     def for_card(self, filename: str) -> tuple[tuple[CardPart, str], ...]:
         """A card's parts in entry order, each with the id of its lorebook."""
         return self._by_card.get(filename, ())
+
+    def by_key(self, *keys: str) -> Lorebook | None:
+        """The lorebook known by any of `keys` -- provider refs, a stored
+        anchor, or `fp:<fingerprint>` for a book identified by its content.
+        How a decision, which cannot hold an id, names a lorebook."""
+        for key in keys:
+            found = self._by_key.get(key)
+            if found is not None:
+                return self._lorebooks.get(found)
+        return None
+
+    def part_lines(self, part: CardPart) -> tuple[EntryLine | None, ...]:
+        """The line each entry of `part` belongs to, aligned with
+        `part.hashes`. By position rather than by hash: the same text can sit
+        on two lines of one lorebook (an entry retitled without being
+        reworded), and only the card's own copy says which it is."""
+        ids = self._part_lines.get((part.filename, part.position), ())
+        return tuple(self._lines.get(line_id) for line_id in ids)
 
     # --- building ------------------------------------------------------------
 
@@ -366,16 +388,28 @@ class LorebookIndex:
         lorebooks: dict[str, Lorebook] = {}
         lines: dict[str, EntryLine] = {}
         by_card: dict[str, list[tuple[CardPart, str]]] = {}
+        by_key: dict[str, str] = {}
+        part_lines: dict[tuple[str, int], tuple[str, ...]] = {}
         for group in members.values():
-            refs = tuple(sorted({r for p in group for r in p.refs}))
+            # A synced part of a book with no provider id carries the content
+            # identity it had before the sync as a ref (`fp:...`); those are
+            # identity, but not something to show as a source.
+            refs = tuple(sorted({r for p in group for r in p.refs if not r.startswith("fp:")}))
             # The provider id when there is one (it survives the book's content
             # changing); otherwise the content itself, which for an id-less
             # group is a single fingerprint by construction.
             # A merged id-less group holds several; the smallest keeps the id
-            # independent of card order.
-            anchor = refs[0] if refs else f"fp:{min(p.fingerprint for p in group)}"
+            # independent of card order. A part that carries a stamped
+            # fingerprint counts by that one, not by what it holds now, so
+            # syncing a lorebook does not move its id.
+            if refs:
+                anchor = refs[0]
+            else:
+                anchor = min(k for p in group for k in (p.refs or (f"fp:{p.fingerprint}",)))
             lorebook_id = lorebook_split.digest(anchor)[:12]
-            keys = {*refs, *(f"fp:{p.fingerprint}" for p in group)}
+            keys = {r for p in group for r in p.refs} | {f"fp:{p.fingerprint}" for p in group}
+            for key in keys:
+                by_key[key] = lorebook_id
 
             revisions: dict[str, Revision] = {}
             line_versions: dict[str, dict[str, LineVersion]] = {}
@@ -392,7 +426,7 @@ class LorebookIndex:
                         version.newest = max(version.newest, date)
                 by_card.setdefault(part.filename, []).append((part, lorebook_id))
 
-            line_versions, line_merges = self._merge_lines(line_versions, decisions.entry_merges)
+            line_versions, line_merges, folded = self._merge_lines(line_versions, decisions.entry_merges)
 
             book_lines: list[EntryLine] = []
             for line_key, versions in line_versions.items():
@@ -412,6 +446,11 @@ class LorebookIndex:
                 )
                 book_lines.append(line)
                 lines[line.id] = line
+            line_ids = {line_key: line.id for line_key, line in zip(line_versions, book_lines)}
+            for part in group:
+                part_lines[(part.filename, part.position)] = tuple(
+                    line_ids[folded.get(line_key, line_key)] for line_key in part.line_keys
+                )
 
             cards = tuple(sorted({p.filename for p in group}))
             titles = Counter(p.title for p in group if p.title)
@@ -440,6 +479,8 @@ class LorebookIndex:
         self._relate(lorebooks)
         self._lorebooks = dict(sorted(lorebooks.items(), key=lambda kv: (-len(kv[1].cards), kv[1].name.casefold())))
         self._lines = lines
+        self._by_key = by_key
+        self._part_lines = part_lines
         self._by_card = {
             filename: tuple(sorted(pairs, key=lambda pair: pair[0].position)) for filename, pairs in by_card.items()
         }
@@ -451,16 +492,17 @@ class LorebookIndex:
     @staticmethod
     def _merge_lines(
         line_versions: dict[str, dict[str, LineVersion]], merges: list[Merge]
-    ) -> tuple[dict[str, dict[str, LineVersion]], dict[str, list[Merge]]]:
+    ) -> tuple[dict[str, dict[str, LineVersion]], dict[str, list[Merge]], dict[str, str]]:
         """Fold together the lines of one lorebook that an entry merge names.
-        A merge names two version hashes; the lines holding them become one."""
+        A merge names two version hashes; the lines holding them become one.
+        The third result maps each folded line's key to the key it now has."""
         holder: dict[str, str] = {}
         for line_key, versions in line_versions.items():
             for digest in versions:
                 holder.setdefault(digest, line_key)
         applied = [m for m in merges if m.a in holder and m.b in holder and holder[m.a] != holder[m.b]]
         if not applied:
-            return line_versions, {}
+            return line_versions, {}, {}
 
         root: dict[str, str] = {}
 
@@ -484,7 +526,7 @@ class LorebookIndex:
         line_merges: dict[str, list[Merge]] = {}
         for merge in applied:
             line_merges.setdefault(find(holder[merge.a]), []).append(merge)
-        return merged, line_merges
+        return merged, line_merges, {line_key: find(line_key) for line_key in line_versions}
 
     @staticmethod
     def _relate(lorebooks: dict[str, Lorebook]) -> None:
