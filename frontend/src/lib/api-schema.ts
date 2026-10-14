@@ -2430,11 +2430,11 @@ export interface components {
             revision_count: number;
             /**
              * State
-             * @description `attaching`: not on the card yet, will be after a sync. `detaching`: on the card, will be removed by one.
+             * @description `attaching`: not on the card yet, will be after a sync. `detaching`: on the card, will be removed by one. `listed`: the provider lists it for this character but the card does not embed it (private, or never fetched).
              * @default attached
              * @enum {string}
              */
-            state: "attached" | "attaching" | "detaching";
+            state: "attached" | "attaching" | "detaching" | "listed";
             /**
              * Pending Upgrades
              * @description Entries of this copy a sync would replace with their chosen version.
@@ -3270,8 +3270,36 @@ export interface components {
             pending_cards: number;
             /** Chars */
             chars: number;
+            /**
+             * Has Content
+             * @description False for a lorebook known only from a provider's script list -- private, or never fetched. It has no entries and cannot be attached.
+             * @default true
+             */
+            has_content: boolean;
+            /**
+             * Listed Card Count
+             * @description Cards whose provider lists this lorebook but which do not embed it.
+             * @default 0
+             */
+            listed_card_count: number;
+            /**
+             * Authors
+             * @description Who published the script, per the provider's listing. Not the card creators.
+             */
+            authors?: string[];
+            /**
+             * Upstream Updated
+             * @description The newest `updated_at` the provider reported for the script.
+             * @default
+             */
+            upstream_updated: string;
             /** Revisions */
             revisions: components["schemas"]["LorebookRevisionOut"][];
+            /**
+             * Listed Cards
+             * @description Cards whose provider lists this lorebook but which do not embed it.
+             */
+            listed_cards?: components["schemas"]["LorebookCardOut"][];
             /** Entries */
             entries: components["schemas"]["LorebookEntryOut"][];
             /** Similar */
@@ -3535,6 +3563,29 @@ export interface components {
             pending_cards: number;
             /** Chars */
             chars: number;
+            /**
+             * Has Content
+             * @description False for a lorebook known only from a provider's script list -- private, or never fetched. It has no entries and cannot be attached.
+             * @default true
+             */
+            has_content: boolean;
+            /**
+             * Listed Card Count
+             * @description Cards whose provider lists this lorebook but which do not embed it.
+             * @default 0
+             */
+            listed_card_count: number;
+            /**
+             * Authors
+             * @description Who published the script, per the provider's listing. Not the card creators.
+             */
+            authors?: string[];
+            /**
+             * Upstream Updated
+             * @description The newest `updated_at` the provider reported for the script.
+             * @default
+             */
+            upstream_updated: string;
         };
         /** LorebookRefOut */
         LorebookRefOut: {
@@ -3574,10 +3625,10 @@ export interface components {
             shared: number;
             /**
              * Relation
-             * @description `subset`: this lorebook is wholly contained in the other. `superset`: the reverse.
+             * @description `subset`: this lorebook is wholly contained in the other. `superset`: the reverse. `title`: no shared entries (one side has none) but the same title from the same author.
              * @enum {string}
              */
-            relation: "subset" | "superset" | "overlap";
+            relation: "subset" | "superset" | "overlap" | "title";
         };
         /** LorebookStatsOut */
         LorebookStatsOut: {
@@ -3609,6 +3660,12 @@ export interface components {
             unresolved_entries: number;
             /** Pending Cards */
             pending_cards: number;
+            /**
+             * Listed Only
+             * @description Lorebooks known only from a provider's script list, with no entries.
+             * @default 0
+             */
+            listed_only: number;
         };
         /**
          * LorebookSyncCardOut

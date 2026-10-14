@@ -96,6 +96,7 @@ def test_books_are_deduplicated_across_cards(client):
         "changed_entries": 1,
         "unresolved_entries": 1,
         "pending_cards": 0,
+        "listed_only": 0,
     }
 
 
@@ -165,6 +166,83 @@ def test_overlapping_books_are_offered_as_similar(client, archive_dirs):
     assert books["World (expanded)"]["similar_count"] == 1
     detail = client.get(f"/api/v1/lorebooks/{books['World (expanded)']['id']}").json()
     assert [(s["name"], s["shared"], s["relation"]) for s in detail["similar"]] == [("World", 2, "overlap")]
+
+
+# --- lorebooks a provider lists but a card does not embed --------------------
+
+
+def _script(script_id: str, title: str, *, kind: str = "lorebook", author: str = "worldsmith") -> dict:
+    """One row of `extensions.jai.scripts`, as `janitor.script_manifest` writes it."""
+    return {"id": script_id, "type": kind, "title": title, "is_public": False, "creator_name": author, "updated_at": "2026-06-01T00:00:00Z"}
+
+
+def _add_listing_card(archive_dirs, filename: str, name: str, card_id: str, scripts: list[dict], book: dict | None = None) -> None:
+    extensions = jai_extensions(card_id, gallery_id=card_id[:12], creator_name="worldsmith")
+    extensions["jai"]["scripts"] = scripts
+    fields = {"character_book": book} if book else {}
+    (archive_dirs["characters"] / filename).write_bytes(card_png(name, extensions=extensions, **fields))
+    from proxy.api.v1 import _shared
+
+    _shared.index().refresh(force=True)
+
+
+def test_listed_scripts_become_lorebooks_without_content(client, archive_dirs):
+    # Gus embeds nothing; JanitorAI listed World (which other cards embed), a
+    # private book nobody has, and a code script.
+    _add_listing_card(
+        archive_dirs,
+        "Gus_99999999.png",
+        "Gus",
+        "99999999-0000",
+        [_script("w", "World"), _script("secret", "Secret Codex"), _script("code", "Dice roller", kind="advanced")],
+    )
+    body = client.get("/api/v1/lorebooks").json()
+    books = {book["name"]: book for book in body["lorebooks"]}
+    assert set(books) == {"World", "People", "Secret Codex"}
+    # Listing a book does not make a card carry it.
+    assert (books["World"]["card_count"], books["World"]["listed_card_count"]) == (3, 1)
+    assert books["World"]["has_content"] is True
+    secret = books["Secret Codex"]
+    assert (secret["has_content"], secret["entry_count"], secret["card_count"], secret["listed_card_count"]) == (False, 0, 0, 1)
+    assert (secret["refs"], secret["authors"]) == (["jai:secret"], ["worldsmith"])
+    assert body["stats"]["listed_only"] == 1
+
+    rows = client.get("/api/v1/characters/Gus_99999999.png/lorebooks").json()
+    assert [(r["name"], r["state"], r["entry_count"]) for r in rows] == [("World", "listed", 2), ("Secret Codex", "listed", 0)]
+    detail = client.get(f"/api/v1/lorebooks/{secret['id']}").json()
+    assert [c["name"] for c in detail["listed_cards"]] == ["Gus"]
+
+    # Nothing to put on a card yet.
+    refused = client.put(f"/api/v1/characters/Gus_99999999.png/lorebooks/{secret['id']}")
+    assert refused.status_code == 422
+
+
+def test_a_listed_id_merges_into_the_book_it_is_a_copy_of(client, archive_dirs):
+    # Ivy embeds the public "Secret Codex" under one id; Gus lists a private
+    # copy of it under another. Same title, same author: offered as a merge.
+    codex = [_entry("Rune", "A rune."), _entry("Ward", "A ward.")]
+    _add_listing_card(
+        archive_dirs,
+        "Ivy_77777777.png",
+        "Ivy",
+        "77777777-0000",
+        [{**_script("codex-pub", "Secret Codex"), "is_public": True}],
+        _jai_book("Ivy", ("codex-pub", "Secret Codex", codex)),
+    )
+    _add_listing_card(archive_dirs, "Gus_99999999.png", "Gus", "99999999-0000", [_script("secret", "Secret Codex")])
+    books = {(b["name"], b["has_content"]): b for b in client.get("/api/v1/lorebooks").json()["lorebooks"]}
+    public, private = books[("Secret Codex", True)], books[("Secret Codex", False)]
+    detail = client.get(f"/api/v1/lorebooks/{private['id']}").json()
+    assert [(s["id"], s["relation"]) for s in detail["similar"]] == [(public["id"], "title")]
+
+    merged_id = client.post(f"/api/v1/lorebooks/{private['id']}/merge", json={"into": public["id"]}).json()["id"]
+    merged = client.get(f"/api/v1/lorebooks/{merged_id}").json()
+    assert merged["refs"] == ["jai:codex-pub", "jai:secret"]
+    assert (merged["card_count"], merged["listed_card_count"], merged["entry_count"]) == (1, 1, 2)
+    # Gus now lists a book with entries -- one a sync could put on it.
+    rows = client.get("/api/v1/characters/Gus_99999999.png/lorebooks").json()
+    assert [(r["lorebook_id"], r["state"], r["entry_count"]) for r in rows] == [(merged_id, "listed", 2)]
+    assert client.put(f"/api/v1/characters/Gus_99999999.png/lorebooks/{merged_id}").status_code == 200
 
 
 # --- decisions ---------------------------------------------------------------

@@ -238,6 +238,14 @@ def test_build_exports_open_card_png(tmp_path):
     assert jai["source_url"] == "https://janitorai.com/characters/abc123"
     assert jai["sourceKind"] == "janitor_core"
     assert jai["creatorName"] == "dezea"
+    # Every attached script, the code one included, with no content.
+    assert [(x["id"][:8], x["type"], x["is_public"]) for x in jai["scripts"]] == [
+        ("9e345de7", "lorebook", True),
+        ("778a0994", "lorebook", True),
+        ("a2623eda", "advanced", True),
+    ]
+    assert jai["scripts"][0]["creator_name"] == "dezea"
+    assert "script" not in jai["scripts"][0] and "message_count" not in jai["scripts"][0]
     # The JSON `name` field (the card-title blurb) is kept as metadata, not
     # embedded as data.name.
     assert jai["pageName"] == "The Girl in Every Yearbook | Akane Kujo"

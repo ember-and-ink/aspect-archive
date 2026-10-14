@@ -271,6 +271,11 @@ def extract_character_book_from_scripts(character: dict[str, Any]) -> dict[str, 
         return None
 
     all_entries: list[dict[str, Any]] = []
+    # Per script, the run of entries it contributed -- the same record
+    # LorebookMapper writes for a /build-jai card, so
+    # `proxy.cards.lorebook_split` can take a datacat book apart by script id
+    # instead of treating every attached lorebook as one.
+    sources: list[dict[str, Any]] = []
     for s in usable:
         try:
             parsed = json.loads(s["script"])
@@ -278,6 +283,7 @@ def extract_character_book_from_scripts(character: dict[str, Any]) -> dict[str, 
             continue
         if not isinstance(parsed, list):
             continue
+        start = len(all_entries)
         for e in parsed:
             if not isinstance(e, dict):
                 continue
@@ -305,6 +311,12 @@ def extract_character_book_from_scripts(character: dict[str, Any]) -> dict[str, 
                 "constant": e.get("constant") is True,
                 "position": "before_char",
             })
+        if len(all_entries) > start:
+            sources.append({
+                "id": s.get("id") if isinstance(s.get("id"), str) else "",
+                "title": s.get("title") or "",
+                "entry_count": len(all_entries) - start,
+            })
     if not all_entries:
         return None
 
@@ -325,7 +337,7 @@ def extract_character_book_from_scripts(character: dict[str, Any]) -> dict[str, 
         "scan_depth": scan_depth,
         "token_budget": 0,
         "recursive_scanning": False,
-        "extensions": {},
+        "extensions": {"jai_sources": sources},
         "entries": all_entries,
     }
 

@@ -18,6 +18,10 @@ import { ActionButton, Pill, SearchField } from './parts'
  * decisions that wait for a sync, so each row says which state it is in and
  * offers the way back. Once a sync has rewritten the card, the book it had
  * before is offered here too.
+ *
+ * Below those, the lorebooks JanitorAI lists for the character that the card
+ * does not embed -- private ones, mostly. They can be attached once some other
+ * card holds their entries (directly, or through a merge).
  */
 export function CardLorebooks({ cardId }: { cardId: string }) {
   const books = useCardLorebooks(cardId)
@@ -25,7 +29,9 @@ export function CardLorebooks({ cardId }: { cardId: string }) {
   const actions = useLorebookActions()
   const onError = (error: Error) => toast(error.message, 'bad')
   const busy = actions.attach.isPending || actions.detach.isPending
-  const rows = books.data ?? []
+  const all = books.data ?? []
+  const rows = all.filter((row) => row.state !== 'listed')
+  const listed = all.filter((row) => row.state === 'listed')
   const waiting = rows.filter(
     (row) => row.state !== 'attached' || row.pending_upgrades > 0,
   ).length
@@ -71,8 +77,30 @@ export function CardLorebooks({ cardId }: { cardId: string }) {
         />
       ))}
 
+      {listed.length > 0 && (
+        <div className="mt-3 border-t border-line-soft pt-3">
+          <span className="text-[12.5px] text-muted">
+            Also listed on JanitorAI, not embedded in this card
+          </span>
+          {listed.map((row) => (
+            <Row
+              key={`${row.lorebook_id}-${row.state}`}
+              row={row}
+              busy={busy}
+              onAttach={() =>
+                actions.attach.mutate(
+                  { card: cardId, lorebook: row.lorebook_id },
+                  { onError },
+                )
+              }
+              onDetach={() => {}}
+            />
+          ))}
+        </div>
+      )}
+
       <AttachPicker
-        exclude={rows.map((row) => row.lorebook_id)}
+        exclude={all.map((row) => row.lorebook_id)}
         disabled={busy}
         onAttach={(lorebook) =>
           actions.attach.mutate({ card: cardId, lorebook }, { onError })
@@ -130,10 +158,14 @@ function Row({
           {row.pending_upgrades === 1 ? 'entry' : 'entries'} to update
         </Pill>
       )}
-      <span className="text-[12.5px] text-faint">
-        {row.entry_count} {row.entry_count === 1 ? 'entry' : 'entries'} ·{' '}
-        {row.card_count} card{row.card_count === 1 ? '' : 's'}
-      </span>
+      {row.state === 'listed' && row.entry_count === 0 ? (
+        <span className="text-[12.5px] text-faint">no copy captured</span>
+      ) : (
+        <span className="text-[12.5px] text-faint">
+          {row.entry_count} {row.entry_count === 1 ? 'entry' : 'entries'} ·{' '}
+          {row.card_count} card{row.card_count === 1 ? '' : 's'}
+        </span>
+      )}
       <span className="flex-1" />
       {/* Each undo is the opposite request: asking for what the card already
           is withdraws the decision. */}
@@ -150,6 +182,11 @@ function Row({
       {row.state === 'detaching' && (
         <ActionButton disabled={busy} onClick={onAttach}>
           Undo
+        </ActionButton>
+      )}
+      {row.state === 'listed' && row.entry_count > 0 && (
+        <ActionButton disabled={busy} onClick={onAttach}>
+          Attach
         </ActionButton>
       )}
     </div>
@@ -218,6 +255,7 @@ function Matches({
     ? (all.data?.lorebooks ?? [])
         .filter(
           (book) =>
+            book.has_content &&
             !exclude.includes(book.id) &&
             (book.name.toLowerCase().includes(needle) ||
               book.creators.some((c) => c.toLowerCase().includes(needle))),

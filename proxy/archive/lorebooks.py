@@ -15,6 +15,15 @@ Three levels, built from `proxy.cards.lorebook_split`:
   title. A line with more than one version is an entry that changed upstream,
   which is what "upgrading" cards means.
 
+A card can also *list* a lorebook it does not embed: a JanitorAI build records
+every script the character had attached (`extensions.jai.scripts`), private
+ones included, and only public lorebooks ever have content to embed. Each
+listed lorebook is a **listing**. Listings group with parts by the same
+provider ids and the same stored merges, so a private id seen on one card joins
+the book another card embeds under that id, and a lorebook nobody has content
+for still exists as an entity -- one with cards that list it and no entries --
+that a merge can later declare to be a copy of a book that does have content.
+
 Lorebook ids are derived from the provider id where there is one and from the
 content otherwise, so they are stable across restarts as long as the cards are.
 
@@ -73,6 +82,19 @@ class CardPart:
     fingerprint: str
 
 
+@dataclass(frozen=True, slots=True)
+class Listing:
+    """One lorebook script as a card's provider listed it -- with or without
+    the card embedding its content."""
+
+    filename: str
+    ref: str
+    title: str
+    author: str
+    is_public: bool
+    updated_at: str
+
+
 @dataclass(slots=True)
 class Revision:
     fingerprint: str
@@ -123,7 +145,9 @@ class EntryLine:
 class Similar:
     lorebook_id: str
     shared: int
-    # "subset" (this book is contained in the other), "superset", or "overlap".
+    # "subset" (this book is contained in the other), "superset", "overlap",
+    # or "title" (no shared entries -- one side has none -- but the same title
+    # from the same author: the usual shape of a re-published copy).
     relation: str
 
 
@@ -144,6 +168,18 @@ class Lorebook:
     anchor: str = ""
     merges: list[Merge] = field(default_factory=list)
     similar: list[Similar] = field(default_factory=list)
+    # Cards whose provider lists this lorebook but which do not embed it --
+    # a private script, or one whose fetch failed. Disjoint from `cards`.
+    listed_cards: tuple[str, ...] = ()
+    # Who published the script, per the provider's listing. Not `creators`,
+    # which are the authors of the cards carrying it.
+    authors: tuple[str, ...] = ()
+    # The newest `updated_at` any listing reported for the script.
+    upstream_updated: str = ""
+
+    @property
+    def has_content(self) -> bool:
+        return bool(self.entry_hashes)
 
     @property
     def changed_lines(self) -> int:
@@ -163,12 +199,45 @@ class LorebookStats:
     cards: int = 0
     lorebooks: int = 0
     shared_lorebooks: int = 0
+    # Lorebooks known only from a provider's script list, with no entries.
+    listed_only: int = 0
     entries_embedded: int = 0
     entries_unique: int = 0
     changed_lines: int = 0
     unresolved_lines: int = 0
     pending_cards: int = 0
     seconds: float = 0.0
+
+
+def _listed_scripts(extensions: dict[str, Any]) -> list[dict[str, Any]]:
+    """The lorebook scripts a card's provider listed (`extensions.jai.scripts`,
+    written by `proxy.sources.janitor.script_manifest`). Code scripts are kept
+    on the card but are not lorebooks."""
+    jai = extensions.get("jai") if isinstance(extensions, dict) else None
+    scripts = jai.get("scripts") if isinstance(jai, dict) else None
+    return [
+        s
+        for s in (scripts if isinstance(scripts, list) else [])
+        if isinstance(s, dict) and s.get("type") == "lorebook" and isinstance(s.get("id"), str) and s["id"].strip()
+    ]
+
+
+def _listings(filename: str, extensions: dict[str, Any]) -> list[Listing]:
+    def text(value: Any) -> str:
+        return value.strip() if isinstance(value, str) else ""
+
+    return [
+        Listing(
+            filename=filename,
+            # The same ref `lorebook_split` gives an embedded JanitorAI part.
+            ref=f"jai:{s['id'].strip()}",
+            title=text(s.get("title")),
+            author=text(s.get("creator_name")),
+            is_public=s.get("is_public") is True,
+            updated_at=text(s.get("updated_at")),
+        )
+        for s in _listed_scripts(extensions)
+    ]
 
 
 def _line_key(entry: dict[str, Any], prefix: str, seen: Counter[str]) -> str:
@@ -213,6 +282,8 @@ class LorebookIndex:
         self._lorebooks: dict[str, Lorebook] = {}
         self._lines: dict[str, EntryLine] = {}
         self._by_card: dict[str, tuple[tuple[CardPart, str], ...]] = {}
+        # filename -> ids of lorebooks its provider lists but it does not embed.
+        self._listed_by_card: dict[str, tuple[str, ...]] = {}
         # Identity key (a provider ref, or `fp:<fingerprint>`) -> lorebook id.
         self._by_key: dict[str, str] = {}
         # (filename, part position) -> per entry of that part, its line's id.
@@ -239,6 +310,12 @@ class LorebookIndex:
     def for_card(self, filename: str) -> tuple[tuple[CardPart, str], ...]:
         """A card's parts in entry order, each with the id of its lorebook."""
         return self._by_card.get(filename, ())
+
+    def listed_for_card(self, filename: str) -> tuple[str, ...]:
+        """Lorebooks the card's provider lists for it that it does not embed,
+        in the provider's order. Kept apart from `for_card`, whose parts line
+        up one-to-one with the card's embedded book."""
+        return self._listed_by_card.get(filename, ())
 
     def by_key(self, *keys: str) -> Lorebook | None:
         """The lorebook known by any of `keys` -- provider refs, a stored
@@ -267,7 +344,7 @@ class LorebookIndex:
         A no-op unless a card that carries lore was added, removed or rewritten
         since the last call, or `decisions_key` changed."""
         decisions = decisions or Decisions()
-        records = [r for r in idx.cards() if r.lore_entry_count > 0]
+        records = [r for r in idx.cards() if r.lore_entry_count > 0 or _listed_scripts(r.extensions)]
         signature = (frozenset((r.filename, r.mtime, r.size) for r in records), decisions_key)
         if signature == self._signature and idx.root == self._root:
             return
@@ -282,6 +359,8 @@ class LorebookIndex:
             card_parts: dict[str, tuple[tuple[float, int], tuple[CardPart, ...]]] = {}
             read = 0
             for record in records:
+                if record.lore_entry_count <= 0:
+                    continue
                 key = (record.mtime, record.size)
                 cached = self._card_parts.get(record.filename)
                 if cached is not None and cached[0] == key:
@@ -297,6 +376,7 @@ class LorebookIndex:
                 cards=sum(1 for _, parts in card_parts.values() if parts),
                 lorebooks=len(self._lorebooks),
                 shared_lorebooks=sum(1 for b in self._lorebooks.values() if len(b.cards) > 1),
+                listed_only=sum(1 for b in self._lorebooks.values() if not b.has_content),
                 entries_embedded=sum(len(p.hashes) for _, parts in card_parts.values() for p in parts),
                 entries_unique=len({h for b in self._lorebooks.values() for h in b.entry_hashes}),
                 changed_lines=sum(b.changed_lines for b in self._lorebooks.values()),
@@ -359,14 +439,22 @@ class LorebookIndex:
 
     def _build(self, records: dict[str, catalog.CardSummary], decisions: Decisions) -> None:
         parts = [p for _, card in self._card_parts.values() for p in card]
+        listings = [
+            listing
+            for filename in sorted(records)
+            for listing in _listings(filename, records[filename].extensions)
+        ]
 
         # Two parts are the same lorebook when they share a provider id, or
         # carry identical entries. The content key is what joins an id-less
         # copy (a re-adopted PNG, a saucepan card) to the book it came from.
-        groups = _Groups(len(parts))
+        # Listings are nodes too, numbered after the parts, keyed by their
+        # one provider id.
+        groups = _Groups(len(parts) + len(listings))
         first_with: dict[str, int] = {}
-        for i, part in enumerate(parts):
-            for key in (*part.refs, f"fp:{part.fingerprint}"):
+        node_keys = [(*p.refs, f"fp:{p.fingerprint}") for p in parts] + [(l.ref,) for l in listings]
+        for i, keys in enumerate(node_keys):
+            for key in keys:
                 if key in first_with:
                     groups.union(i, first_with[key])
                 else:
@@ -378,8 +466,12 @@ class LorebookIndex:
             if merge.a in first_with and merge.b in first_with:
                 groups.union(first_with[merge.a], first_with[merge.b])
         members: dict[int, list[CardPart]] = {}
+        listed: dict[int, list[Listing]] = {}
         for i, part in enumerate(parts):
             members.setdefault(groups.find(i), []).append(part)
+        for i, listing in enumerate(listings, start=len(parts)):
+            members.setdefault(groups.find(i), [])
+            listed.setdefault(groups.find(i), []).append(listing)
 
         def when(filename: str) -> str:
             record = records[filename]
@@ -390,11 +482,14 @@ class LorebookIndex:
         by_card: dict[str, list[tuple[CardPart, str]]] = {}
         by_key: dict[str, str] = {}
         part_lines: dict[tuple[str, int], tuple[str, ...]] = {}
-        for group in members.values():
+        for root, group in members.items():
+            group_listings = listed.get(root, [])
             # A synced part of a book with no provider id carries the content
             # identity it had before the sync as a ref (`fp:...`); those are
             # identity, but not something to show as a source.
-            refs = tuple(sorted({r for p in group for r in p.refs if not r.startswith("fp:")}))
+            refs = tuple(
+                sorted({r for p in group for r in p.refs if not r.startswith("fp:")} | {l.ref for l in group_listings})
+            )
             # The provider id when there is one (it survives the book's content
             # changing); otherwise the content itself, which for an id-less
             # group is a single fingerprint by construction.
@@ -407,7 +502,7 @@ class LorebookIndex:
             else:
                 anchor = min(k for p in group for k in (p.refs or (f"fp:{p.fingerprint}",)))
             lorebook_id = lorebook_split.digest(anchor)[:12]
-            keys = {r for p in group for r in p.refs} | {f"fp:{p.fingerprint}" for p in group}
+            keys = {r for p in group for r in p.refs} | {f"fp:{p.fingerprint}" for p in group} | set(refs)
             for key in keys:
                 by_key[key] = lorebook_id
 
@@ -453,7 +548,9 @@ class LorebookIndex:
                 )
 
             cards = tuple(sorted({p.filename for p in group}))
-            titles = Counter(p.title for p in group if p.title)
+            # The title a card embedded it under first; the provider's listing
+            # only where no card embeds it at all.
+            titles = Counter(p.title for p in group if p.title) or Counter(l.title for l in group_listings if l.title)
             if titles:
                 name = titles.most_common(1)[0][0]
             elif len(cards) == 1:
@@ -474,12 +571,24 @@ class LorebookIndex:
                 chars=sum(len(self._versions[h].content) for h in entry_hashes),
                 anchor=anchor,
                 merges=[m for m in decisions.lorebook_merges if m.a in keys and m.b in keys],
+                listed_cards=tuple(sorted({l.filename for l in group_listings} - set(cards))),
+                authors=tuple(a for a, _ in Counter(l.author for l in group_listings if l.author).most_common()),
+                upstream_updated=max((l.updated_at for l in group_listings), default=""),
             )
 
         self._relate(lorebooks)
         self._lorebooks = dict(sorted(lorebooks.items(), key=lambda kv: (-len(kv[1].cards), kv[1].name.casefold())))
         self._lines = lines
         self._by_key = by_key
+        listed_by_card: dict[str, list[str]] = {}
+        for listing in listings:
+            lorebook_id = by_key.get(listing.ref)
+            book = lorebooks.get(lorebook_id) if lorebook_id else None
+            if book is not None and listing.filename in book.listed_cards:
+                ids = listed_by_card.setdefault(listing.filename, [])
+                if lorebook_id not in ids:
+                    ids.append(lorebook_id)
+        self._listed_by_card = {filename: tuple(ids) for filename, ids in listed_by_card.items()}
         self._part_lines = part_lines
         self._by_card = {
             filename: tuple(sorted(pairs, key=lambda pair: pair[0].position)) for filename, pairs in by_card.items()
@@ -554,6 +663,27 @@ class LorebookIndex:
             for this, other, mine, theirs in ((a, b, size_a, size_b), (b, a, size_b, size_a)):
                 relation = "subset" if count == mine else "superset" if count == theirs else "overlap"
                 lorebooks[this].similar.append(Similar(other, count, relation))
+        # A book with no entries can share none, so content says nothing about
+        # it. What does: the same title from the same author -- a creator who
+        # re-uploads a book privately, or publishes a copy per character.
+        by_title: dict[tuple[str, str], list[str]] = {}
+        for book in lorebooks.values():
+            title = lorebook_split.norm_text(book.name)
+            # Cards made before script lists were kept name no script author;
+            # their own creator is usually the one who wrote the lorebook.
+            for author in book.authors or book.creators:
+                if title:
+                    by_title.setdefault((title, author.casefold()), []).append(book.id)
+        paired = {(a, s.lorebook_id) for a, book in lorebooks.items() for s in book.similar}
+        for ids in by_title.values():
+            for a in ids:
+                for b in ids:
+                    if a == b or (a, b) in paired:
+                        continue
+                    if lorebooks[a].has_content and lorebooks[b].has_content:
+                        continue
+                    paired.add((a, b))
+                    lorebooks[a].similar.append(Similar(b, 0, "title"))
         for book in lorebooks.values():
             book.similar.sort(key=lambda s: -s.shared)
 

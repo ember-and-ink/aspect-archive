@@ -25,6 +25,7 @@ const RELATION = {
   subset: 'contained in',
   superset: 'contains',
   overlap: 'overlaps',
+  title: 'same title as',
 } as const
 
 type Show = 'all' | 'changed' | 'undecided'
@@ -79,8 +80,24 @@ export function LorebookDetailPage() {
                 {book.card_count} card{book.card_count === 1 ? '' : 's'} ·{' '}
                 {book.entry_count} entries · {book.chars.toLocaleString()} chars
               </span>
-              {book.creators.length > 0 && (
-                <span className="text-faint">· {book.creators.join(', ')}</span>
+              {book.authors.length > 0 ? (
+                <span className="text-faint" title="Who published the script">
+                  · by {book.authors.join(', ')}
+                </span>
+              ) : (
+                book.creators.length > 0 && (
+                  <span className="text-faint">
+                    · {book.creators.join(', ')}
+                  </span>
+                )
+              )}
+              {book.upstream_updated && (
+                <span
+                  className="text-faint"
+                  title="When JanitorAI last reported the script changed"
+                >
+                  · updated {book.upstream_updated.slice(0, 10)}
+                </span>
               )}
               {book.refs.map((ref) => (
                 <span key={ref} className="font-mono text-[11.5px] text-faint">
@@ -130,11 +147,22 @@ export function LorebookDetailPage() {
               </div>
             )}
 
-            <Heading>
-              {book.revisions.length === 1
-                ? 'Every card holds the same copy'
-                : `${book.revisions.length} revisions across its cards`}
-            </Heading>
+            {!book.has_content && (
+              <Notice>
+                No card holds this lorebook’s entries. JanitorAI lists it for
+                the characters below — it is private, or was never fetched. If
+                it is a copy of a lorebook you do have, merge them and those
+                characters can have it attached.
+              </Notice>
+            )}
+
+            {book.revisions.length > 0 && (
+              <Heading>
+                {book.revisions.length === 1
+                  ? 'Every card holds the same copy'
+                  : `${book.revisions.length} revisions across its cards`}
+              </Heading>
+            )}
             <div className="space-y-2.5">
               {book.revisions.map((revision, index) => (
                 <div
@@ -206,20 +234,40 @@ export function LorebookDetailPage() {
               </div>
             )}
 
-            <CardPicker
-              exclude={[
-                ...book.revisions.flatMap((r) => r.cards.map((c) => c.id)),
-                ...book.attaching.map((c) => c.id),
-              ]}
-              disabled={attaching}
-              onAttach={(card) =>
-                actions.attach.mutate({ card, lorebook: id }, { onError })
-              }
-            />
+            {book.listed_cards.length > 0 && (
+              <>
+                <Heading>Listed on JanitorAI, not embedded</Heading>
+                <div className="rounded-[15px] border border-line-soft bg-surface px-4 py-3">
+                  <CardStrip
+                    cards={book.listed_cards.filter(
+                      (card) => !book.attaching.some((a) => a.id === card.id),
+                    )}
+                    action={
+                      book.has_content
+                        ? { label: 'Attach', disabled: attaching, run: attach }
+                        : undefined
+                    }
+                  />
+                </div>
+              </>
+            )}
+
+            {book.has_content && (
+              <CardPicker
+                exclude={[
+                  ...book.revisions.flatMap((r) => r.cards.map((c) => c.id)),
+                  ...book.attaching.map((c) => c.id),
+                ]}
+                disabled={attaching}
+                onAttach={(card) =>
+                  actions.attach.mutate({ card, lorebook: id }, { onError })
+                }
+              />
+            )}
 
             {book.similar.length > 0 && (
               <>
-                <Heading>Shares entries with</Heading>
+                <Heading>Possibly the same lorebook</Heading>
                 <div className="overflow-hidden rounded-[15px] border border-line-soft bg-surface">
                   {book.similar.map((other) => (
                     <div
@@ -234,8 +282,10 @@ export function LorebookDetailPage() {
                         {other.name}
                       </Link>
                       <span className="ml-auto text-[12.5px] text-muted">
-                        {other.shared} of {other.entry_count} entries shared ·{' '}
-                        {other.card_count} card
+                        {other.relation === 'title'
+                          ? `${other.entry_count} entries`
+                          : `${other.shared} of ${other.entry_count} entries shared`}{' '}
+                        · {other.card_count} card
                         {other.card_count === 1 ? '' : 's'}
                       </span>
                       <ActionButton

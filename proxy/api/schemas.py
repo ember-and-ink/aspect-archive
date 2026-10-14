@@ -865,6 +865,17 @@ class LorebookOut(BaseModel):
         description="Cards a sync would rewrite for this lorebook: those holding a version other than the chosen one, and those it is waiting to be attached to or detached from."
     )
     chars: int
+    has_content: bool = Field(
+        default=True,
+        description="False for a lorebook known only from a provider's script list -- private, or never fetched. It has no entries and cannot be attached.",
+    )
+    listed_card_count: int = Field(
+        default=0, description="Cards whose provider lists this lorebook but which do not embed it."
+    )
+    authors: list[str] = Field(
+        default_factory=list, description="Who published the script, per the provider's listing. Not the card creators."
+    )
+    upstream_updated: str = Field(default="", description="The newest `updated_at` the provider reported for the script.")
 
 
 class LorebookStatsOut(BaseModel):
@@ -876,6 +887,7 @@ class LorebookStatsOut(BaseModel):
     changed_entries: int
     unresolved_entries: int
     pending_cards: int
+    listed_only: int = Field(default=0, description="Lorebooks known only from a provider's script list, with no entries.")
 
 
 class LorebooksOut(BaseModel):
@@ -917,8 +929,8 @@ class LorebookSimilarOut(BaseModel):
     card_count: int
     entry_count: int
     shared: int
-    relation: Literal["subset", "superset", "overlap"] = Field(
-        description="`subset`: this lorebook is wholly contained in the other. `superset`: the reverse."
+    relation: Literal["subset", "superset", "overlap", "title"] = Field(
+        description="`subset`: this lorebook is wholly contained in the other. `superset`: the reverse. `title`: no shared entries (one side has none) but the same title from the same author."
     )
 
 
@@ -933,6 +945,9 @@ class LorebookMergeOut(BaseModel):
 
 class LorebookDetailOut(LorebookOut):
     revisions: list[LorebookRevisionOut]
+    listed_cards: list[LorebookCardOut] = Field(
+        default_factory=list, description="Cards whose provider lists this lorebook but which do not embed it."
+    )
     entries: list[LorebookEntryOut]
     similar: list[LorebookSimilarOut]
     merges: list[LorebookMergeOut] = Field(description="Manual merges that make up this lorebook.")
@@ -1012,9 +1027,9 @@ class CardLorebookOut(BaseModel):
     revision: str = Field(description="Fingerprint of the copy this card holds.")
     is_newest: bool = Field(description="Whether that copy is the lorebook's newest revision.")
     revision_count: int
-    state: Literal["attached", "attaching", "detaching"] = Field(
+    state: Literal["attached", "attaching", "detaching", "listed"] = Field(
         default="attached",
-        description="`attaching`: not on the card yet, will be after a sync. `detaching`: on the card, will be removed by one.",
+        description="`attaching`: not on the card yet, will be after a sync. `detaching`: on the card, will be removed by one. `listed`: the provider lists it for this character but the card does not embed it (private, or never fetched).",
     )
     pending_upgrades: int = Field(
         default=0, description="Entries of this copy a sync would replace with their chosen version."

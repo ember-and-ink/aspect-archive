@@ -137,6 +137,10 @@ def _book_fields(book: lorebooks.Lorebook, waiting: lorebook_sync.Pending) -> di
         "unresolved_entries": book.unresolved_lines,
         "pending_cards": len(book.pending_cards | waiting.cards_of(book.id)),
         "chars": book.chars,
+        "has_content": book.has_content,
+        "listed_card_count": len(book.listed_cards),
+        "authors": list(book.authors),
+        "upstream_updated": book.upstream_updated,
     }
 
 
@@ -223,6 +227,7 @@ def list_lorebooks() -> LorebooksOut:
             changed_entries=stats.changed_lines,
             unresolved_entries=stats.unresolved_lines,
             pending_cards=pending_cards,
+            listed_only=stats.listed_only,
         ),
     )
 
@@ -557,6 +562,7 @@ def get_lorebook(lorebook_id: str) -> LorebookDetailOut:
             for line in sorted(book.lines, key=lambda line: (line.resolved, -len(line.versions)))
         ],
         similar=similar,
+        listed_cards=[_card_out(idx, filename) for filename in book.listed_cards],
         merges=[_merge_out(m) for m in book.merges],
         attaching=[_card_out(idx, filename) for filename in waiting.attach.get(book.id, ())],
         detaching=[_card_out(idx, filename) for filename in waiting.detach.get(book.id, ())],
@@ -614,6 +620,25 @@ def card_lorebooks(card_id: str) -> list[CardLorebookOut]:
                 state="attaching",
             )
         )
+    shown = {row.lorebook_id for row in out}
+    for lorebook_id in lore.listed_for_card(record.filename):
+        book = lore.get(lorebook_id)
+        if book is None or lorebook_id in shown:
+            continue
+        shown.add(lorebook_id)
+        out.append(
+            CardLorebookOut(
+                lorebook_id=lorebook_id,
+                name=book.name,
+                kind="janitor",
+                entry_count=len(book.lines),
+                card_count=len(book.cards),
+                revision="",
+                is_newest=False,
+                revision_count=len(book.revisions),
+                state="listed",
+            )
+        )
     return out
 
 
@@ -624,6 +649,10 @@ def _set_attached(card_id: str, lorebook_id: str, want: bool) -> list[CardLorebo
     idx, lore = _indexes()
     record = _shared.require(idx, card_id)
     book = _require_book(lore, lorebook_id)
+    if want and not book.has_content:
+        raise HTTPException(
+            status_code=422, detail="no card holds this lorebook's entries, so there is nothing to attach yet"
+        )
     waiting = _waiting(idx, lore)
     store = _store()
     # Whatever anchor an earlier decision about this pair was stored under.

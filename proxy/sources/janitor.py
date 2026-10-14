@@ -111,3 +111,41 @@ def greetings(character: dict[str, Any]) -> list[str]:
             return kept
     single = character.get("first_message")
     return [single] if _is_real_greeting(single) else []
+
+
+# What a card keeps of each attached script. `message_count` is left out on
+# purpose: it changes every time anyone chats, so it would date the card rather
+# than describe the script.
+_SCRIPT_FIELDS = ("id", "type", "title", "description", "is_public", "updated_at")
+
+
+def script_manifest(character: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every script the character has attached, public or not, as
+    `extensions.jai.scripts` records it.
+
+    The character JSON lists them all -- private lorebooks and "advanced" code
+    scripts included -- even though only public lorebooks can be fetched and
+    embedded. Keeping the list is what lets the archive know a card carries a
+    lorebook it holds no content for, and recognise the same lorebook on
+    another card. DataCat mirrors the same `scripts` array, so its rows go
+    through here too; its creator fields may be named either way."""
+    scripts = character.get("scripts")
+    out: list[dict[str, Any]] = []
+    for script in scripts if isinstance(scripts, list) else []:
+        if not isinstance(script, dict) or not _s(script.get("id")):
+            continue
+        row: dict[str, Any] = {}
+        for key in _SCRIPT_FIELDS:
+            value = script.get(key)
+            if key == "is_public":
+                row[key] = value is True
+            elif isinstance(value, str):
+                row[key] = value.strip()
+        creator_id = _s(script.get("user_id")) or _s(script.get("creator_id"))
+        creator_name = _s(script.get("user_name")) or _s(script.get("creator_name"))
+        if creator_id:
+            row["creator_id"] = creator_id
+        if creator_name:
+            row["creator_name"] = creator_name
+        out.append(row)
+    return out

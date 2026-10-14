@@ -212,3 +212,36 @@ def test_creator_id_reads_the_json_field():
 
 def test_creator_id_empty_when_absent():
     assert mapper.creator_id({}) == ""
+
+
+# ---------------------------------------------------------------------------
+# script_manifest -- every attached script, private ones included.
+# ---------------------------------------------------------------------------
+
+
+def test_script_manifest_keeps_private_lorebooks():
+    # Selene's three lorebooks are all private: nothing to fetch or embed, and
+    # until the manifest nothing on the card said they existed.
+    scripts = mapper.script_manifest(load("closed_selene"))
+    assert [(s["title"].strip(), s["is_public"]) for s in scripts] == [
+        ("Positions", False),
+        ("Selene Worldbook", False),
+        ("Brielle and Marcus", False),
+    ]
+    assert scripts[0] == {
+        "id": "e15874c3-c3c0-4b3d-acef-55553aff46e1",
+        "type": "lorebook",
+        "title": "Positions",
+        "description": scripts[0]["description"],
+        "is_public": False,
+        "updated_at": "2026-07-13T19:47:48.255+00:00",
+        "creator_id": scripts[0]["creator_id"],
+        "creator_name": "SydneyFeet",
+    }
+
+
+def test_script_manifest_tolerates_missing_and_malformed_rows():
+    assert mapper.script_manifest({}) == []
+    assert mapper.script_manifest({"scripts": [None, {"title": "no id"}, {"id": "x", "creator_name": "dc"}]}) == [
+        {"id": "x", "is_public": False, "creator_name": "dc"}
+    ]

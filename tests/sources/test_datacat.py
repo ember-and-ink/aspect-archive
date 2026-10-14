@@ -270,3 +270,30 @@ def test_emoji_prefixed_tag_names_lose_only_the_prefix():
     tags = [{"name": "👤 Male"}, {"name": "🇯🇵Japan"}, {"name": "❤️ Romance"}, {"name": "🔥"}]
     # A name that is nothing but emoji is kept whole rather than emptied.
     assert mapper.resolve_tag_names(tags) == ["Male", "Japan", "Romance", "🔥"]
+
+
+def test_scripts_book_records_each_scripts_run_so_it_splits_by_id():
+    # Two public lorebooks plus a private stub with no content: the book is
+    # their entries concatenated, and `jai_sources` says where each one starts
+    # -- the same record a /build-jai book carries.
+    from proxy.cards import lorebook_split
+
+    def script(sid: str, title: str, *contents: str) -> dict:
+        entries = [{"key": [c.lower()], "content": c} for c in contents]
+        return {"id": sid, "type": "lorebook", "title": title, "is_public": True, "script": json.dumps(entries)}
+
+    book = mapper.extract_character_book_from_scripts(
+        {
+            "scripts": [
+                script("w", "World", "Town", "River"),
+                {"id": "p", "type": "lorebook", "title": "Private", "is_public": False},
+                script("c", "Cast", "Mayor"),
+            ]
+        }
+    )
+    assert book["extensions"]["jai_sources"] == [
+        {"id": "w", "title": "World", "entry_count": 2},
+        {"id": "c", "title": "Cast", "entry_count": 1},
+    ]
+    parts = lorebook_split.split_book(book)
+    assert [(p.title, p.refs, len(p.entries)) for p in parts] == [("World", ("jai:w",), 2), ("Cast", ("jai:c",), 1)]

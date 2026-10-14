@@ -10,7 +10,8 @@ import {
 import { SyncButton } from '@/components/lorebooks/sync'
 import { type Lorebook, useLorebooks } from '@/hooks/use-lorebooks'
 
-type Filter = 'all' | 'shared' | 'undecided' | 'pending' | 'similar'
+type Filter =
+  'all' | 'shared' | 'undecided' | 'pending' | 'similar' | 'uncaptured'
 
 const FILTERS: {
   key: Filter
@@ -29,6 +30,11 @@ const FILTERS: {
     key: 'similar',
     label: 'Merge candidates',
     test: (b) => b.similar_count > 0,
+  },
+  {
+    key: 'uncaptured',
+    label: 'Not captured',
+    test: (b) => !b.has_content,
   },
 ]
 
@@ -52,7 +58,9 @@ export function LorebooksPage() {
         test(book) &&
         (!needle ||
           book.name.toLowerCase().includes(needle) ||
-          book.creators.some((c) => c.toLowerCase().includes(needle))),
+          [...book.authors, ...book.creators].some((c) =>
+            c.toLowerCase().includes(needle),
+          )),
     )
   }, [all, search, filter])
 
@@ -108,6 +116,9 @@ export function LorebooksPage() {
 }
 
 function LorebookRow({ book }: { book: Lorebook }) {
+  // Who wrote the lorebook when JanitorAI said so; otherwise the creators of
+  // the cards carrying it, which is usually the same person.
+  const names = book.authors.length > 0 ? book.authors : book.creators
   return (
     <Link
       to={`/lore/${book.id}`}
@@ -115,9 +126,17 @@ function LorebookRow({ book }: { book: Lorebook }) {
     >
       <span className="text-[14.5px] font-medium">{book.name}</span>
       <span className="text-[12.5px] text-faint">
-        {book.creators.slice(0, 2).join(', ')}
-        {book.creators.length > 2 && ` +${book.creators.length - 2}`}
+        {names.slice(0, 2).join(', ')}
+        {names.length > 2 && ` +${names.length - 2}`}
       </span>
+      {!book.has_content && (
+        <Pill
+          tone="warn"
+          title="JanitorAI lists it for these characters, but no card holds its entries — private, or never fetched"
+        >
+          not captured
+        </Pill>
+      )}
       {book.unresolved_entries > 0 ? (
         <Pill
           tone="warn"
@@ -138,7 +157,7 @@ function LorebookRow({ book }: { book: Lorebook }) {
         </Pill>
       )}
       {book.similar_count > 0 && (
-        <Pill title="Other lorebooks share entries with this one">
+        <Pill title="Other lorebooks share entries, or a title and author, with this one">
           overlaps {book.similar_count}
         </Pill>
       )}
@@ -148,8 +167,10 @@ function LorebookRow({ book }: { book: Lorebook }) {
         </Pill>
       )}
       <span className="ml-auto text-[12.5px] whitespace-nowrap text-muted">
-        {book.card_count} card{book.card_count === 1 ? '' : 's'} ·{' '}
-        {book.entry_count} entr{book.entry_count === 1 ? 'y' : 'ies'}
+        {book.card_count} card{book.card_count === 1 ? '' : 's'}
+        {book.listed_card_count > 0 &&
+          ` (+${book.listed_card_count} listing it)`}{' '}
+        · {book.entry_count} entr{book.entry_count === 1 ? 'y' : 'ies'}
       </span>
     </Link>
   )

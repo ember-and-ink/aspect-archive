@@ -314,6 +314,9 @@ async def build_jai(req: BuildRequest) -> BuildResponse:
             linked_at=linked_at,
         ),
     }
+    scripts = janitor.script_manifest(character)
+    if scripts:
+        extensions["jai"]["scripts"] = scripts
 
     return await _assemble_and_write(
         profile=profile,
@@ -553,6 +556,11 @@ async def build_datacat(req: DatacatBuildRequest) -> BuildResponse:
     }
     if req.gallery_id:
         extensions["gallery_id"] = req.gallery_id
+    # A JanitorAI row mirrors the character's script list; a Saucepan row's
+    # lorebooks are not JanitorAI scripts and have no ids to keep here.
+    scripts = janitor.script_manifest(character) if source_kind == "janitor" else []
+    if scripts:
+        extensions["jai"]["scripts"] = scripts
 
     avatar_url = req.avatar_url or datacat.resolve_avatar_url(character)
 
