@@ -225,6 +225,37 @@ export function useForkCharacter(id: string) {
 }
 
 /**
+ * Adopt a card PNG as a fork of the card whose `_<id8>` is `parentFragment` — the file-import primitive
+ * (docs/FORKS_AND_EXTRAS_PLAN.md §3), for a rewrite made outside the archive.
+ * The server stamps `extensions.fork`, shares the parent's gallery, and mints
+ * a fresh id when the file still carries the parent's, so the rewrite isn't
+ * waved through as the parent's own duplicate. A `duplicate: true` result
+ * means this same file was already adopted; its `id` names that card.
+ */
+export function useImportFork(parentFragment: string) {
+  const client = useQueryClient()
+  return useMutation<CardImport, Error, File>({
+    mutationFn: async (file) => {
+      const body = new FormData()
+      body.set('file', file, file.name)
+      body.set('fork_of', parentFragment)
+      const response = await fetch('/api/v1/characters', {
+        method: 'POST',
+        body,
+      })
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null)
+        throw new Error(
+          detail?.detail ?? `could not upload the fork: ${response.status}`,
+        )
+      }
+      return (await response.json()) as CardImport
+    },
+    onSuccess: () => invalidateArchive(client),
+  })
+}
+
+/**
  * Adopt one or more card PNGs. `POST /characters` takes one file, so multi-file
  * is a client loop — reported per file, since a duplicate is a success and a
  * failed file should not sink the rest.

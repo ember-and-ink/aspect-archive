@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { GitFork, ImageUp, Pencil, Star, Trash2 } from 'lucide-react'
+import {
+  Copy,
+  FileUp,
+  GitFork,
+  ImageUp,
+  Pencil,
+  Star,
+  Trash2,
+} from 'lucide-react'
 import type { CardDetail } from '@/hooks/use-character-detail'
 import {
   useDeleteCharacter,
   useForkCharacter,
+  useImportFork,
   useReplaceAvatar,
   useSetFavorite,
 } from '@/hooks/use-card-mutations'
@@ -19,6 +28,12 @@ import {
   AlertDialogFooter,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { RenameDialog } from './RenameDialog'
 import { AvatarCropDialog } from './AvatarCropDialog'
 
@@ -54,7 +69,9 @@ export function PortraitActions({
   const avatar = useReplaceAvatar(card.id)
   const remove = useDeleteCharacter(card.id)
   const fork = useForkCharacter(card.id)
+  const importFork = useImportFork(card.fragment)
   const fileRef = useRef<HTMLInputElement>(null)
+  const forkFileRef = useRef<HTMLInputElement>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [alsoGallery, setAlsoGallery] = useState(false)
   const [renaming, setRenaming] = useState<'name' | 'creator' | null>(null)
@@ -108,6 +125,30 @@ export function PortraitActions({
       },
       onError: (error) => toast(error.message, 'bad'),
     })
+
+  // A rewrite made outside the archive (in ST, by hand) handed back as a PNG.
+  // Unlike a born-here fork it already has its own name, so no rename prompt.
+  const onForkFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = '' // let the same file be picked again after a failure
+    if (!file) return
+    importFork.mutate(file, {
+      onSuccess: (result) => {
+        toast(
+          result.duplicate
+            ? `“${result.name}” is already in the archive.`
+            : `Added “${result.name}” as a fork.`,
+        )
+        navigate({
+          pathname: `/characters/${encodeURIComponent(result.id)}`,
+          search: location.search,
+        })
+      },
+      onError: (error) => toast(error.message, 'bad'),
+    })
+  }
+
+  const forking = fork.isPending || importFork.isPending
 
   const onDelete = () =>
     remove.mutate(alsoGallery ? 'delete' : 'keep', {
@@ -171,15 +212,33 @@ export function PortraitActions({
       >
         <Pencil className="size-3.5" /> Rename creator
       </button>
-      <button
-        type="button"
-        onClick={onFork}
-        disabled={fork.isPending}
-        className="flex h-[34px] items-center justify-center gap-2 rounded-[10px] text-[12.5px] text-faint hover:bg-raised hover:text-sage disabled:opacity-60"
-      >
-        <GitFork className="size-3.5" />
-        {fork.isPending ? 'Forking…' : 'Fork this card'}
-      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            disabled={forking}
+            className="flex h-[34px] items-center justify-center gap-2 rounded-[10px] text-[12.5px] text-faint hover:bg-raised hover:text-sage disabled:opacity-60"
+          >
+            <GitFork className="size-3.5" />
+            {forking ? 'Forking…' : 'Fork this card'}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="center">
+          <DropdownMenuItem onSelect={onFork}>
+            <Copy className="size-4" /> Copy this card
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => forkFileRef.current?.click()}>
+            <FileUp className="size-4" /> Upload an edited PNG…
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <input
+        ref={forkFileRef}
+        type="file"
+        accept="image/png"
+        hidden
+        onChange={onForkFile}
+      />
 
       <button
         type="button"
