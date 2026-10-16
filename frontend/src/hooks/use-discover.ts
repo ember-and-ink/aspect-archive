@@ -639,7 +639,6 @@ export function useAddToArchive() {
               node: payload.node,
               linked_lorebook:
                 (payload.linked_lorebook as Record<string, unknown>) ?? null,
-              avatar_url: chubAvatarUrl(payload.node) || null,
             },
           }),
           'could not add the card',

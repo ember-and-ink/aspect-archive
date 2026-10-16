@@ -39,9 +39,6 @@ logger = logging.getLogger("jai_proxy.api.build")
 
 router = APIRouter()
 
-# Chub.ai's own avatar CDN convention; mirrors CHUB_AVATAR_BASE in
-# frontend/src/lib/providers/chub.ts -- keep the two in sync.
-CHUB_AVATAR_BASE = "https://avatars.charhub.io/avatars/"
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
@@ -468,13 +465,7 @@ async def build_chub(req: ChubBuildRequest) -> BuildResponse:
         cleaned["extensions"]["gallery_id"] = req.gallery_id
 
     payload = chub.to_payload(cleaned)
-    full_path = node.get("fullPath") or ""
-    avatar_url = (
-        req.avatar_url
-        or node.get("max_res_url")
-        or node.get("avatar_url")
-        or (f"{CHUB_AVATAR_BASE}{full_path}/avatar.webp" if full_path else None)
-    )
+    avatar_url = req.avatar_url or chub.avatar_url(node)
 
     response = await fetch_avatar_and_write(
         write_fn=lambda avatar_bytes: deps.png_writer.write_payload(

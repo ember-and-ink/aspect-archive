@@ -284,3 +284,18 @@ def test_build_v2_from_chub_falls_back_to_embedded_lorebook_without_linked():
     data = mapper.build_v2_from_chub(node, linked_lorebook=None)
     # No linked lorebook passed in -- falls back to definition.embedded_lorebook.
     assert data["character_book"] is node["definition"]["embedded_lorebook"]
+
+
+def test_avatar_url_prefers_full_res_over_the_200px_thumbnail():
+    base = "https://avatars.charhub.io/avatars/a/b"
+    node = {
+        "fullPath": "a/b",
+        "avatar_url": f"{base}/avatar.webp",
+        "max_res_url": f"{base}/chara_card_v2.png",
+    }
+    assert mapper.avatar_url(node) == f"{base}/chara_card_v2.png"
+    # No max_res_url: build the original's URL, never fall to avatar.webp.
+    del node["max_res_url"]
+    assert mapper.avatar_url(node) == f"{base}/chara_card_v2.png"
+    assert mapper.avatar_url({"avatar_url": f"{base}/avatar.webp"}) == f"{base}/avatar.webp"
+    assert mapper.avatar_url({}) is None

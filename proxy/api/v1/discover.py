@@ -33,7 +33,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from proxy import deps
-from proxy.api.build import CHUB_AVATAR_BASE, build_card
+from proxy.api.build import build_card
 from proxy.archive import catalog
 from proxy.cards.models import CharacterBook
 from proxy.config import settings
@@ -146,12 +146,7 @@ def _chub_preview(req: DiscoverPreviewIn) -> DiscoverPreviewOut:
         },
     }
     payload = chub.to_payload(cleaned)
-    full_path = node.get("fullPath") or ""
-    avatar_url = (
-        node.get("max_res_url")
-        or node.get("avatar_url")
-        or (f"{CHUB_AVATAR_BASE}{full_path}/avatar.webp" if full_path else None)
-    )
+    avatar_url = chub.avatar_url(node)
     return _assemble(
         provider="chub",
         payload=payload,
