@@ -677,3 +677,49 @@ def test_uploading_cannot_write_outside_its_folder(client, populated_archive, tm
     )
     assert not (populated_archive["galleries"].parent / "escaped.webp").exists()
     assert not (settings.archive_dir / "escaped.webp").exists()
+
+
+# --- re-fetching the original avatar -----------------------------------------
+
+
+@pytest.fixture
+def thumb_card(populated_archive):
+    """A Chub card saved with the 200px thumbnail, as Discover did until 2026-10-16."""
+    extensions = jai_extensions("7980518", gallery_id="MMMMMMMMMMMM", source_kind="chub_core")
+    extensions["chub"] = {"id": 7980518, "full_path": "Drivai/mizuki-6f5ec0abafe8"}
+    path = populated_archive["characters"] / "Mizuki_7980518.png"
+    path.write_bytes(card_png("Mizuki", size=(200, 200), extensions=extensions))
+    return path
+
+
+def test_low_res_filter_finds_only_thumbnails(client, thumb_card):
+    listed = client.get("/api/v1/characters", params={"low_res": True}).json()
+    assert [c["id"] for c in listed["items"]] == ["Mizuki_7980518.png"]
+    assert listed["items"][0]["avatar_width"] == 200
+
+
+def test_refetch_replaces_a_thumbnail(client, thumb_card, monkeypatch):
+    from proxy.cards import avatar_refetch
+
+    urls: list[str] = []
+    monkeypatch.setattr(avatar_refetch, "download", lambda url: urls.append(url) or image_bytes((600, 900)))
+    detail = client.get("/api/v1/characters/Mizuki_7980518.png").json()
+    assert detail["avatar_origin"] == "chub"
+
+    resp = client.post("/api/v1/characters/Mizuki_7980518.png/avatar/refetch")
+    assert resp.status_code == 200
+    assert (resp.json()["avatar_width"], resp.json()["avatar_height"]) == (600, 900)
+    assert urls == ["https://avatars.charhub.io/avatars/Drivai/mizuki-6f5ec0abafe8/chara_card_v2.png"]
+    assert read_card(thumb_card)["name"] == "Mizuki"
+    assert client.get("/api/v1/characters", params={"low_res": True}).json()["items"] == []
+
+
+def test_refetch_refuses_a_thumbnail_sized_source(client, thumb_card, monkeypatch):
+    from proxy.cards import avatar_refetch
+
+    monkeypatch.setattr(avatar_refetch, "download", lambda url: image_bytes((200, 200)))
+    before = thumb_card.read_bytes()
+    resp = client.post("/api/v1/characters/Mizuki_7980518.png/avatar/refetch")
+    assert resp.status_code == 422
+    assert "thumbnail" in resp.json()["detail"]
+    assert thumb_card.read_bytes() == before

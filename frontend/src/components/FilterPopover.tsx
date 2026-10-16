@@ -17,6 +17,7 @@ const FLAGS: Flag[] = [
   'untagged',
   'media',
   'fork',
+  'lowres',
 ]
 
 /**

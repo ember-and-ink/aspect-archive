@@ -51,6 +51,7 @@ import { setDialogue, setField, setGreetings } from '@/lib/card-edit'
 import { copyText } from '@/lib/clipboard'
 import { groupExpressions } from '@/lib/expressions'
 import { cn } from '@/lib/utils'
+import { AvatarSize } from './AvatarRefetch'
 import { CreatorNotes } from './CreatorNotes'
 import { EditActions, EditButton, useEdit } from './edit-context'
 import { InlineTextField } from './editors'
@@ -884,7 +885,15 @@ export function RelatedPane({ card }: { card: CardDetail }) {
 
 // ---- Info ------------------------------------------------------------------
 
-export function InfoPane({ card }: { card: CardDetail }) {
+export function InfoPane({
+  card,
+  etag,
+  onAvatarReplaced,
+}: {
+  card: CardDetail
+  etag: string | null
+  onAvatarReplaced: () => void
+}) {
   const data = card.card
   return (
     <>
@@ -896,6 +905,16 @@ export function InfoPane({ card }: { card: CardDetail }) {
             ['Gallery id', card.gallery_id || '—', true],
             ['Spec', `${card.spec} ${card.spec_version}`.trim() || '—'],
             ['Size on disk', formatBytes(card.size), true],
+            [
+              'Image',
+              <AvatarSize
+                key="i"
+                card={card}
+                etag={etag}
+                onReplaced={onAvatarReplaced}
+              />,
+              true,
+            ],
           ]}
         />
       </Section>

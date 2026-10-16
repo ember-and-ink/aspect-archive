@@ -138,6 +138,10 @@ class CardSummary:
     # the parse reads both -- but only the extensions copy survives a patch (see
     # `pngtools.embed_card`), which is why writes go there.
     favorite: bool = False
+    # The avatar's pixel size, out of the PNG header the scan has already read.
+    # For the low-res filter -- see proxy/cards/avatar_refetch.py.
+    avatar_width: int = 0
+    avatar_height: int = 0
     # The card's whole `data.extensions` block, verbatim. Kept here -- unlike
     # every other piece of prose-adjacent content -- because it is not prose: it
     # is identity. Provider links, gallery_id, version uids and the per-source
@@ -266,7 +270,8 @@ def summarize(path: Path, stat_result: Any | None = None) -> CardSummary:
     if not isinstance(data, dict):
         return CardSummary(**base, error="card `data` is not an object")
 
-    return CardSummary(**base, **summarize_data(data, outer))
+    width, height = pngtools.image_size(raw)
+    return CardSummary(**base, **summarize_data(data, outer), avatar_width=width, avatar_height=height)
 
 
 def _favorite(outer: dict[str, Any], extensions: dict[str, Any]) -> bool:

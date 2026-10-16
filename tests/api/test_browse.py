@@ -50,6 +50,9 @@ def test_card_shape_is_the_contract(client):
         "favorite": False,
         "is_fork": False,
         "size": item["size"],
+        # The fixture's default image size, read off the PNG header.
+        "avatar_width": 384,
+        "avatar_height": 576,
         "modified": item["modified"],
         "linked_at": "2026-07-21T17:31:47.257Z",
         # Derived, not stored: this fixture carries no root `create_date`, so it
