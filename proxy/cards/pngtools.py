@@ -156,6 +156,16 @@ def embed_card(png: bytes, envelope: dict[str, Any], data: dict[str, Any]) -> by
     return inject_text_chunks(png, {"chara": payload, "ccv3": payload})
 
 
+def image_size(png: bytes) -> tuple[int, int]:
+    """Width and height out of the IHDR, which is always the first chunk -- no
+    decode, so the index can afford it on every card. `(0, 0)` for anything
+    that is not a PNG."""
+    if len(png) < 24 or png[:8] != _PNG_SIGNATURE or png[12:16] != b"IHDR":
+        return (0, 0)
+    width, height = struct.unpack(">II", png[16:24])
+    return (width, height)
+
+
 def non_text_chunks(png: bytes) -> list[tuple[bytes, bytes]]:
     """Every chunk of `png` that isn't text -- i.e. the pixels and headers. An
     in-place card patch must leave this list byte-identical; comparing it before

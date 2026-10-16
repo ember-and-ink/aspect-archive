@@ -214,6 +214,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/characters/{card_id}/avatar/refetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-download a card's original image
+         * @description Replace the card's image with its source's current full-resolution one,
+         *     keeping every field of the embedded card -- the repair for a thumbnail
+         *     saved in place of the portrait.
+         *
+         *     Replaces only on a clear improvement: a failed download, a non-image, a
+         *     thumbnail-sized source or one no larger than the card's image answers 422
+         *     and leaves the card untouched.
+         */
+        post: operations["refetch_character_avatar_api_v1_characters__card_id__avatar_refetch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/characters/tags": {
         parameters: {
             query?: never;
@@ -2104,6 +2130,18 @@ export interface components {
              */
             size: number;
             /**
+             * Avatar Width
+             * @description The card image's width in pixels, from the PNG header.
+             * @default 0
+             */
+            avatar_width: number;
+            /**
+             * Avatar Height
+             * @description The card image's height in pixels, from the PNG header.
+             * @default 0
+             */
+            avatar_height: number;
+            /**
              * Modified
              * Format: date-time
              * @description The file's mtime. Says when the card was last *written*, which on this archive is dominated by bulk repair passes -- see `linked_at` for when it arrived.
@@ -2145,6 +2183,11 @@ export interface components {
             card: {
                 [key: string]: unknown;
             };
+            /**
+             * Avatar Origin
+             * @description Where `POST /characters/{id}/avatar/refetch` would ask for this card's original image -- null when the card carries no id any source can resolve.
+             */
+            avatar_origin?: ("chub" | "datacat") | null;
             gallery: components["schemas"]["GalleryOut"];
             /** @description Same shape as `gallery`, measured against data/expressions/ instead. */
             expressions: components["schemas"]["GalleryOut"];
@@ -2298,6 +2341,18 @@ export interface components {
              * @description Card PNG size in bytes.
              */
             size: number;
+            /**
+             * Avatar Width
+             * @description The card image's width in pixels, from the PNG header.
+             * @default 0
+             */
+            avatar_width: number;
+            /**
+             * Avatar Height
+             * @description The card image's height in pixels, from the PNG header.
+             * @default 0
+             */
+            avatar_height: number;
             /**
              * Modified
              * Format: date-time
@@ -3735,6 +3790,8 @@ export interface operations {
                 min_greetings?: number | null;
                 /** @description Cards acquired at or after this ISO-8601 instant, compared against `linked_at`. Cards with no stamp are excluded. */
                 added_after?: string | null;
+                /** @description `true` for cards whose image is under 250px on both sides -- a thumbnail saved in place of the portrait, which `POST /characters/{id}/avatar/refetch` can repair. */
+                low_res?: boolean | null;
                 /** @description `true` for cards whose media was attempted and did not fully come down -- the last run reported errors, or the manifest carries dead URLs. Costs a manifest read per card, so it is only paid when asked for. A card that has never been scanned counts as not needing media: whether it has any is a question only `/characters/{id}/media/scan` can answer. */
                 needs_media?: boolean | null;
                 /** @description `ok` lists parseable cards (the default), `broken` the ones that fail to parse, `all` both. */
@@ -4043,6 +4100,39 @@ export interface operations {
                 "multipart/form-data": components["schemas"]["Body_put_character_avatar_api_v1_characters__card_id__avatar_put"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refetch_character_avatar_api_v1_characters__card_id__avatar_refetch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string | null;
+            };
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

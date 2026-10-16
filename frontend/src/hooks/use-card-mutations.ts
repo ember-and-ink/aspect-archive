@@ -198,6 +198,40 @@ export function useReplaceAvatar(id: string) {
 }
 
 /**
+ * Re-download the card's original image from its source and swap the pixels
+ * in, keeping every field. The server refuses (422, card untouched) unless what
+ * came back is clearly larger, and its reason is what the toast shows.
+ */
+export function useRefetchAvatar(id: string) {
+  const client = useQueryClient()
+  return useMutation<CardDetailResult, Error, { etag: string | null }>({
+    mutationFn: async ({ etag }) => {
+      const { data, error, response } = await apiClient.POST(
+        '/api/v1/characters/{card_id}/avatar/refetch',
+        {
+          params: { path: { card_id: id } },
+          headers: etag ? { 'If-Match': etag } : undefined,
+        },
+      )
+      if (response.status === 412) throw new StaleWriteError()
+      if (!response.ok || data === undefined) {
+        const detail = (error as { detail?: unknown } | undefined)?.detail
+        throw new Error(
+          typeof detail === 'string'
+            ? detail
+            : `could not re-fetch the image: ${response.status}`,
+        )
+      }
+      return { card: data, etag: response.headers.get('ETag') }
+    },
+    onSuccess: (result) => {
+      client.setQueryData(['character', id], result)
+      invalidateArchive(client)
+    },
+  })
+}
+
+/**
  * Fork a card — the born-here primitive (docs/FORKS_AND_EXTRAS_PLAN.md §3).
  * Returns the new card's detail so the caller can navigate straight to it;
  * no `etag` comes back (the route doesn't set one, same as every other write

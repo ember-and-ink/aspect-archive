@@ -52,6 +52,8 @@ class CardOut(BaseModel):
         description="Whether the card carries an `extensions.fork` block -- for the tile badge and the Forks filter chip, without paying for the whole `extensions` blob on a list request.",
     )
     size: int = Field(description="Card PNG size in bytes.")
+    avatar_width: int = Field(default=0, description="The card image's width in pixels, from the PNG header.")
+    avatar_height: int = Field(default=0, description="The card image's height in pixels, from the PNG header.")
     modified: datetime = Field(
         description="The file's mtime. Says when the card was last *written*, which on this archive is dominated by bulk repair passes -- see `linked_at` for when it arrived."
     )
@@ -189,6 +191,10 @@ class CardDetailOut(CardOut):
     spec: str
     spec_version: str
     card: dict[str, Any]
+    avatar_origin: Literal["chub", "datacat"] | None = Field(
+        default=None,
+        description="Where `POST /characters/{id}/avatar/refetch` would ask for this card's original image -- null when the card carries no id any source can resolve.",
+    )
     gallery: GalleryOut
     expressions: GalleryOut = Field(
         description="Same shape as `gallery`, measured against data/expressions/ instead."

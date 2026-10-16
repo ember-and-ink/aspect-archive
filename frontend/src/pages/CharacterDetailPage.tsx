@@ -244,7 +244,13 @@ export function CharacterDetailPage() {
         {activeTab === 'gallery' && <GalleryPane card={card} />}
         {activeTab === 'expressions' && <ExpressionsPane card={card} />}
         {activeTab === 'related' && <RelatedPane card={card} />}
-        {activeTab === 'info' && <InfoPane card={card} />}
+        {activeTab === 'info' && (
+          <InfoPane
+            card={card}
+            etag={etag}
+            onAvatarReplaced={() => setAvatarBust((n) => n + 1)}
+          />
+        )}
       </CardDetailLayout>
     </EditProvider>
   )

@@ -53,7 +53,7 @@ from proxy.api.schemas import (
 )
 from proxy.api.v1 import _shared
 from proxy.archive import catalog
-from proxy.cards import edit, forks, gallery, intake, pngtools
+from proxy.cards import avatar_refetch, edit, forks, gallery, intake, pngtools
 from proxy.cards.naming import id_fragment
 from proxy.media import expressions
 from proxy.media import manifest as media_manifest
@@ -107,6 +107,8 @@ def _card_out(record: catalog.CardSummary, *, extensions: bool = False) -> CardO
         favorite=record.favorite,
         is_fork=bool(record.fork_of),
         size=record.size,
+        avatar_width=record.avatar_width,
+        avatar_height=record.avatar_height,
         modified=datetime.fromtimestamp(record.mtime, tz=timezone.utc),
         linked_at=record.linked_at,
         create_date=record.create_date,
@@ -209,6 +211,7 @@ def _matches(
     untagged: bool | None,
     min_greetings: int | None,
     added_after: str | None,
+    low_res: bool | None,
 ) -> bool:
     # AND across search terms so a second word narrows rather than widens --
     # "korny abbie" should find the one card, not every card by either.
@@ -251,6 +254,8 @@ def _matches(
     if untagged is not None and (not record.tags) != untagged:
         return False
     if min_greetings is not None and record.greeting_count < min_greetings:
+        return False
+    if low_res is not None and avatar_refetch.is_low_res(record.avatar_width, record.avatar_height) != low_res:
         return False
     if added_after is not None:
         # String comparison, not date parsing: `linked_at` is stored as the raw
@@ -324,6 +329,10 @@ def list_characters(
         None,
         description="Cards acquired at or after this ISO-8601 instant, compared against `linked_at`. Cards with no stamp are excluded.",
     ),
+    low_res: bool | None = Query(
+        None,
+        description="`true` for cards whose image is under 250px on both sides -- a thumbnail saved in place of the portrait, which `POST /characters/{id}/avatar/refetch` can repair.",
+    ),
     needs_media: bool | None = Query(
         None,
         description=(
@@ -379,6 +388,7 @@ def list_characters(
             untagged=untagged,
             min_greetings=min_greetings,
             added_after=added_after,
+            low_res=low_res,
         )
     ]
 
@@ -457,6 +467,7 @@ def get_character(card_id: str, response: Response = None) -> CardDetailOut:  # 
         spec=str(outer.get("spec", "")),
         spec_version=str(outer.get("spec_version", "")),
         card=data,
+        avatar_origin=avatar_refetch.origin(data),
         gallery=_folder_out(record, settings.galleries_dir),
         expressions=expressions,
         expressions_zip_url=(
@@ -839,6 +850,43 @@ def put_character_avatar(
     _shared.thumbnail_store.forget(record.filename)
     catalog.index().refresh(force=True)
     return get_character(record.filename)
+
+
+@router.post(
+    "/characters/{card_id}/avatar/refetch",
+    response_model=CardDetailOut,
+    summary="Re-download a card's original image",
+)
+def refetch_character_avatar(
+    card_id: str,
+    response: Response,
+    if_match: str | None = Header(None, alias="If-Match"),
+) -> CardDetailOut:
+    """Replace the card's image with its source's current full-resolution one,
+    keeping every field of the embedded card -- the repair for a thumbnail
+    saved in place of the portrait.
+
+    Replaces only on a clear improvement: a failed download, a non-image, a
+    thumbnail-sized source or one no larger than the card's image answers 422
+    and leaves the card untouched.
+    """
+    idx = _shared.index()
+    record = _shared.require(idx, card_id)
+    path = idx.root / record.filename
+    _check_precondition(path, if_match)
+
+    try:
+        avatar_refetch.refetch(path)
+    except avatar_refetch.RefetchError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except edit.WriteError as exc:
+        raise _shared.write_error(exc) from exc
+
+    _shared.thumbnail_store.forget(record.filename)
+    catalog.index().refresh(force=True)
+    # With the response, so the new ETag comes back and the page's next edit
+    # carries a current precondition.
+    return get_character(record.filename, response)
 
 
 @router.post("/characters/tags", response_model=BulkTagsOut, summary="Add and remove tags across many cards")
