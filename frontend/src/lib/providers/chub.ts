@@ -131,6 +131,9 @@ export async function searchChub(opts: {
   return { nodes, hasMore: nodes.length >= perPage }
 }
 
+/** The browse-tile avatar: `avatar_url` is Chub's 200x200 thumbnail, right
+ *  for a grid and wrong for a card -- `/build-chub` picks the full-res image
+ *  server-side (`proxy/sources/chub.py` `avatar_url`), so never send this. */
 export function chubAvatarUrl(node: ChubNode): string {
   if (node.avatar_url) return node.avatar_url
   if (node.max_res_url) return node.max_res_url

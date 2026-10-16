@@ -44,6 +44,10 @@ from proxy.text.tags import normalize_tags
 # imported card can record a source_url the way natively retrieved cards do.
 _CHUB_CHARACTER_BASE = "https://chub.ai/characters/"
 
+# Chub.ai's own avatar CDN convention; mirrors CHUB_AVATAR_BASE in
+# frontend/src/lib/providers/chub.ts -- keep the two in sync.
+CHUB_AVATAR_BASE = "https://avatars.charhub.io/avatars/"
+
 # The chara_card_v3 fields carrying authored prose + macros. Sanitized in place;
 # every other top-level field is left exactly as Chub wrote it.
 _TEXT_FIELDS = (
@@ -96,6 +100,20 @@ def page_name(data: dict[str, Any]) -> str:
 def source_url(data: dict[str, Any]) -> str | None:
     full_path = _s(chub_block(data).get("full_path"))
     return f"{_CHUB_CHARACTER_BASE}{full_path}" if full_path else None
+
+
+def avatar_url(node: dict[str, Any]) -> str | None:
+    """The full-resolution avatar for a raw Chub API node. `avatar.webp`
+    (what `avatar_url` names) is a 200x200 thumbnail -- fine for a browse
+    tile, never for the card. `chara_card_v2.png` is the original upload;
+    its embedded card chunks are dropped when the writer re-encodes it."""
+    full_path = _s(node.get("fullPath"))
+    return (
+        _s(node.get("max_res_url"))
+        or (f"{CHUB_AVATAR_BASE}{full_path}/chara_card_v2.png" if full_path else None)
+        or _s(node.get("avatar_url"))
+        or None
+    )
 
 
 def build_v2_from_chub(
