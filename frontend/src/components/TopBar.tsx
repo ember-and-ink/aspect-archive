@@ -4,14 +4,8 @@ import { useBatchSelection } from '@/hooks/use-batch-selection'
 import { cn } from '@/lib/utils'
 import { ImportPopover } from './ImportPopover'
 
-/** The routes whose batch mode is toggled from *here*, which is a smaller set
- *  than `BATCH_ROUTES` in `use-batch-selection.tsx` and deliberately so.
- *
- *  Discover shares the state but not this button: every other control over that
- *  grid lives in the page's own header, and an unlabelled icon up here — beside
- *  Import and Settings, reading "batch select" — is not where anyone looks for
- *  "stop showing me this card". It has a named chip next to "Hide cards I have"
- *  instead, which is where you are already thinking about hiding things. */
+/** The routes whose batch mode is toggled from here — the same set as
+ *  `BATCH_ROUTES` in `use-batch-selection.tsx`. */
 const BATCH_TOGGLE_ROUTES = new Set(['/', '/favorites'])
 
 const TABS = [

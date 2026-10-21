@@ -5,10 +5,8 @@ import { useBatchSelection } from '@/hooks/use-batch-selection'
  * The floating pill batch mode shows while it's on: "N selected", whatever
  * actions the grid underneath offers, Cancel.
  *
- * Shared because there are two grids and they select different things — a card
- * you own, which can be deleted (`BatchActionBar`), or a provider result you
- * don't, which can be ignored (`DiscoverBatchBar`). Only the buttons differ, so
- * only the buttons are per-grid; the count, the chrome and Cancel are here.
+ * The grid supplies the buttons (`BatchActionBar`); the count, the chrome and
+ * Cancel are here.
  */
 export function BatchBarShell({ children }: { children: React.ReactNode }) {
   const { selected, clear } = useBatchSelection()

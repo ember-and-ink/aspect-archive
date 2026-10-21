@@ -69,13 +69,14 @@ class Settings(BaseSettings):
     # DataCat tokens, and it belongs in whatever gets mounted and backed up.
     # Seed it from an existing SillyTavern install with `make settings-import`.
     settings_file: Path = ROOT / "data" / "settings.json"
-    # Provider cards marked "don't want" in Discover, per provider. User data
-    # like the settings blob, and beside it for the same reason -- a decision
-    # not to acquire something is not recoverable from anything on disk. Its own
-    # file rather than a settings key because it is the one store whose whole
-    # job is to grow, and settings.json is rewritten whole on every save with
-    # the provider tokens riding along. See proxy/state/ignored.py.
-    ignored_file: Path = ROOT / "data" / "ignored.json"
+    # When Discover first saw each Following card, per provider -- what "Recent
+    # only" filters on. User data like the settings blob, and beside it for the
+    # same reason: the history is not recoverable from anything on disk, and
+    # losing it makes every card in the next feed "new". Its own file rather
+    # than a settings key because it is the one store whose whole job is to
+    # grow, and settings.json is rewritten whole on every save with the provider
+    # tokens riding along. See proxy/state/seen.py.
+    seen_file: Path = ROOT / "data" / "discover_seen.json"
     # The login gate: on/off, the username, a password hash, and the secret
     # that signs session cookies. Off when the file is absent, so deleting it is
     # the way back in from a forgotten password. Its own file rather than a

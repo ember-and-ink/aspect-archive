@@ -139,12 +139,11 @@ def archive_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, P
     # happened here before this line existed (`mega://folder/bad` on disk).
     dirs["dead_urls"] = tmp_path / "dead_urls.json"
     monkeypatch.setattr(settings, "dead_urls_file", dirs["dead_urls"])
-    # And again for Discover's ignore list, which is append-only and has no
-    # route to take an id back out -- so a test that wrote to the real file
-    # would permanently hide synthetic provider ids from the developer's own
-    # browsing, with nothing in the UI to undo it.
-    dirs["ignored"] = tmp_path / "ignored.json"
-    monkeypatch.setattr(settings, "ignored_file", dirs["ignored"])
+    # And again for Discover's first-seen stamps, which are never rewritten --
+    # a test that wrote to the real file would leave synthetic provider ids in
+    # the developer's own Following history, with nothing in the UI to undo it.
+    dirs["seen"] = tmp_path / "discover_seen.json"
+    monkeypatch.setattr(settings, "seen_file", dirs["seen"])
     # And for the login gate, where the stakes are the other way round: a test
     # that enabled it against the real file would lock the developer out of
     # their own archive behind a password only the test knew.

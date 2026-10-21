@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useLocation } from 'react-router'
 import { Trash2 } from 'lucide-react'
 import { BatchBarShell } from '@/components/BatchBarShell'
 import { useBatchSelection } from '@/hooks/use-batch-selection'
@@ -20,21 +19,14 @@ import {
  * from `AppShell` (like `BackToTop`) rather than from `CharactersPage`, since
  * it has to outlive whichever page turned batch mode on; `useBatchSelection`
  * already confines `active` to the grid routes.
- *
- * Discover is the exception it steps aside for: that grid's one action is
- * "ignore", which needs the rows on screen to resolve a selection into provider
- * ids, so `DiscoverPage` renders its own `DiscoverBatchBar` instead. Both use
- * `BatchBarShell`, so the two read as one control that offers what the grid
- * under it can actually do.
  */
 export function BatchActionBar() {
   const { active, selected, clear } = useBatchSelection()
-  const { pathname } = useLocation()
   const bulkDelete = useBulkDeleteCharacters()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [alsoGallery, setAlsoGallery] = useState(false)
 
-  if (!active || pathname === '/discover') return null
+  if (!active) return null
 
   const count = selected.size
   const plural = count === 1 ? '' : 's'

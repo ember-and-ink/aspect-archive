@@ -1268,39 +1268,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/discover/ignored": {
+    "/api/v1/discover/seen": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Every provider card marked “don’t want”
-         * @description The whole ignore list, fetched once and matched locally.
-         *
-         *     The peer of `GET /characters/have-fragments`, and asked for the same way
-         *     and for the same reason: Discover holds one set per provider in memory and
-         *     tests each row against it as the grid pages, rather than asking the server
-         *     about an ever-growing list of loaded ids on every scroll tick.
-         *
-         *     The two sets are kept separate on the wire although the grid concatenates
-         *     them. Folding ignores into the fragment set would hide the same cards with
-         *     no client change at all -- and would make a tile you do not own read
-         *     "Have", and the "N already in the archive" count say something untrue.
-         */
-        get: operations["get_ignored_api_v1_discover_ignored_get"];
+        get?: never;
         put?: never;
         /**
-         * Mark provider cards “don’t want”
-         * @description Add ids to one provider's bucket.
+         * Record a Following feed and read back when each card was first seen
+         * @description Stamp the ids never seen before, and answer every id's first stamp.
          *
-         *     There is no route to take one back out, and that is the design rather than
-         *     an omission -- turning "Hide cards I have" off shows every ignored card
-         *     again, and acquiring one makes it a card you have. See
-         *     `proxy.state.ignored`'s module docstring.
+         *     One call per feed load rather than a read plus a write: the client never
+         *     needs one without the other, and doing both under one lock means two tabs
+         *     loading at once cannot each decide a card is new. An id already recorded
+         *     keeps its stamp -- there is no route that moves or removes one. See
+         *     `proxy.state.seen`.
          */
-        post: operations["add_ignored_api_v1_discover_ignored_post"];
+        post: operations["record_seen_api_v1_discover_seen_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2949,47 +2936,6 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** IgnoreIn */
-        IgnoreIn: {
-            /**
-             * Provider
-             * @enum {string}
-             */
-            provider: "chub" | "datacat";
-            /**
-             * Ids
-             * @description The provider's own ids for the cards, not the archive's `_<id8>` fragments. Blanks and duplicates are dropped; ignoring a card already ignored is a no-op, not an error.
-             */
-            ids: string[];
-        };
-        /** IgnoreOut */
-        IgnoreOut: {
-            /** Provider */
-            provider: string;
-            /**
-             * Added
-             * @description How many of the given ids were not already ignored.
-             */
-            added: number;
-            /**
-             * Ids
-             * @description The provider's whole bucket after the write, so the client can update without re-reading.
-             */
-            ids: string[];
-        };
-        /**
-         * IgnoredOut
-         * @description Every ignored id, keyed by provider.
-         */
-        IgnoredOut: {
-            /**
-             * Ignored
-             * @description Provider name to its ignored provider-ids, sorted. A provider with nothing ignored is absent rather than empty.
-             */
-            ignored?: {
-                [key: string]: string[];
-            };
-        };
         /** IndexStatsOut */
         IndexStatsOut: {
             /** Scanned */
@@ -3548,6 +3494,36 @@ export interface components {
              * @description The token the userscripts send instead of logging in, if one has been generated.
              */
             api_token?: string | null;
+        };
+        /** SeenIn */
+        SeenIn: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "chub" | "datacat";
+            /**
+             * Ids
+             * @description Every provider id one Following feed load returned -- the provider's own ids, not the archive's `_<id8>` fragments. Blanks and duplicates are dropped.
+             */
+            ids: string[];
+        };
+        /** SeenOut */
+        SeenOut: {
+            /** Provider */
+            provider: string;
+            /**
+             * Added
+             * @description How many of the given ids had never been seen before, and were stamped now.
+             */
+            added: number;
+            /**
+             * First Seen
+             * @description Each given id's first-seen stamp, epoch milliseconds on the server's clock. Covers exactly the ids sent, not the whole history.
+             */
+            first_seen: {
+                [key: string]: number;
+            };
         };
         /**
          * SessionOut
@@ -5538,27 +5514,7 @@ export interface operations {
             };
         };
     };
-    get_ignored_api_v1_discover_ignored_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["IgnoredOut"];
-                };
-            };
-        };
-    };
-    add_ignored_api_v1_discover_ignored_post: {
+    record_seen_api_v1_discover_seen_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5567,7 +5523,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["IgnoreIn"];
+                "application/json": components["schemas"]["SeenIn"];
             };
         };
         responses: {
@@ -5577,7 +5533,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["IgnoreOut"];
+                    "application/json": components["schemas"]["SeenOut"];
                 };
             };
             /** @description Validation Error */
