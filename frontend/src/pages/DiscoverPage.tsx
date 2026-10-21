@@ -1,24 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { RefreshCw, Search, X } from 'lucide-react'
 import { CardGrid } from '@/components/CardGrid'
-import { DiscoverBatchBar } from '@/components/DiscoverBatchBar'
 import { DiscoverTile } from '@/components/DiscoverTile'
 import { DiscoverSort } from '@/components/DiscoverSort'
 import { DiscoverTagFilter } from '@/components/DiscoverTagFilter'
 import { FollowingManager } from '@/components/FollowingManager'
 import { type TagSelection } from '@/components/discover-tags-def'
-import { useBatchSelection } from '@/hooks/use-batch-selection'
 import { useDebounced } from '@/hooks/use-debounced'
 import {
   FOLLOWING_PER_CREATOR,
   idFragment,
+  isRecent,
   useAddToArchive,
   useDatacatFollows,
   useDiscoverSearch,
   useHaveFragments,
 } from '@/hooks/use-discover'
-import { useIgnoredIds } from '@/hooks/use-ignored'
 import { useProviderSettings, useSettings } from '@/hooks/use-settings'
 import {
   defaultSort,
@@ -116,11 +115,19 @@ export function DiscoverPage() {
   } = results
 
   const items = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data])
-  const total = data?.pages[data.pages.length - 1]?.total
+  const lastPage = data?.pages[data.pages.length - 1]
+  const total = lastPage?.total
   // DataCat's Following feed reads one page per creator (their newest), so a
   // creator with more than that is represented, not exhausted. Say so rather
   // than let the count read as "everything they have published".
-  const truncatedCreators = data?.pages[data.pages.length - 1]?.truncated ?? 0
+  const truncatedCreators = lastPage?.truncated ?? 0
+
+  // "Recent only" is applied inside `useDiscoverSearch`, over the whole feed
+  // before paging -- so `total` is already the recent count, and nothing here
+  // has to fetch more pages to fill a sparse window.
+  const recentFeed = mode === 'following' && !creator
+  const recentOn = recentFeed && state.recentOnly
+  const seenFailed = recentFeed && (lastPage?.seenFailed ?? false)
 
   const tags: TagSelection = useMemo(
     () => ({
@@ -151,47 +158,26 @@ export function DiscoverPage() {
     [items, filters, filtering],
   )
 
-  // The two hide lists, read once each and matched locally. They stay separate
-  // right up to `isHidden` below: "Hide cards I have" concatenates them, but a
-  // card you own and a card you have decided against are different facts, and
-  // the tile badge and the counts say which is which.
+  // Read once and matched locally -- see `useHaveFragments`.
   const have = useHaveFragments()
   const haveFragments = have.data ?? new Set<string>()
   const isHave = (providerId: string) =>
     haveFragments.has(idFragment(providerId))
 
-  const ignored = useIgnoredIds()
-  // Per provider, since the list is -- an id ignored on Chub says nothing about
-  // the same character on DataCat. Matched whole rather than by `_<id8>`
-  // fragment: we are holding the provider's own id here, so there is no reason
-  // to narrow it to eight characters first.
-  const ignoredIds = ignored.data?.get(provider) ?? new Set<string>()
-  const isIgnored = (providerId: string) => ignoredIds.has(providerId)
-
   const haveCount = tagMatched.filter((i) => isHave(i.providerId)).length
-  const ignoredCount = tagMatched.filter(
-    (i) => !isHave(i.providerId) && isIgnored(i.providerId),
-  ).length
-  // One filter over both lists. An ignored card that you later acquire is in
-  // both, and counted as "have" above, so the two never double-count.
-  const isHidden = (providerId: string) =>
-    isHave(providerId) || isIgnored(providerId)
   const visible = state.hideHave
-    ? tagMatched.filter((i) => !isHidden(i.providerId))
+    ? tagMatched.filter((i) => !isHave(i.providerId))
     : tagMatched
 
   const feedNote =
-    truncatedCreators > 0
+    (recentOn && lastPage?.feedSize !== undefined
+      ? ` · new in the last 48 hours, of ${lastPage.feedSize.toLocaleString()} in your feed`
+      : '') +
+    (truncatedCreators > 0
       ? ` · showing the most recent ${FOLLOWING_PER_CREATOR} per creator`
-      : ''
+      : '')
 
-  // Both hide lists reported separately, and only when they have something to
-  // say. Collapsing them into one "N hidden" would make the toggle's effect
-  // unreadable -- you could not tell a feed you have worked through from one
-  // you have mostly rejected.
-  const hiddenNote =
-    (haveCount ? ` · ${haveCount} already in the archive` : '') +
-    (ignoredCount ? ` · ${ignoredCount} ignored` : '')
+  const hiddenNote = haveCount ? ` · ${haveCount} already in the archive` : ''
 
   // Trap 1: a page's own tag lists are truncated, so filtering thins results
   // unpredictably. Pull a few more pages rather than letting a live filter look
@@ -219,18 +205,6 @@ export function DiscoverPage() {
   const add = useAddToArchive()
   const [addingKey, setAddingKey] = useState<string | null>(null)
 
-  // Batch mode is toggled from the top bar and confined to the grid routes by
-  // `use-batch-selection`; what it selects here is `DiscoverItem.key`.
-  const batch = useBatchSelection()
-  // Switching feed replaces every row, so a selection made against the old one
-  // names cards that are no longer on screen. Drop it, but stay in batch mode:
-  // the user turned that on deliberately and did not change their mind by
-  // changing provider.
-  const { clearSelected } = batch
-  useEffect(() => {
-    clearSelected()
-  }, [provider, mode, creator, clearSelected])
-
   const sentinelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const element = sentinelRef.current
@@ -246,6 +220,9 @@ export function DiscoverPage() {
   }, [hasNextPage, fetchNextPage, visible.length])
 
   const gridSearch = writeDiscoverState(state).toString()
+
+  const client = useQueryClient()
+  const now = Date.now()
 
   return (
     <>
@@ -299,12 +276,20 @@ export function DiscoverPage() {
             >
               Hide cards I have
             </ProviderChip>
-            <span className="mx-1 h-[18px] w-px bg-white/8" />
-            {/* Named for its outcome rather than its mechanism ("batch select"),
-                because ignoring is the only thing selecting does here. */}
-            <ProviderChip on={batch.active} onClick={batch.toggleActive}>
-              {batch.active ? 'Selecting…' : 'Select to ignore'}
-            </ProviderChip>
+            {/* Absent rather than inert outside Following: only a Following
+                load is stamped, so there is nothing to call recent elsewhere. */}
+            {recentFeed && (
+              <>
+                <span className="mx-1 h-[18px] w-px bg-white/8" />
+                <ProviderChip
+                  on={state.recentOnly}
+                  onClick={() => patch({ recentOnly: !state.recentOnly })}
+                  title="Only cards your Following feed first returned in the last 48 hours"
+                >
+                  Recent only
+                </ProviderChip>
+              </>
+            )}
           </div>
 
           <DiscoverTagFilter
@@ -384,13 +369,21 @@ export function DiscoverPage() {
           <button
             type="button"
             onClick={() => {
-              void refetch()
-              // The rare case a hide list changed out from under this
-              // session (another tab, the userscript, a hand-edit to
-              // data/ignored.json) -- resync both rather than waiting on
-              // their own staleTime.
+              // The whole-feed loads are cached for five minutes beneath the
+              // grid's own query, so a bare refetch would re-slice the old
+              // load. Marking them stale makes Refresh actually ask the
+              // provider again -- which, on Following, is also what stamps
+              // anything new.
+              void client
+                .invalidateQueries({
+                  queryKey: ['following-feed'],
+                  refetchType: 'none',
+                })
+                .then(() => refetch())
+              // The archive may have changed out from under this session
+              // (another tab, the userscript) -- resync rather than waiting on
+              // its staleTime.
               void have.refetch()
-              void ignored.refetch()
             }}
             disabled={isFetching}
             className="flex h-[35px] items-center gap-2 rounded-full border border-line px-3.5 text-[13px] text-muted-foreground hover:border-white/20 hover:text-text disabled:opacity-60"
@@ -415,17 +408,23 @@ export function DiscoverPage() {
             {error && (
               <p className="py-16 text-center text-bad">{error.message}</p>
             )}
+            {seenFailed && (
+              <p className="pt-2 text-center text-[12.5px] text-bad">
+                Couldn’t record which cards are new, so “Recent only” has
+                nothing to go on this load.
+              </p>
+            )}
             {!isPending && !error && visible.length === 0 && (
               <p className="py-16 text-center text-faint">
                 {items.length === 0
-                  ? 'No results.'
+                  ? recentOn
+                    ? 'Nothing new in your feed in the last 48 hours.'
+                    : 'No results.'
                   : filtering && tagMatched.length === 0
                     ? 'No result on the pages loaded so far carries those tags.'
-                    : ignoredCount && !haveCount
-                      ? 'Every result on this page is one you’ve ignored.'
-                      : ignoredCount
-                        ? 'Every result on this page is already in the archive or ignored.'
-                        : 'Every result on this page is already in the archive.'}
+                    : recentOn
+                      ? 'Everything new in the last 48 hours is already in the archive.'
+                      : 'Every result on this page is already in the archive.'}
               </p>
             )}
           </>
@@ -438,11 +437,10 @@ export function DiscoverPage() {
               item={item}
               search={gridSearch}
               have={isHave(item.providerId)}
-              ignored={isIgnored(item.providerId)}
+              // Redundant with the filter on, so only badged with it off --
+              // where it is the whole answer to "which of these are new?".
+              recent={recentFeed && !state.recentOnly && isRecent(item, now)}
               adding={addingKey === item.key}
-              batchMode={batch.active}
-              selected={batch.selected.has(item.key)}
-              onToggleSelect={batch.toggleSelected}
               onBrowseCreator={() =>
                 patch({
                   creator: item.creatorId || item.creator,
@@ -468,11 +466,6 @@ export function DiscoverPage() {
             />
           ))}
         </CardGrid>
-
-        {/* Resolved against every loaded row, not just the visible ones, so a
-            selection survives a tag chip or the hide toggle changing what is on
-            screen between the click and the Ignore. */}
-        <DiscoverBatchBar items={items} />
 
         <div ref={sentinelRef} className="h-px" />
         {isFetchingNextPage && (

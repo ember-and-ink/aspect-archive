@@ -71,7 +71,20 @@ export interface DiscoverItem {
   /** For the Following feeds' client-side ordering. Epoch ms, 0 when unknown. */
   created: number
   chats: number
+  /** When a Following load first returned this card, epoch ms on the server's
+   *  clock (`proxy/state/seen.py`). Absent outside Following, and when the
+   *  stamps could not be recorded. */
+  firstSeen?: number
   raw: ChubNode | DatacatCharacter
+}
+
+/** How long a Following card counts as new after it first came back. A grace
+ *  window rather than "since your last visit": a card seen once in passing
+ *  stays findable for two days instead of vanishing on the next refresh. */
+export const RECENT_WINDOW_MS = 48 * 60 * 60 * 1000
+
+export function isRecent(item: DiscoverItem, now = Date.now()): boolean {
+  return item.firstSeen !== undefined && now - item.firstSeen < RECENT_WINDOW_MS
 }
 
 const PAGE_SIZE = 48
@@ -178,6 +191,41 @@ interface FeedLoad {
    *  holds only their newest `FOLLOWING_PER_CREATOR`. Zero means the feed is
    *  everything everybody has published. */
   truncated: number
+  /** Following only: the first-seen stamps could not be recorded, so no card
+   *  carries `firstSeen` and "Recent only" has nothing to go on. */
+  seenFailed?: boolean
+}
+
+/**
+ * Stamp a Following load's cards with when each was first seen.
+ *
+ * The whole load, every time it is fetched: the server stamps the ids it has
+ * never had and answers every id's original stamp, so a card's `firstSeen` is
+ * the first load that returned it, not this one. A failure leaves the feed
+ * usable -- only "Recent only" depends on this -- and says so.
+ */
+async function stampFirstSeen(
+  provider: Provider,
+  feed: FeedLoad,
+): Promise<FeedLoad> {
+  const ids = feed.items.map((i) => i.providerId).filter(Boolean)
+  if (ids.length === 0) return feed
+  try {
+    const { first_seen } = await unwrap(
+      apiClient.POST('/api/v1/discover/seen', { body: { provider, ids } }),
+      'could not record which cards are new',
+    )
+    return {
+      ...feed,
+      items: feed.items.map((item) =>
+        item.providerId in first_seen
+          ? { ...item, firstSeen: first_seen[item.providerId] }
+          : item,
+      ),
+    }
+  } catch {
+    return { ...feed, seenFailed: true }
+  }
 }
 
 /**
@@ -297,7 +345,7 @@ export function useDiscoverSearch(
 ) {
   const client = useQueryClient()
   const { auth, followed = [] } = opts
-  const { provider, mode, q, sort, creator } = state
+  const { provider, mode, q, sort, creator, recentOnly } = state
   const followedIds = followed.map((c) => c.id).join(',')
   const authKey = auth?.token ? 'authed' : 'anon'
 
@@ -330,10 +378,13 @@ export function useDiscoverSearch(
       return client.fetchQuery({
         queryKey: ['following-feed', provider, authKey, followedIds],
         staleTime: 5 * 60_000,
-        queryFn: () =>
-          provider === 'chub'
-            ? chubFollowingFeed(auth ?? {})
-            : datacatFollowingFeed(followed),
+        queryFn: async () =>
+          stampFirstSeen(
+            provider,
+            provider === 'chub'
+              ? await chubFollowingFeed(auth ?? {})
+              : await datacatFollowingFeed(followed),
+          ),
       })
     }
     return client.fetchQuery({
@@ -364,6 +415,9 @@ export function useDiscoverSearch(
       authKey,
       auth?.nsfw ?? true,
       mode === 'following' ? followedIds : '',
+      // Only Following has stamps to filter on; elsewhere the flag is inert
+      // and must not split the cache.
+      mode === 'following' && !creator && recentOnly,
     ],
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
@@ -374,7 +428,16 @@ export function useDiscoverSearch(
         // Following interleaves creators; a single creator's catalogue is
         // already in the order it was asked for.
         const isFollowing = !creator && mode === 'following'
-        const ordered = isFollowing ? sortFeed(feed.items, sort) : feed.items
+        // "Recent only" filters the whole feed *before* it is paged, never the
+        // pages already on screen. The feed is in memory either way, so a
+        // window holding three new cards is three cards and no more pages --
+        // filtering after paging would leave the grid near-empty and the
+        // scroll sentinel walking the rest of the feed to fill it.
+        const kept =
+          isFollowing && recentOnly
+            ? feed.items.filter((i) => isRecent(i))
+            : feed.items
+        const ordered = isFollowing ? sortFeed(kept, sort) : kept
         const size = isFollowing ? FOLLOWING_PAGE : PAGE_SIZE
         const start = (index - 1) * size
         const slice = ordered.slice(start, start + size)
@@ -383,6 +446,8 @@ export function useDiscoverSearch(
           hasMore: start + slice.length < ordered.length,
           total: ordered.length as number | undefined,
           truncated: feed.truncated,
+          feedSize: feed.items.length as number | undefined,
+          seenFailed: feed.seenFailed ?? false,
         }
       }
 
@@ -405,6 +470,8 @@ export function useDiscoverSearch(
           hasMore,
           total: undefined as number | undefined,
           truncated: 0,
+          feedSize: undefined as number | undefined,
+          seenFailed: false,
         }
       }
 
@@ -419,6 +486,8 @@ export function useDiscoverSearch(
         hasMore: offset + characters.length < totalCount,
         total: totalCount,
         truncated: 0,
+        feedSize: undefined as number | undefined,
+        seenFailed: false,
       }
     },
     getNextPageParam: (last, pages) =>

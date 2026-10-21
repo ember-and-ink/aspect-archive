@@ -7,143 +7,157 @@ import { renderApp } from '@/test/render'
 import { DiscoverPage } from './DiscoverPage'
 
 /**
- * Discover's two hide lists.
+ * Discover's "Recent only": Following cards stamped with when they first came
+ * back, and filtered to the last 48 hours.
  *
- * The thing worth testing is not that an id can be stored -- `tests/state/
- * test_ignored.py` covers the store -- it is that the grid treats the ignore
- * list exactly like the archive's own fragment set while still telling the two
- * apart. Those two requirements pull against each other, and the bug they
- * guard is a card badged "Have" that is not in the archive.
+ * `tests/state/test_seen.py` covers the stamps themselves. What is worth
+ * testing here is the wiring the feature depends on: every load reports its
+ * ids, the filter is applied over the whole feed rather than the pages on
+ * screen, and the chip only exists where there are stamps to filter.
  */
 
-const NODES = [
-  {
-    id: 412233,
-    fullPath: 'kornypony/abbie',
-    name: 'Abbie',
-    topics: ['Female'],
-  },
-  { id: 891020, fullPath: 'someone/bella', name: 'Bella', topics: ['Female'] },
+const HOUR = 60 * 60 * 1000
+
+/** DataCat's Following, because it is the feed with the fewest moving parts:
+ *  the follows live in settings and each creator is one request. */
+const FOLLOWING = '/discover?provider=datacat&mode=following'
+
+const CHARACTERS = [
+  { characterId: 'aaaa-new', chatName: 'Abbie', creatorName: 'greatn' },
+  { characterId: 'bbbb-old', chatName: 'Bella', creatorName: 'greatn' },
 ]
 
-const chubSearch = http.get('*//api.chub.ai/search', () =>
-  HttpResponse.json({ nodes: NODES }),
+const settings = http.get('*/api/v1/settings', () =>
+  HttpResponse.json({
+    datacatFollowedCreators: [{ id: 'c1', name: 'greatn', source: 'datacat' }],
+  }),
 )
 
-/** The archive holds nothing, so "hidden" can only come from the ignore list. */
+const datacat = [
+  http.post('*/api/v1/datacat/dc-init', () => HttpResponse.json({ ok: true })),
+  http.get('*/api/v1/datacat/dc-proxy/api/creators/c1/characters', () =>
+    HttpResponse.json({ total: CHARACTERS.length, list: CHARACTERS }),
+  ),
+]
+
 const emptyArchive = http.get('*/api/v1/characters/have-fragments', () =>
   HttpResponse.json({ fragments: [] }),
 )
 
-const settings = http.get('*/api/v1/settings', () => HttpResponse.json({}))
-
-function ignoredList(ignored: Record<string, string[]>) {
-  return http.get('*/api/v1/discover/ignored', () =>
-    HttpResponse.json({ ignored }),
-  )
+/** Abbie first seen an hour ago, Bella three days ago. Records what each load
+ *  sent so a test can assert the feed reported itself. */
+function seenStamps(posted: unknown[] = []) {
+  return http.post('*/api/v1/discover/seen', async ({ request }) => {
+    const body = (await request.json()) as { provider: string; ids: string[] }
+    posted.push(body)
+    const stamps: Record<string, number> = {
+      'aaaa-new': Date.now() - HOUR,
+      'bbbb-old': Date.now() - 72 * HOUR,
+    }
+    return HttpResponse.json({
+      provider: body.provider,
+      added: 0,
+      first_seen: Object.fromEntries(body.ids.map((id) => [id, stamps[id]])),
+    })
+  })
 }
 
 beforeEach(() => {
-  server.use(chubSearch, emptyArchive, settings)
+  server.use(settings, ...datacat, emptyArchive)
 })
 
-describe('the ignore list as a hide filter', () => {
-  it('hides an ignored card when “Hide cards I have” is on', async () => {
-    server.use(ignoredList({ chub: ['412233'] }))
-    renderApp(<DiscoverPage />, { route: '/discover?have=0' })
+describe('Recent only', () => {
+  it('reports every id a Following load returned', async () => {
+    const posted: unknown[] = []
+    server.use(seenStamps(posted))
+    renderApp(<DiscoverPage />, { route: FOLLOWING })
+
+    await waitFor(() =>
+      expect(posted).toEqual([
+        { provider: 'datacat', ids: ['aaaa-new', 'bbbb-old'] },
+      ]),
+    )
+  })
+
+  it('shows only cards first seen inside the window', async () => {
+    server.use(seenStamps())
+    renderApp(<DiscoverPage />, { route: `${FOLLOWING}&recent=1` })
+
+    await waitFor(() => expect(screen.getByText('Abbie')).toBeInTheDocument())
+    expect(screen.queryByText('Bella')).not.toBeInTheDocument()
+    // The count is of the filtered feed, with the whole feed beside it.
+    expect(
+      screen.getByText(/^1 results .*of 2 in your feed/),
+    ).toBeInTheDocument()
+  })
+
+  it('toggles from the chip, and badges new cards with it off', async () => {
+    server.use(seenStamps())
+    const user = userEvent.setup()
+    renderApp(<DiscoverPage />, { route: FOLLOWING })
 
     await waitFor(() => expect(screen.getByText('Bella')).toBeInTheDocument())
-    // The card is not in the archive at all -- only the ignore list hides it,
-    // which is the whole point of concatenating the two sets.
-    expect(screen.queryByText('Abbie')).not.toBeInTheDocument()
-  })
+    // With the filter off, the badge is the answer to "which are new?".
+    expect(screen.getAllByText('New')).toHaveLength(1)
 
-  it('shows an ignored card, badged, when the toggle is off', async () => {
-    server.use(ignoredList({ chub: ['412233'] }))
-    renderApp(<DiscoverPage />, { route: '/discover' })
-
-    await waitFor(() => expect(screen.getByText('Abbie')).toBeInTheDocument())
-    // Turning the toggle off *is* the un-ignore, so the card has to come back
-    // -- and say why it would otherwise be missing.
-    expect(screen.getByText('Ignored')).toBeInTheDocument()
-    expect(screen.queryByText('Have')).not.toBeInTheDocument()
-  })
-
-  it('counts the two lists separately', async () => {
-    server.use(ignoredList({ chub: ['412233', '891020'] }))
-    renderApp(<DiscoverPage />, { route: '/discover' })
-
+    await user.click(screen.getByRole('button', { name: 'Recent only' }))
     await waitFor(() =>
-      expect(screen.getByText(/2 ignored/)).toBeInTheDocument(),
+      expect(screen.queryByText('Bella')).not.toBeInTheDocument(),
     )
-    expect(screen.queryByText(/already in the archive/)).not.toBeInTheDocument()
+    expect(screen.getByText('Abbie')).toBeInTheDocument()
+    // Every tile is new now, so the badge would say nothing.
+    expect(screen.queryByText('New')).not.toBeInTheDocument()
   })
 
-  it('keeps the list per provider', async () => {
-    // The same id ignored on DataCat says nothing about the Chub card.
-    server.use(ignoredList({ datacat: ['412233'] }))
-    renderApp(<DiscoverPage />, { route: '/discover?have=0' })
-
-    await waitFor(() => expect(screen.getByText('Abbie')).toBeInTheDocument())
-  })
-
-  it('does not badge an ignored card “Have”', async () => {
-    // The regression this whole separation exists to prevent: folding ignores
-    // into the fragment set would hide the right cards and lie about why.
-    server.use(ignoredList({ chub: ['412233'] }))
-    renderApp(<DiscoverPage />, { route: '/discover' })
-
-    await waitFor(() => expect(screen.getByText('Ignored')).toBeInTheDocument())
-    expect(screen.queryByText('Add again')).not.toBeInTheDocument()
-  })
-})
-
-describe('marking cards ignored', () => {
-  it('posts the selected provider ids and hides them', async () => {
-    const posted: unknown[] = []
+  it('says so when nothing is new, rather than looking empty', async () => {
     server.use(
-      ignoredList({}),
-      http.post('*/api/v1/discover/ignored', async ({ request }) => {
-        const body = (await request.json()) as {
-          provider: string
-          ids: string[]
-        }
-        posted.push(body)
-        return HttpResponse.json({
-          provider: body.provider,
-          added: body.ids.length,
-          ids: body.ids,
-        })
-      }),
+      http.post('*/api/v1/discover/seen', () =>
+        HttpResponse.json({
+          provider: 'datacat',
+          added: 0,
+          first_seen: {
+            'aaaa-new': Date.now() - 72 * HOUR,
+            'bbbb-old': Date.now() - 72 * HOUR,
+          },
+        }),
+      ),
     )
-
-    const user = userEvent.setup()
-    // `?have=0` so the effect of the write is visible in the grid itself.
-    const { container } = renderApp(<DiscoverPage />, {
-      route: '/discover?have=0',
-    })
-    await waitFor(() => expect(screen.getByText('Abbie')).toBeInTheDocument())
-
-    // The page's own control, not the top bar's icon: Discover is where every
-    // other filter for this grid lives, and the icon was missable enough that
-    // it read as the feature being absent.
-    await user.click(screen.getByRole('button', { name: 'Select to ignore' }))
-
-    await user.click(screen.getByText('Abbie'))
-    expect(screen.getByText('1 selected')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: /^Ignore$/ }))
+    renderApp(<DiscoverPage />, { route: `${FOLLOWING}&recent=1` })
 
     await waitFor(() =>
-      expect(posted).toEqual([{ provider: 'chub', ids: ['412233'] }]),
+      expect(
+        screen.getByText('Nothing new in your feed in the last 48 hours.'),
+      ).toBeInTheDocument(),
     )
-    // The response carries the whole bucket back, so the grid re-filters off
-    // the cache rather than waiting on a refetch.
-    await waitFor(() =>
-      expect(screen.queryByText('Abbie')).not.toBeInTheDocument(),
+  })
+
+  it('keeps the feed usable when the stamps cannot be recorded', async () => {
+    server.use(
+      http.post('*/api/v1/discover/seen', () =>
+        HttpResponse.json({ detail: 'disk full' }, { status: 500 }),
+      ),
     )
-    expect(screen.getByText('Bella')).toBeInTheDocument()
-    // Batch mode exits on success; nothing is left selected.
-    expect(container.querySelector('.ring-sage')).toBeNull()
+    renderApp(<DiscoverPage />, { route: FOLLOWING })
+
+    await waitFor(() => expect(screen.getByText('Bella')).toBeInTheDocument())
+    expect(
+      screen.getByText(/Couldn’t record which cards are new/),
+    ).toBeInTheDocument()
+  })
+
+  it('is absent outside Following, where nothing is stamped', async () => {
+    server.use(
+      http.get('*//api.chub.ai/search', () =>
+        HttpResponse.json({
+          nodes: [{ id: 1, fullPath: 'a/b', name: 'Cass' }],
+        }),
+      ),
+    )
+    renderApp(<DiscoverPage />, { route: '/discover?recent=1' })
+
+    await waitFor(() => expect(screen.getByText('Cass')).toBeInTheDocument())
+    expect(
+      screen.queryByRole('button', { name: 'Recent only' }),
+    ).not.toBeInTheDocument()
   })
 })

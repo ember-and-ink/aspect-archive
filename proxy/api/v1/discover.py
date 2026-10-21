@@ -18,10 +18,9 @@ The preview itself writes nothing, fetches no avatar and checks no duplicates.
 The browser already knows what it holds (`POST /characters/have`), and
 acquiring a card is a separate, deliberate action.
 
-The one write below is the opposite decision: `/discover/ignored` records the
-cards you have decided *against*, which is the only part of browsing that has
-nowhere else to live. See `proxy.state.ignored` for why that list is its own
-file and why it has no removal route.
+The one write below is `/discover/seen`: when each Following card first came
+back, which is what "Recent only" filters on and the only part of browsing
+that has nowhere else to live. See `proxy.state.seen`.
 """
 
 from __future__ import annotations
@@ -38,7 +37,7 @@ from proxy.archive import catalog
 from proxy.cards.models import CharacterBook
 from proxy.config import settings
 from proxy.sources import chub, datacat
-from proxy.state import ignored as ignored_state
+from proxy.state import seen as seen_state
 
 logger = logging.getLogger("jai_proxy.api.discover")
 
@@ -51,9 +50,10 @@ SAUCEPAN_ORIGIN = "https://saucepan.ai"
 # read), but a typo reaching it would silently create a bucket nothing reads.
 Provider = Literal["chub", "datacat"]
 
-# Ids accepted in one request. A batch comes from what is selected on screen, so
-# this is far above a realistic selection and only bounds a client bug.
-MAX_IDS_PER_REQUEST = 2000
+# Ids accepted in one request. A request is one whole Following feed -- Chub's
+# timeline plus 24 per followed author, DataCat's 50 per followed creator -- so
+# this sits well above a large follow list and only bounds a client bug.
+MAX_IDS_PER_REQUEST = 20_000
 
 
 class DiscoverPreviewIn(BaseModel):
@@ -273,79 +273,45 @@ def preview(req: DiscoverPreviewIn) -> DiscoverPreviewOut:
 
 
 # ---------------------------------------------------------------------------
-# The ignore list -- cards you have decided against
+# First-seen stamps -- what "Recent only" filters on
 # ---------------------------------------------------------------------------
 
 
-def _ignored_store() -> ignored_state.IgnoredStore:
-    """Built per call so a test that repoints `settings.ignored_file` -- or an
+def _seen_store() -> seen_state.SeenStore:
+    """Built per call so a test that repoints `settings.seen_file` -- or an
     operator who moves the archive -- is honoured rather than captured at
     import time. The same construction `system.py:_settings_store` uses."""
-    return ignored_state.IgnoredStore(settings.ignored_file)
+    return seen_state.SeenStore(settings.seen_file)
 
 
-class IgnoredOut(BaseModel):
-    """Every ignored id, keyed by provider."""
-
-    ignored: dict[str, list[str]] = Field(
-        default_factory=dict,
-        description="Provider name to its ignored provider-ids, sorted. A provider with nothing ignored is absent rather than empty.",
-    )
-
-
-class IgnoreIn(BaseModel):
+class SeenIn(BaseModel):
     provider: Provider
     ids: list[str] = Field(
-        description="The provider's own ids for the cards, not the archive's `_<id8>` fragments. Blanks and duplicates are dropped; ignoring a card already ignored is a no-op, not an error.",
+        description="Every provider id one Following feed load returned -- the provider's own ids, not the archive's `_<id8>` fragments. Blanks and duplicates are dropped.",
     )
 
 
-class IgnoreOut(BaseModel):
+class SeenOut(BaseModel):
     provider: str
-    added: int = Field(description="How many of the given ids were not already ignored.")
-    ids: list[str] = Field(description="The provider's whole bucket after the write, so the client can update without re-reading.")
-
-
-@router.get(
-    "/discover/ignored",
-    response_model=IgnoredOut,
-    summary="Every provider card marked “don’t want”",
-)
-def get_ignored() -> IgnoredOut:
-    """The whole ignore list, fetched once and matched locally.
-
-    The peer of `GET /characters/have-fragments`, and asked for the same way
-    and for the same reason: Discover holds one set per provider in memory and
-    tests each row against it as the grid pages, rather than asking the server
-    about an ever-growing list of loaded ids on every scroll tick.
-
-    The two sets are kept separate on the wire although the grid concatenates
-    them. Folding ignores into the fragment set would hide the same cards with
-    no client change at all -- and would make a tile you do not own read
-    "Have", and the "N already in the archive" count say something untrue.
-    """
-    try:
-        return IgnoredOut(ignored=_ignored_store().read())
-    except ignored_state.IgnoredError as exc:
-        # 500 rather than an empty map, for `get_settings`' reason: `{}` would
-        # look like "nothing ignored", and the next ignore would write a fresh
-        # list over however many decisions the damaged file holds.
-        logger.error("ignore list unreadable: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    added: int = Field(description="How many of the given ids had never been seen before, and were stamped now.")
+    first_seen: dict[str, int] = Field(
+        description="Each given id's first-seen stamp, epoch milliseconds on the server's clock. Covers exactly the ids sent, not the whole history.",
+    )
 
 
 @router.post(
-    "/discover/ignored",
-    response_model=IgnoreOut,
-    summary="Mark provider cards “don’t want”",
+    "/discover/seen",
+    response_model=SeenOut,
+    summary="Record a Following feed and read back when each card was first seen",
 )
-def add_ignored(body: IgnoreIn) -> IgnoreOut:
-    """Add ids to one provider's bucket.
+def record_seen(body: SeenIn) -> SeenOut:
+    """Stamp the ids never seen before, and answer every id's first stamp.
 
-    There is no route to take one back out, and that is the design rather than
-    an omission -- turning "Hide cards I have" off shows every ignored card
-    again, and acquiring one makes it a card you have. See
-    `proxy.state.ignored`'s module docstring.
+    One call per feed load rather than a read plus a write: the client never
+    needs one without the other, and doing both under one lock means two tabs
+    loading at once cannot each decide a card is new. An id already recorded
+    keeps its stamp -- there is no route that moves or removes one. See
+    `proxy.state.seen`.
     """
     if len(body.ids) > MAX_IDS_PER_REQUEST:
         raise HTTPException(
@@ -353,7 +319,10 @@ def add_ignored(body: IgnoreIn) -> IgnoreOut:
             detail=f"{len(body.ids)} ids in one request, over the {MAX_IDS_PER_REQUEST}-id ceiling",
         )
     try:
-        added, ids = _ignored_store().add(body.provider, body.ids)
-    except ignored_state.IgnoredError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return IgnoreOut(provider=body.provider, added=added, ids=ids)
+        added, first_seen = _seen_store().record(body.provider, body.ids)
+    except seen_state.SeenError as exc:
+        # A damaged file is a 500 rather than "everything is new", for the
+        # store's reason: the next write would replace the history.
+        logger.error("seen stamps not recorded: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return SeenOut(provider=body.provider, added=added, first_seen=first_seen)

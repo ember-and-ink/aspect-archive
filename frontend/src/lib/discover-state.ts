@@ -152,6 +152,10 @@ export interface DiscoverState {
   creatorName: string
   tags: Map<string, TagMode>
   hideHave: boolean
+  /** Following only: show just the cards first seen inside the grace window
+   *  (`RECENT_WINDOW_MS`). Kept in the URL when you switch to Discover, where
+   *  it is inert, so switching back restores it. */
+  recentOnly: boolean
 }
 
 /** The sort that applies when the URL names none, for a given provider/mode. */
@@ -183,6 +187,7 @@ export function readDiscoverState(params: URLSearchParams): DiscoverState {
     creatorName: params.get('creatorName') ?? '',
     tags,
     hideHave: params.get('have') === '0',
+    recentOnly: params.get('recent') === '1',
   }
 }
 
@@ -199,6 +204,7 @@ export function writeDiscoverState(state: DiscoverState): URLSearchParams {
     params.append(mode === 'inc' ? 'tag' : 'xtag', tag)
   }
   if (state.hideHave) params.set('have', '0')
+  if (state.recentOnly) params.set('recent', '1')
   return params
 }
 
