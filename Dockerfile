@@ -16,7 +16,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # --- builder: resolve the locked dependency set into a venv ------------------
-FROM python:3.13-slim-bookworm AS builder
+FROM python:3.15-slim-bookworm AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
@@ -35,7 +35,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # --- runtime -----------------------------------------------------------------
-FROM python:3.13-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 # image.source is what links the published package to this repository on GHCR:
 # without it the package shows up in the org with no repo, no README and no
