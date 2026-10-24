@@ -48,7 +48,7 @@ move as long as you set the same one there.
 
 ### Remote (unraid)
 
-Pushing to `main` publishes `ghcr.io/mjnitz02/jai-proxy` — `linux/amd64`,
+Pushing to `main` publishes `ghcr.io/ember-and-ink/jai-proxy` — `linux/amd64`,
 `:latest` plus `:sha-<short>` and the release version, e.g. `:0.1.4` — and cuts
 a matching GitHub release (`.github/workflows/publish.yml`). The patch number is
 assigned automatically; `make bump-minor` / `make bump-major` start a new

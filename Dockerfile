@@ -40,7 +40,7 @@ FROM python:3.13-slim-bookworm
 # image.source is what links the published package to this repository on GHCR:
 # without it the package shows up in the org with no repo, no README and no
 # provenance, and it cannot inherit the repository's visibility.
-LABEL org.opencontainers.image.source="https://github.com/mjnitz02/jai-proxy" \
+LABEL org.opencontainers.image.source="https://github.com/ember-and-ink/jai-proxy" \
       org.opencontainers.image.description="Character archive: browses, builds and serves SillyTavern V3 character cards." \
       org.opencontainers.image.licenses="NOASSERTION"
 
