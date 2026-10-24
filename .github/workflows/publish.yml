@@ -6,7 +6,7 @@
 # created by the release at the end of the run.
 #
 # The deployment target is an unraid box (amd64), which pulls
-# ghcr.io/mjnitz02/jai-proxy:latest. Development on a Mac runs from
+# ghcr.io/ember-and-ink/jai-proxy:latest. Development on a Mac runs from
 # source (`uv run python -m proxy.server`) rather than from this image, so
 # there is no arm64 variant to build -- adding one means QEMU emulation on the
 # runner and a several-times-slower build for an image nothing pulls.
@@ -29,8 +29,8 @@ on:
 
 env:
   # Lowercase: the registry rejects uppercase path components, and the owner is
-  # spelled "mjnitz02".
-  IMAGE_NAME: ghcr.io/mjnitz02/jai-proxy
+  # spelled "ember-and-ink".
+  IMAGE_NAME: ghcr.io/ember-and-ink/jai-proxy
 
 # One release at a time, so two merges in quick succession cannot both claim
 # the same version number.

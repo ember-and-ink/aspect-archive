@@ -10,7 +10,7 @@ receives security fixes.
 Please **do not open a public issue** for security problems.
 
 Report privately via GitHub's
-[private vulnerability reporting](https://github.com/mjnitz02/jai-proxy/security/advisories/new),
+[private vulnerability reporting](https://github.com/ember-and-ink/jai-proxy/security/advisories/new),
 which notifies the maintainer directly and keeps the report confidential until
 a fix ships.
 
@@ -21,7 +21,7 @@ in the advisory unless you'd rather stay anonymous.
 ## Scope
 
 In scope: this repository's source, its GitHub Actions workflows, and the
-container image it publishes to `ghcr.io/mjnitz02/jai-proxy`.
+container image it publishes to `ghcr.io/ember-and-ink/jai-proxy`.
 
 Out of scope: vulnerabilities in third-party dependencies (report those
 upstream; Dependabot tracks them here), and issues that require an already

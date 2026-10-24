@@ -11,7 +11,7 @@
 
 services:
   archive:
-    image: ghcr.io/mjnitz02/jai-proxy:${JAI_PROXY_TAG:-latest}
+    image: ghcr.io/ember-and-ink/jai-proxy:${JAI_PROXY_TAG:-latest}
     container_name: jai-proxy
     # Only the HOST side is configurable. The container always listens on 8000,
     # so the healthcheck baked into the image keeps working; move the host port
