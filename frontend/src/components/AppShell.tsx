@@ -52,7 +52,7 @@ export function AppShell() {
           D1). */}
       <div
         ref={scrollRef}
-        className="absolute inset-0 top-[60px] overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]"
+        className="absolute inset-0 top-[100px] overflow-x-hidden lg:top-[60px] overflow-y-auto [scrollbar-gutter:stable]"
       >
         <ScrollContainerContext value={scrollRef}>
           <Outlet />

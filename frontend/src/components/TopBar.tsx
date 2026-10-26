@@ -41,13 +41,18 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
       : 'Rescan the archive folder'
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 flex h-[60px] items-center gap-3.5 border-b border-line-soft bg-ground px-[18px]">
+    // Below `lg` the row cannot hold all of it: the tabs drop to a second line
+    // and the search pill collapses to its icon. The global `min-width: 0`
+    // (index.css) means a row that does not fit squashes its items into each
+    // other rather than overflowing, so it has to be made to fit. The height
+    // here and AppShell's `top-[…]` move together.
+    <header className="fixed inset-x-0 top-0 z-40 flex h-[100px] flex-wrap content-center items-center gap-x-3.5 gap-y-2 border-b border-line-soft bg-ground px-[18px] lg:h-[60px] lg:flex-nowrap">
       <div className="flex items-center gap-2.5 font-serif text-[21px] tracking-[0.01em]">
         <span className="block size-2 rounded-full bg-sage shadow-[0_0_12px_var(--sage)]" />
         Archive
       </div>
 
-      <nav className="flex gap-[3px] rounded-full border border-white/8 bg-white/5 p-[3px]">
+      <nav className="order-last flex w-full gap-[3px] rounded-full border border-white/8 bg-white/5 p-[3px] lg:order-none lg:w-auto">
         {TABS.map((tab) => (
           <NavLink
             key={tab.to}
@@ -55,7 +60,7 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
             end={tab.to === '/'}
             className={({ isActive }) =>
               cn(
-                'rounded-full px-4 py-1.5 text-[13.5px] font-medium text-muted-foreground hover:text-text',
+                'grow rounded-full px-2 py-1.5 text-center text-[13.5px] font-medium whitespace-nowrap text-muted-foreground hover:text-text lg:grow-0 lg:px-4',
                 isActive && 'bg-text font-semibold text-[#121416]',
               )
             }
@@ -70,11 +75,12 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
       <button
         type="button"
         onClick={onSearch}
-        className="flex h-[35px] min-w-[210px] items-center gap-2.5 rounded-full border border-white/8 px-3.5 text-[13.5px] text-faint hover:border-white/20 hover:text-text"
+        aria-label="Search the archive"
+        className="flex h-[35px] w-[35px] shrink-0 items-center justify-center gap-2.5 rounded-full border border-white/8 text-[13.5px] text-faint hover:border-white/20 hover:text-text lg:w-auto lg:min-w-[210px] lg:justify-start lg:px-3.5"
       >
-        <Search className="size-[15px]" />
-        Search the archive
-        <kbd className="ml-auto rounded-[5px] border border-line px-1.5 py-px font-mono text-[10.5px] text-faint">
+        <Search className="size-[15px] shrink-0" />
+        <span className="hidden lg:inline">Search the archive</span>
+        <kbd className="ml-auto hidden rounded-[5px] border border-line px-1.5 py-px font-mono text-[10.5px] text-faint lg:inline">
           ⌘K
         </kbd>
       </button>
