@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { apiClient, unwrap } from '@/lib/api-client'
 import {
+  type BulkMode,
   useActiveBulkJob,
   useBulkLocalize,
   useCancelMediaJob,
@@ -1177,6 +1178,12 @@ export function MaintenanceSection() {
  * So: the three toggles stay dropped, individually and for their own reason,
  * and the actions come back.
  */
+const BULK_MODE_TOAST: Record<BulkMode, string> = {
+  pending: 'Localizing media for every card that needs it.',
+  everything: 'Re-checking every album and dead link on every card.',
+  broken: 'Retrying dead links and failed albums.',
+}
+
 export function MediaSection() {
   const active = useActiveBulkJob()
   const [startedId, setStartedId] = useState<string | null>(null)
@@ -1204,17 +1211,13 @@ export function MediaSection() {
     onError: (err) => toast(err.message, 'bad'),
   })
 
-  const run = (skipComplete: boolean) =>
+  const run = (mode: BulkMode) =>
     start.mutate(
-      { skipComplete },
+      { mode },
       {
         onSuccess: (result) => {
           setStartedId(result.job_id)
-          toast(
-            skipComplete
-              ? 'Localizing media for every card that needs it.'
-              : 'Re-checking media for every card, including finished ones.',
-          )
+          toast(BULK_MODE_TOAST[mode])
         },
         onError: (err) => toast(err.message, 'bad'),
       },
@@ -1238,7 +1241,7 @@ export function MediaSection() {
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => run(true)}
+            onClick={() => run('pending')}
             disabled={running || start.isPending}
             className="flex h-[31px] items-center gap-1.5 rounded-lg border border-sage-line bg-sage-dim px-3 text-[12.5px] text-sage hover:bg-sage-dim/70 disabled:opacity-50"
           >
@@ -1247,13 +1250,23 @@ export function MediaSection() {
           </button>
           <button
             type="button"
-            onClick={() => run(false)}
+            onClick={() => run('everything')}
             disabled={running || start.isPending}
-            title="Re-checks cards whose last run finished cleanly, including retrying URLs previously marked dead."
+            title="Re-resolves every album and retries every dead link, on every card. Slow."
             className="flex h-[31px] items-center gap-1.5 rounded-lg border border-line px-3 text-[12.5px] text-muted hover:border-white/20 hover:text-text disabled:opacity-60"
           >
             <RefreshCw className="size-3.5" />
             Rescan everything
+          </button>
+          <button
+            type="button"
+            onClick={() => run('broken')}
+            disabled={running || start.isPending}
+            title="Retries only failed albums and dead links, on the cards that have them."
+            className="flex h-[31px] items-center gap-1.5 rounded-lg border border-line px-3 text-[12.5px] text-muted hover:border-white/20 hover:text-text disabled:opacity-60"
+          >
+            <RefreshCw className="size-3.5" />
+            Rescan broken
           </button>
           {running && jobId && (
             <button

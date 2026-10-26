@@ -321,7 +321,7 @@ def register_folder_routes(kind: FolderKind, router: APIRouter) -> None:
         claiming its source URL as downloaded, so a plain localize run (which
         skips any card its last run completed without checking the manifest
         entries against disk) does not go re-fetch it. Only a full rescan --
-        `skip_complete=false` -- re-derives the URL list from the card's own
+        `mode="everything"` -- re-derives the URL list from the card's own
         text and finds the gap.
         """
         directory = _shared.media_dir(kind.root(), folder)

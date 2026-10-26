@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
@@ -323,6 +324,113 @@ def queue_direct_images(card_id: str) -> None:
 _GALLERY_PREFIX = {"chub": "chubgallery"}
 
 
+def _is_gallery(ref) -> bool:
+    return ref.handler is not None and ref.handler not in ("embedded", "lorebook")
+
+
+def _resolve_galleries(data: dict, gallery_refs: list) -> tuple[list[dict], list[dict]]:
+    """Resolve gallery roots to `(items, source_records)`. Network: one fetch
+    (or API call) per ref, so callers pass only the refs they mean to pay for
+    -- every gallery for a discover run, only the `failed` ones for a broken
+    rescan."""
+    items: list[dict] = []
+    records: list[dict] = []
+    if not gallery_refs:
+        return items, records
+    with net.sync_client(timeout=30.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
+        for ref in gallery_refs:
+            if ref.handler == "chub":
+                images = media_extractors.resolve_chub_gallery(client, chub_source.card_id(data))
+            else:
+                try:
+                    images = media_extractors.resolve_gallery_url(client, ref.key)
+                except media_extractors.GalleryGone as gone:
+                    # Permanently absent: settled, like a dead image in
+                    # `dead`, so the card stops re-arming over it.
+                    records.append(
+                        {
+                            "key": ref.key,
+                            "handler": ref.handler,
+                            "status": media_manifest.SOURCE_FAILED,
+                            "reason": str(gone),
+                        }
+                    )
+                    continue
+            if images is None:
+                # Unreachable, not empty -- record nothing, so the card
+                # stays unsatisfied and the next run tries again.
+                continue
+            prefix = _GALLERY_PREFIX.get(ref.handler, "extgallery")
+            for image in images:
+                items.append({"url": image.url, "filename": image.filename, "prefix": prefix})
+            records.append(
+                {
+                    "key": ref.key,
+                    "handler": ref.handler,
+                    "status": media_manifest.SOURCE_DONE,
+                    "count": len(images),
+                }
+            )
+    return items, records
+
+
+# Chub's gallery images are served from charhub; a dead one that the card's own
+# text doesn't name can only have come from its Chub gallery.
+_CHUB_IMAGE_HOSTS = ("charhub.io", "chub.ai")
+
+
+def _dead_retry_items(manifest: dict, refs: list) -> list[dict]:
+    """Every URL in the manifest's `dead`, as an item flagged to bypass the dead
+    ledgers -- whether or not the card still names it.
+
+    A dead entry records no prefix, so it is inferred: the card's own
+    embedded/lorebook refs give theirs exactly, and anything else came out of
+    an album -- `chubgallery` for a charhub host, `extgallery` otherwise. Only
+    the filename prefix and the dedupe tiebreak ride on getting it right. The
+    filename hint is left to the writer, which derives it from the URL."""
+    direct = {"embedded": "localized_media", "lorebook": "lorebook_media"}
+    prefix_for = {ref.key: direct[ref.handler] for ref in refs if ref.handler in direct}
+    items = []
+    for url in manifest.get("dead", {}):
+        prefix = prefix_for.get(url)
+        if prefix is None:
+            host = (urlsplit(url).hostname or "").lower()
+            is_chub = any(host == h or host.endswith("." + h) for h in _CHUB_IMAGE_HOSTS)
+            prefix = "chubgallery" if is_chub else "extgallery"
+        items.append({"url": url, "filename": None, "prefix": prefix, "retry_dead": True})
+    return items
+
+
+def _broken_items(data: dict, manifest: dict) -> tuple[list[dict], list[dict]]:
+    """Rescan broken: the card's dead links, plus whatever its `failed` albums
+    resolve to now -- and nothing else. Albums that resolved are not fetched
+    again, and sources no run has recorded yet are left for Localize all."""
+    refs = media_discovery.enumerate_sources(data)
+    stored = manifest.get("sources") or {}
+    failed = [
+        ref
+        for ref in refs
+        if _is_gallery(ref) and (stored.get(ref.key) or {}).get("st") == media_manifest.SOURCE_FAILED
+    ]
+    items, records = _resolve_galleries(data, failed)
+    for item in items:
+        item["retry_dead"] = True
+    return _merge_items(items, _dead_retry_items(manifest, refs)), records
+
+
+def _merge_items(first: list[dict], second: list[dict]) -> list[dict]:
+    """`first` then whatever in `second` it doesn't already carry, by URL."""
+    seen = {item["url"] for item in first}
+    return first + [item for item in second if item["url"] not in seen]
+
+
+def _has_broken(manifest: dict) -> bool:
+    if manifest.get("dead"):
+        return True
+    stored = manifest.get("sources") or {}
+    return any(isinstance(e, dict) and e.get("st") == media_manifest.SOURCE_FAILED for e in stored.values())
+
+
 def _discovered_items(data: dict) -> tuple[list[dict], list[dict]]:
     """`(items, source_records)` -- everything a server-side scan can find for
     one card, and what became of each *source* it found.
@@ -374,29 +482,9 @@ def _discovered_items(data: dict) -> tuple[list[dict], list[dict]]:
         elif ref.handler is None:
             records.append({"key": ref.key, "handler": None, "status": media_manifest.SOURCE_UNHANDLED})
 
-    gallery_refs = [r for r in refs if r.handler is not None and r.handler not in ("embedded", "lorebook")]
-    if gallery_refs:
-        with net.sync_client(timeout=30.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
-            for ref in gallery_refs:
-                if ref.handler == "chub":
-                    images = media_extractors.resolve_chub_gallery(client, chub_source.card_id(data))
-                else:
-                    images = media_extractors.resolve_gallery_url(client, ref.key)
-                if images is None:
-                    # Unreachable, not empty -- record nothing, so the card
-                    # stays unsatisfied and the next run tries again.
-                    continue
-                prefix = _GALLERY_PREFIX.get(ref.handler, "extgallery")
-                for image in images:
-                    items.append({"url": image.url, "filename": image.filename, "prefix": prefix})
-                records.append(
-                    {
-                        "key": ref.key,
-                        "handler": ref.handler,
-                        "status": media_manifest.SOURCE_DONE,
-                        "count": len(images),
-                    }
-                )
+    gallery_items, gallery_records = _resolve_galleries(data, [r for r in refs if _is_gallery(r)])
+    items += gallery_items
+    records += gallery_records
 
     # A card can reference the same image in prose, in an album, and in its
     # own provider gallery all at once.
@@ -424,6 +512,13 @@ def _submit_batch_job(idx, body: MediaJobSubmitIn) -> MediaJobOut:
     gallery directory mints a `gallery_id` and creates the folder, so doing it
     for every card up front would leave ~3,868 empty directories behind and
     rewrite every card that has no id yet.
+
+    `body.mode` picks what a visited card costs. `pending` is the common run
+    and skips satisfied cards. `everything` visits every card, re-resolves every
+    album, and retries every dead link. `broken` visits only cards whose
+    manifest has a dead link or a `failed` album and retries just those --
+    which is what makes it cheap next to `everything`, whose time goes almost
+    entirely on re-resolving albums that were fine.
     """
     card_ids = [record.filename for record in idx.cards()]
 
@@ -432,14 +527,26 @@ def _submit_batch_job(idx, body: MediaJobSubmitIn) -> MediaJobOut:
         record = _shared.require(live, card_id)
         data = _card_data(live, card_id)
 
-        if body.skip_complete:
-            gallery_dir = media_status.gallery_dir_if_present(record)
-            if gallery_dir is not None:
-                manifest = media_manifest.load_manifest(gallery_dir)
+        existing_dir = media_status.gallery_dir_if_present(record)
+        manifest = media_manifest.load_manifest(existing_dir) if existing_dir is not None else None
+
+        if body.mode == "broken":
+            # Broken entries only ever live in a manifest, so a card without
+            # one has nothing to retry -- and its folder must not be minted.
+            if manifest is None or not _has_broken(manifest):
+                return None
+            items, sources = _broken_items(data, manifest)
+        else:
+            if body.mode == "pending" and manifest is not None:
                 if media_manifest.sources_satisfied(manifest, media_discovery.enumerate_sources(data)):
                     return None
+            items, sources = _discovered_items(data)
+            if body.mode == "everything":
+                for item in items:
+                    item["retry_dead"] = True
+                if manifest is not None:
+                    items = _merge_items(items, _dead_retry_items(manifest, media_discovery.enumerate_sources(data)))
 
-        items, sources = _discovered_items(data)
         if not items and not sources:
             # No media on this card at all -- return before
             # `gallery_dir_for_card`, which would otherwise create an empty

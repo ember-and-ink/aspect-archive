@@ -50,6 +50,22 @@ def test_trims_punctuation_glued_on_by_prose():
     ]
 
 
+def test_trims_markdown_emphasis_glued_on_by_the_link_text():
+    # Verbatim from Hotaru_Kitsuragi_c7f78e8c: the bold link text is the URL
+    # itself, so the scan meets it twice -- once with `**` glued on. That copy
+    # 404'd on every run.
+    text = "[**https://ibb.co/album/7Q9DCg**](https://ibb.co/album/7Q9DCg)"
+
+    assert extractors.find_gallery_urls(text) == ["https://ibb.co/album/7Q9DCg"]
+
+
+def test_keeps_a_trailing_underscore():
+    # `_` is emphasis too, but real ids end in one (seen in the archive).
+    url = "https://tools.theworkshop.team/api/image/ybAoERMl1_"
+
+    assert extractors.find_urls(f"![]({url})") == [url]
+
+
 def test_deduplicates_and_keeps_order():
     text = "https://catbox.moe/c/aaa https://catbox.moe/c/bbb https://catbox.moe/c/aaa"
 
@@ -183,6 +199,41 @@ def test_one_failing_album_does_not_sink_the_rest():
     def handler(request: httpx.Request) -> httpx.Response:
         if "dead" in str(request.url):
             return httpx.Response(500)
+        return httpx.Response(200, text=">https://files.catbox.moe/ok.png<")
+
+    with _client(handler) as client:
+        images = extractors.resolve_gallery_urls(
+            client,
+            ["https://catbox.moe/c/dead", "https://catbox.moe/c/live"],
+        )
+
+    assert [i.url for i in images] == ["https://files.catbox.moe/ok.png"]
+
+
+@pytest.mark.parametrize("status", [404, 410])
+def test_a_deleted_album_is_gone_not_unreachable(status):
+    """Elle_4345977 links an imgchest post that 404s. Returned as None, it
+    kept the card unsatisfied and re-resolved every gallery on every run."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status)
+
+    with _client(handler) as client, pytest.raises(extractors.GalleryGone):
+        extractors.resolve_gallery_url(client, "https://imgchest.com/p/m9yx53zvq7q")
+
+
+def test_a_server_error_is_still_unreachable():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    with _client(handler) as client:
+        assert extractors.resolve_gallery_url(client, "https://imgchest.com/p/m9yx53zvq7q") is None
+
+
+def test_a_gone_album_does_not_sink_the_rest():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "dead" in str(request.url):
+            return httpx.Response(404)
         return httpx.Response(200, text=">https://files.catbox.moe/ok.png<")
 
     with _client(handler) as client:

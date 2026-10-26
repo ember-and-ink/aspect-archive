@@ -1226,3 +1226,106 @@ async def test_download_item_mega_api_error_is_a_skip_not_a_crash(gallery_dir, t
 
     assert outcome.status == "error"
     assert list(gallery_dir.iterdir()) == []
+
+
+# --------------------------------------------------------------------------
+# download_item(retry_dead=True) -- Rescan everything / Rescan broken
+# --------------------------------------------------------------------------
+
+# A real `dead` entry, from a dev-archive card (Vespera's file.garden images).
+_DEAD_URL = "https://file.garden/akviCfKE-zqjKa2t/ves_job.jpg"
+_DEAD_ENTRY = {"reason": "HTTP 404", "attempts": 1, "at": "2026-08-30T10:49:12Z"}
+
+
+def _dead_everywhere(*, permanent: bool = True) -> tuple[dict, dict]:
+    manifest = media_manifest.empty_manifest()
+    manifest["dead"][_DEAD_URL] = dict(_DEAD_ENTRY)
+    ledger: dict = {}
+    attempts = 1 if permanent else media_manifest.MAX_TRANSIENT_ATTEMPTS
+    for _ in range(attempts):
+        media_manifest.record_failure(
+            ledger, _DEAD_URL, permanent=permanent, status=404 if permanent else 503, message="x"
+        )
+    return manifest, ledger
+
+
+async def _retry(client, gallery_dir, thumbnail_store, manifest, ledger):
+    return await media_writer.download_item(
+        client, gallery_dir, "gallery",
+        url=_DEAD_URL, filename_hint=None,
+        prefix="localized_media", index=1,
+        index_state=media_writer.GalleryIndex.build(gallery_dir),
+        manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+        retry_dead=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_retry_dead_recovers_a_link_that_works_again(gallery_dir, thumbnail_store, monkeypatch):
+    monkeypatch.setattr(media_writer, "_preflight_dns", lambda url: None)
+    manifest, ledger = _dead_everywhere()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=_png_bytes(), headers={"content-type": "image/png"})
+
+    async with _client_for(handler) as client:
+        outcome = await _retry(client, gallery_dir, thumbnail_store, manifest, ledger)
+
+    assert outcome.status == "saved"
+    assert _DEAD_URL in manifest["files"]
+    assert _DEAD_URL not in manifest["dead"]
+    assert _DEAD_URL not in ledger
+
+
+@pytest.mark.asyncio
+async def test_retry_dead_still_gone_stays_dead_and_counts_the_attempt(gallery_dir, thumbnail_store, monkeypatch):
+    monkeypatch.setattr(media_writer, "_preflight_dns", lambda url: None)
+    manifest, ledger = _dead_everywhere()
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(404)
+
+    async with _client_for(handler) as client:
+        outcome = await _retry(client, gallery_dir, thumbnail_store, manifest, ledger)
+
+    assert len(calls) == 1
+    assert outcome.status == "skipped"
+    assert _DEAD_URL in manifest["dead"]
+    assert media_manifest.is_dead(ledger, _DEAD_URL)
+    assert ledger[_DEAD_URL]["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_retry_dead_transient_exhausted_link_is_dead_again_immediately(gallery_dir, thumbnail_store, monkeypatch):
+    """Not reset: a link that hit the transient cap and still fails must not
+    fall back to "retry on every Localize all"."""
+    monkeypatch.setattr(media_writer, "_preflight_dns", lambda url: None)
+    manifest, ledger = _dead_everywhere(permanent=False)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    async with _client_for(handler) as client:
+        await _retry(client, gallery_dir, thumbnail_store, manifest, ledger)
+
+    assert _DEAD_URL in manifest["dead"]
+    assert media_manifest.is_dead(ledger, _DEAD_URL)
+    assert ledger[_DEAD_URL]["n"] == media_manifest.MAX_TRANSIENT_ATTEMPTS + 1
+
+
+@pytest.mark.asyncio
+async def test_retry_dead_still_failing_with_no_ledger_entry_keeps_the_manifest_entry(gallery_dir, thumbnail_store, monkeypatch):
+    """The global ledger evicts; the card's own `dead` entry doesn't. A first
+    transient failure is below the cap, but the card's record must survive."""
+    monkeypatch.setattr(media_writer, "_preflight_dns", lambda url: None)
+    manifest, _ = _dead_everywhere()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    async with _client_for(handler) as client:
+        await _retry(client, gallery_dir, thumbnail_store, manifest, {})
+
+    assert _DEAD_URL in manifest["dead"]
