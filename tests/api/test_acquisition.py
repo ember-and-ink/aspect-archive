@@ -887,3 +887,15 @@ def test_clear_captures_wipes_state_but_leaves_pngs(tmp_path):
     status = client.get("/capture-status", params={"name": "Ari"}).json()
     assert status == {"name": "Ari", "system": False, "greetings": False}
     assert any(output_dir.rglob("*.png"))
+
+
+def test_a_built_card_queues_its_images_once_and_a_duplicate_does_not(tmp_path, queued_downloads):
+    # Every /build-* route shares fetch_avatar_and_write; a duplicate returns
+    # before it, so the same card exported twice queues one download.
+    client = make_client(FakeResponder(), tmp_path)
+    body = {"node": _chub_node("raw_api_full_your_bully"), "linked_lorebook": _chub_node("raw_linked_lorebook_your_bully")}
+
+    first = client.post("/build-chub", json=body).json()
+    client.post("/build-chub", json=body)
+
+    assert queued_downloads == [first["filename"]]

@@ -84,6 +84,7 @@ export type PaneCard = Pick<
   | 'greetings'
   | 'lore_entries'
   | 'create_date'
+  | 'media'
 >
 
 /** Save / Cancel row shared by the editors, right-aligned under the field. */
@@ -213,11 +214,12 @@ export function NotesPane({ card }: { card: PaneCard }) {
   return (
     <Section title="Creator notes">
       <div className="mt-2.5">
-        <CreatorNotes notes={notes} />
+        <CreatorNotes notes={notes} media={card.media} />
         <p className="mt-3 border-t border-line-soft pt-3 text-[12.5px] text-faint">
           Rendered from the card's{' '}
-          <span className="font-mono">creator_notes</span> in an isolated frame.
-          Layout is kept; the creator's palette is not.
+          <span className="font-mono">creator_notes</span>
+          {card.media ? ', with images from its gallery' : ''}. Layout is kept;
+          the creator's palette is not.
         </p>
       </div>
     </Section>

@@ -196,6 +196,10 @@ class CardDetailOut(CardOut):
         description="Where `POST /characters/{id}/avatar/refetch` would ask for this card's original image -- null when the card carries no id any source can resolve.",
     )
     gallery: GalleryOut
+    media: dict[str, str | None] = Field(
+        default_factory=dict,
+        description="Source URL -> URL of the gallery file holding it, or null when the URL is known dead. Keyed both as found in the card's text and HTML-unescaped. A URL absent from the map has not been downloaded. The creator-notes renderer loads images from here only, never from the source.",
+    )
     expressions: GalleryOut = Field(
         description="Same shape as `gallery`, measured against data/expressions/ instead."
     )

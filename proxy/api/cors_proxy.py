@@ -74,14 +74,6 @@ _DROP_REQUEST_HEADERS = frozenset(
 # Dropped on the way back for the same framing reason: httpx has already decoded
 # the body, so a `content-encoding: gzip` we copied would describe bytes that are
 # no longer gzipped and the browser would fail to parse them.
-#
-# `cross-origin-resource-policy` is dropped for a different reason: it describes
-# the *upstream's* origin, not ours, and a provider that sets `same-origin` (e.g.
-# saucepan.ai's CDN) would have that policy replayed against callers of this very
-# route -- including the sandboxed creator-notes iframe, whose opaque origin can
-# never satisfy `same-origin` against anyone, itself included. We already vetted
-# the URL through the SSRF guard before fetching it; once it is our response,
-# the upstream's cross-origin policy for its own origin no longer applies.
 _DROP_RESPONSE_HEADERS = frozenset(
     {
         "content-encoding",
@@ -94,7 +86,6 @@ _DROP_RESPONSE_HEADERS = frozenset(
         "trailer",
         "transfer-encoding",
         "upgrade",
-        "cross-origin-resource-policy",
     }
 )
 

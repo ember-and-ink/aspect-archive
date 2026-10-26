@@ -1,38 +1,31 @@
-import { useEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import DOMPurify from 'dompurify'
 
 /**
- * Creator notes, rendered in a sandboxed iframe.
+ * Creator notes, rendered into a shadow root.
  *
- * Salvage item 4 (docs/UI_REWRITE_PLAN.md §1.3): the ~150 lines that matter out
- * of web/'s 1,056-line creator-notes module — the sandbox attribute set, the
- * height handshake, and the min/max clamp. Not the palette work; the server
- * already strips a card's CSS down to layout (proxy/text/notes_html.py). What
- * stays the client's job is *isolation*: creator notes are untrusted
- * third-party HTML, and putting them in the live DOM would let one card's
- * markup restyle or overlay the whole app.
+ * Creator notes are untrusted third-party HTML. Two things keep them in their
+ * place:
  *
- * Two boundaries, because one is not enough:
+ *  1. DOMPurify strips scripts, event handlers and dangerous tags/protocols,
+ *     and the app shell's CSP (`script-src 'self'`, proxy/server.py) stops
+ *     anything that slips past it from running. This is the content boundary.
+ *  2. The shadow root is the style boundary: a card's `<style>` cannot restyle
+ *     the app, and the app's styles do not leak into the notes. `contain:
+ *     paint` on the host clips anything a card positions outside its box.
  *
- *  1. DOMPurify strips scripts, event handlers and dangerous tags/protocols
- *     before the HTML is ever written. This is the content boundary.
- *  2. A sandboxed iframe with its own CSP is the frame boundary. It carries
- *     allow-scripts WITHOUT allow-same-origin, so the frame runs its own
- *     measuring script but has an opaque origin — it cannot reach window.parent,
- *     read cookies/storage, submit a form, or navigate the top frame. A link
- *     opens in a new tab, an image loads, and nothing else happens.
+ * It used to be a sandboxed iframe. That frame's opaque origin could not send
+ * the login gate's session cookie, so every gated image 401'd, and on iOS a
+ * pan that started inside it scrolled the frame instead of the page. The
+ * notes are now ordinary page content with a natural height.
  *
- * The height handshake exists because a sandboxed iframe has no intrinsic
- * height — without it the notes would sit in a fixed-height box with a
- * scrollbar. The parent cannot read the opaque-origin iframe's document, so the
- * iframe measures itself and posts its height out; the parent trusts only a
- * number, from this iframe, and grows to fit it exactly, the same as any other
- * prose block on the page (Description, Greetings). There is no upper clamp —
- * a cap silently clips whatever note is long enough to hit it, with no
- * scrollbar and no indication anything is missing.
+ * Images come from the card's own gallery and nowhere else (`media`, from the
+ * detail response): an archived card's notes never hotlink the source site,
+ * whose uptime is not ours. A URL with no gallery file shows as a placeholder
+ * saying so; Localize fetches it. A Discover preview is the one exception --
+ * it is not archived, has no gallery, and passes no `media` -- so its images
+ * go through `/proxy`.
  */
-
-const MIN_HEIGHT = 60
 
 /** DOMPurify config: permissive for rich styling, closed to anything active. */
 const PURIFY_CONFIG = {
@@ -155,30 +148,6 @@ const PURIFY_CONFIG = {
   ALLOW_UNKNOWN_PROTOCOLS: false,
 }
 
-/** The CSP the iframe document carries: no script anywhere, images/media open. */
-const IFRAME_CSP =
-  "default-src 'none'; img-src * data: blob:; media-src * data: blob:; " +
-  "style-src 'unsafe-inline'; font-src * data:; script-src 'unsafe-inline'; " +
-  "form-action 'none'"
-
-/** The self-measuring script that posts the document's height to the parent. */
-const MEASURE_SCRIPT = `
-  var last = 0;
-  function report() {
-    var h = Math.ceil(document.documentElement.getBoundingClientRect().height);
-    if (Math.abs(h - last) > 2) {
-      last = h;
-      parent.postMessage({ __notesHeight: h }, '*');
-    }
-  }
-  new ResizeObserver(report).observe(document.body);
-  addEventListener('load', report);
-  Array.prototype.forEach.call(document.images, function (img) {
-    if (!img.complete) { img.addEventListener('load', report); img.addEventListener('error', report); }
-  });
-  report();
-`
-
 /** Percent-encodes a URL for `/proxy/{url}`, matching `proxyEncode` in the
  *  legacy web/ frontend (web/library-sections/30-media-localization-feature.js)
  *  -- `encodeURIComponent` alone leaves `!'()*` unescaped, and cors_proxy.py
@@ -190,45 +159,56 @@ function proxyEncode(url: string): string {
   )
 }
 
+/** Source URL -> gallery file URL, or null for a URL known dead. */
+export type MediaMap = Record<string, string | null>
+
+/** What stands in for an image the gallery does not hold. Keeps the alt text,
+ *  so a captioned portrait still says what it was. */
+function placeholder(img: Element, dead: boolean): HTMLElement {
+  const box = document.createElement('span')
+  box.className = 'notes-missing'
+  const alt = img.getAttribute('alt')?.trim()
+  box.textContent = `${alt ? `${alt} · ` : ''}${dead ? 'dead link' : 'not in gallery'}`
+  box.title = img.getAttribute('src') ?? ''
+  return box
+}
+
 /**
- * Route every embedded image through the server's `/proxy/{url}` passthrough
- * rather than hotlinking the source directly.
- *
- * The notes iframe is sandboxed without `allow-same-origin` (see the module
- * doc above), which gives it an opaque origin -- and some source CDNs (e.g.
- * saucepan.ai) answer with `Cross-Origin-Resource-Policy: same-origin`, which
- * an opaque origin can never satisfy. The browser drops the image outright,
- * no error the iframe can recover from. Routing through our own origin's
- * `/proxy` sidesteps it: cors_proxy.py strips that header off the reply, since
- * it is describing the upstream's policy, not ours.
+ * Point every image at its gallery file (or, with no `media`, at `/proxy`),
+ * open every link in a new tab, and neutralise `:host` in any card `<style>`
+ * -- a rule on the host itself is the one thing the shadow root does not
+ * scope, and `contain: paint` only holds while the host stays where it is.
  */
-function proxyImages(html: string): string {
-  const container = document.createElement('div')
-  container.innerHTML = html
-  container
-    .querySelectorAll('img[src^="http://"], img[src^="https://"]')
-    .forEach((img) => {
-      const src = img.getAttribute('src')
-      if (src) img.setAttribute('src', `/proxy/${proxyEncode(src)}`)
-    })
-  return container.innerHTML
+function localize(fragment: DocumentFragment, media: MediaMap | undefined) {
+  fragment.querySelectorAll('img[src]').forEach((img) => {
+    const src = img.getAttribute('src')!
+    if (!/^https?:\/\//i.test(src)) return
+    if (!media) {
+      img.setAttribute('src', `/proxy/${proxyEncode(src)}`)
+      return
+    }
+    const local = media[src]
+    if (local) img.setAttribute('src', local)
+    else img.replaceWith(placeholder(img, local === null))
+  })
+  fragment.querySelectorAll('a[href]').forEach((a) => {
+    a.setAttribute('target', '_blank')
+    a.setAttribute('rel', 'noopener noreferrer')
+  })
+  fragment.querySelectorAll('style').forEach((style) => {
+    // An invalid selector drops its whole rule, which is the point.
+    style.textContent = (style.textContent ?? '').replace(
+      /:host(-context)?/g,
+      ':not(*)',
+    )
+  })
 }
 
 const BASE_STYLES = `
-  html { color-scheme: dark; }
-  /* The frame is sized to its content by the measure script below, so it never
-     needs to scroll itself. Any scrollbar it does show is therefore an
-     artefact -- and under color-scheme:dark an empty dark track reads as a
-     stray shadow down the right-hand edge (Stage 6B D2). Suppress the
-     scrollbar rather than the overflow, so content a pixel or two wide than
-     the measure is still reachable by the page's own scroll. */
-  html, body { scrollbar-width: none; -ms-overflow-style: none; }
-  html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; }
-  html { overflow-y: hidden; }
-  body {
-    margin: 0; padding: 4px 2px;
+  :host {
+    display: block; padding: 4px 2px;
     font: 14.5px/1.68 'Figtree', 'Segoe UI', system-ui, sans-serif;
-    color: #d2d8da; background: transparent; overflow-wrap: break-word;
+    color: #d2d8da; overflow-wrap: break-word;
   }
   a { color: #57c2a2; text-decoration: none; }
   a:hover { text-decoration: underline; }
@@ -243,19 +223,13 @@ const BASE_STYLES = `
   code { background: rgba(0,0,0,.3); padding: 2px 6px; border-radius: 5px; font-family: 'JetBrains Mono', monospace; font-size: .9em; }
   table { width: 100%; border-collapse: collapse; margin: 10px 0; }
   td, th { padding: 7px 11px; border: 1px solid rgba(255,255,255,.1); }
+  .notes-missing {
+    display: inline-block; margin: 8px 0; padding: 6px 10px; border-radius: 8px;
+    border: 1px dashed rgba(255,255,255,.18); color: #8b9599; font-size: 12.5px;
+  }
   [style*="position:fixed"], [style*="position: fixed"],
   [style*="position:sticky"], [style*="position: sticky"] { position: static !important; }
 `
-
-/** Build the complete, sandboxed iframe document. `notes` is pre-sanitized. */
-function buildDocument(notes: string): string {
-  return (
-    `<!doctype html><html><head><meta charset="utf-8">` +
-    `<meta http-equiv="Content-Security-Policy" content="${IFRAME_CSP}">` +
-    `<style>${BASE_STYLES}</style></head>` +
-    `<body>${notes}<script>${MEASURE_SCRIPT}</script></body></html>`
-  )
-}
 
 /** Real HTML tag names only -- matches PURIFY_CONFIG.ALLOWED_TAGS so a hit
  *  here is guaranteed to survive sanitization as a structural element. */
@@ -268,7 +242,7 @@ const HTML_TAG_PATTERN = new RegExp(
  * Whether the notes look like HTML or markdown/plain text.
  *
  * Cards from Chub carry real HTML documents; the JanitorAI/saucepan/datacat
- * mappers flatten to markdown. A markdown body dropped into an iframe as-is
+ * mappers flatten to markdown. A markdown body rendered as HTML as-is
  * would show its literal `**` and `#`, so it is escaped and given minimal
  * block/inline formatting first.
  *
@@ -320,36 +294,45 @@ function markdownToHtml(md: string): string {
     .join('')
 }
 
-export function CreatorNotes({ notes }: { notes: string }) {
-  const frameRef = useRef<HTMLIFrameElement>(null)
-  const [height, setHeight] = useState(MIN_HEIGHT)
+export function CreatorNotes({
+  notes,
+  media,
+}: {
+  notes: string
+  /** The card's gallery map; omitted for a card that is not archived. */
+  media?: MediaMap
+}) {
+  const hostRef = useRef<HTMLDivElement>(null)
 
-  const html = looksLikeHtml(notes) ? notes : markdownToHtml(notes)
-  const clean = DOMPurify.sanitize(html, PURIFY_CONFIG) as unknown as string
-  const srcDoc = buildDocument(proxyImages(clean))
+  const fragment = useMemo(() => {
+    const html = looksLikeHtml(notes) ? notes : markdownToHtml(notes)
+    // Straight to a fragment: serializing the sanitized tree and parsing it
+    // again is where mutation-XSS lives.
+    const clean = DOMPurify.sanitize(html, {
+      ...PURIFY_CONFIG,
+      RETURN_DOM_FRAGMENT: true,
+      // Otherwise a leading <style> is hoisted into <head> and dropped.
+      FORCE_BODY: true,
+    })
+    localize(clean, media)
+    return clean
+  }, [notes, media])
 
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      // Trust only a number, and only from our own iframe.
-      if (event.source !== frameRef.current?.contentWindow) return
-      const reported = (event.data as { __notesHeight?: unknown })
-        ?.__notesHeight
-      if (typeof reported === 'number' && Number.isFinite(reported)) {
-        setHeight(Math.max(MIN_HEIGHT, reported))
-      }
-    }
-    window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
-  }, [])
+  useLayoutEffect(() => {
+    const host = hostRef.current!
+    const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' })
+    const style = document.createElement('style')
+    style.textContent = BASE_STYLES
+    root.replaceChildren(style, fragment.cloneNode(true))
+  }, [fragment])
 
   return (
-    <iframe
-      ref={frameRef}
-      title="Creator notes"
-      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-      srcDoc={srcDoc}
-      className="block w-full rounded-xl border border-line-soft bg-surface"
-      style={{ height, boxSizing: 'content-box' }}
+    <div
+      ref={hostRef}
+      data-testid="creator-notes"
+      className="rounded-xl border border-line-soft bg-surface"
+      // Inline, so no rule from inside the shadow root can outrank them.
+      style={{ display: 'block', position: 'relative', contain: 'paint' }}
     />
   )
 }

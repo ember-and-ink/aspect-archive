@@ -10,6 +10,7 @@ every write is atomic, and nothing is ever unlinked.
 from __future__ import annotations
 
 import copy
+import html
 import logging
 import os
 from datetime import datetime, timezone
@@ -52,6 +53,7 @@ from proxy.api.schemas import (
     TagsApplyOut,
 )
 from proxy.api.v1 import _shared
+from proxy.api.v1 import media as v1_media
 from proxy.archive import catalog
 from proxy.cards import avatar_refetch, edit, forks, gallery, intake, pngtools
 from proxy.cards.naming import id_fragment
@@ -146,6 +148,38 @@ def _folder_out(record: catalog.CardSummary, root: Path) -> GalleryOut:
     out.bytes = sum(e.stat().st_size for e in files)
     return out
 
+
+
+def _media_map(gallery_out: GalleryOut) -> dict[str, str | None]:
+    """Source URL -> the gallery file that holds it, or None for a URL the
+    manifest records as dead. The creator-notes renderer reads its images from
+    this and nothing else: a URL missing here is shown as "not in gallery"
+    rather than fetched from the source site.
+
+    Each URL is keyed both as the manifest has it -- discovery reads the card's
+    raw text -- and HTML-unescaped, because the renderer looks up an `<img>`'s
+    *decoded* `src`: a query string written `&amp;` in the notes would
+    otherwise never find its own file. A manifest entry whose file has since
+    been binned is left out, the same check `writer.manifest_hit` makes."""
+    if not gallery_out.exists or not gallery_out.folder:
+        return {}
+    directory = settings.galleries_dir / gallery_out.folder
+    try:
+        on_disk = {name for name in os.listdir(directory) if not name.startswith(".")}
+    except OSError:
+        return {}
+    manifest = media_manifest.load_manifest(directory)
+    quoted_folder = quote(gallery_out.folder, safe="")
+    out: dict[str, str | None] = {url: None for url in manifest["dead"]}
+    # Files second, so a URL with a file on disk resolves to it even if it was
+    # also marked dead at some point.
+    for url, entry in manifest["files"].items():
+        name = entry.get("file") if isinstance(entry, dict) else None
+        if name in on_disk:
+            out[url] = f"{_shared.PREFIX}/galleries/{quoted_folder}/files/{quote(name, safe='')}"
+    for url, value in list(out.items()):
+        out.setdefault(html.unescape(url), value)
+    return out
 
 # What a `scope`d search matches `q` against, as a function of the record. The
 # default (`all`) uses the pre-folded haystack; the rest fold on demand, which
@@ -462,13 +496,15 @@ def get_character(card_id: str, response: Response = None) -> CardDetailOut:  # 
         raise HTTPException(status_code=422, detail="file carries no character card")
     outer, data = envelope
     expressions = _folder_out(record, settings.expressions_dir)
+    gallery_out = _folder_out(record, settings.galleries_dir)
     return CardDetailOut(
         **_card_out(record).model_dump(),
         spec=str(outer.get("spec", "")),
         spec_version=str(outer.get("spec_version", "")),
         card=data,
         avatar_origin=avatar_refetch.origin(data),
-        gallery=_folder_out(record, settings.galleries_dir),
+        gallery=gallery_out,
+        media=_media_map(gallery_out),
         expressions=expressions,
         expressions_zip_url=(
             f"{_shared.PREFIX}/characters/{quote(record.filename, safe='')}/expressions.zip"
@@ -585,6 +621,7 @@ def import_character(
     # no staleness check, so an overwrite would otherwise keep showing the old face.
     _shared.thumbnail_store.forget(path.name)
     catalog.index().refresh()
+    v1_media.queue_direct_images(path.name)
     logger.info("import: saved %s card %s (%s)", prepared.source, prepared.name, path.name)
     return CardImportOut(
         id=path.name,

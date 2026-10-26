@@ -8,6 +8,7 @@ longer runs go through the background job store in `_shared`.
 from __future__ import annotations
 
 import json
+import logging
 import time
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
@@ -46,6 +47,8 @@ from proxy.runtime import net
 from proxy.sources import chub as chub_source
 
 router = APIRouter()
+
+logger = logging.getLogger("jai_proxy.api.media")
 
 def _job_status_out(job: media_jobs.MediaJob, *, after: int = 0, include_events: bool = True) -> MediaJobStatusOut:
     events = [MediaJobEventOut(**e) for e in job.events_after(after)] if include_events else []
@@ -283,6 +286,35 @@ def submit_media_job(body: MediaJobSubmitIn) -> MediaJobOut:
         gallery_dir, folder_name, items, body.prefix, body.phase, card_id=body.card_id, sources=sources
     )
     return MediaJobOut(job_id=job.id, state=job.state, total=job.total)
+
+
+def queue_direct_images(card_id: str) -> None:
+    """Queue the download of every direct image a just-added card shows.
+
+    Called by every door a new card comes in through -- the `/build-*` tail and
+    `POST /characters` -- so a card's notes and greetings can render from its
+    own gallery from the moment it lands, instead of hotlinking a source site
+    that may be half-down by the time anyone looks. Direct images only (the
+    `embedded`/`lorebook` URLs `find_character_media_urls` reads out of the
+    text); folders and albums -- MEGA, imgbb, a Chub gallery -- are links to
+    somewhere images *are*, not images the card shows, and stay Localize's job.
+
+    No URLs, no job, and no gallery folder created for nothing. Never raises:
+    a card that was written must not report failure because its media could
+    not be queued -- Localize will pick it up either way.
+    """
+    try:
+        idx = _shared.index()
+        record = _shared.require(idx, card_id)
+        embedded, lorebook = media_discovery.find_character_media_urls(_card_data(idx, card_id))
+        items = [{"url": url, "filename": None, "prefix": "localized_media"} for url in embedded]
+        items += [{"url": url, "filename": None, "prefix": "lorebook_media"} for url in lorebook]
+        if not items:
+            return
+        folder_name, gallery_dir = _shared.gallery_dir_for_card(idx, record)
+        _shared.job_store.submit(gallery_dir, folder_name, items, "localized_media", "embedded", card_id=card_id)
+    except Exception:
+        logger.exception("could not queue the image download for new card %s", card_id)
 
 
 # The prefix each gallery handler's images are saved under. Everything an

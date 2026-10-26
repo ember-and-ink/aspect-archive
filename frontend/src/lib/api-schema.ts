@@ -2198,6 +2198,13 @@ export interface components {
              */
             avatar_origin?: ("chub" | "datacat") | null;
             gallery: components["schemas"]["GalleryOut"];
+            /**
+             * Media
+             * @description Source URL -> URL of the gallery file holding it, or null when the URL is known dead. Keyed both as found in the card's text and HTML-unescaped. A URL absent from the map has not been downloaded. The creator-notes renderer loads images from here only, never from the source.
+             */
+            media?: {
+                [key: string]: string | null;
+            };
             /** @description Same shape as `gallery`, measured against data/expressions/ instead. */
             expressions: components["schemas"]["GalleryOut"];
             /**

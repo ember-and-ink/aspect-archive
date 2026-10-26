@@ -13,6 +13,7 @@ posts, the server maps and writes.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -173,6 +174,13 @@ async def fetch_avatar_and_write(
     # moment this returns (finishBrowseImport), so the write has to land in it
     # here. The v1 write routes refresh for the same reason.
     catalog.index().refresh()
+    # Imported here, not at the top: `proxy.api.v1.discover` imports this module,
+    # so a top-level import of the v1 package would be circular.
+    from proxy.api.v1 import media as v1_media
+
+    # Off the event loop -- queueing blocks until the job store's own loop has
+    # taken the job, and that loop is this one.
+    await asyncio.to_thread(v1_media.queue_direct_images, path.name)
     _record_download(source=source, name=name, creator=creator, filename=path.name)
     return BuildResponse(ok=True, path=str(path), warnings=warnings, fields_present=fields_present)
 

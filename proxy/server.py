@@ -173,6 +173,15 @@ logging.getLogger("uvicorn.access").addFilter(QuietAccessFilter())
 # frontend to share the root with.
 
 
+# Creator notes are third-party HTML rendered straight into the page (in a
+# shadow root, for style isolation only), so DOMPurify is the content boundary
+# and this is the one behind it: markup that slipped past the sanitizer still
+# cannot run inline script or an event handler. The built shell loads only
+# `<script type="module" src=...>` from its own origin, so 'self' costs nothing.
+# Script only -- images, styles and fonts are deliberately left alone.
+SHELL_CSP = "script-src 'self'; object-src 'none'; base-uri 'none'"
+
+
 class ImmutableStaticFiles(StaticFiles):
     """Serve Vite's content-hashed assets with a cache header safe to keep forever.
 
@@ -225,7 +234,7 @@ if FRONTEND_DIST.is_dir():
         # copy would keep pointing at the previous build's JavaScript.
         return FileResponse(
             FRONTEND_DIST / "index.html",
-            headers={"Cache-Control": "no-store, must-revalidate"},
+            headers={"Cache-Control": "no-store, must-revalidate", "Content-Security-Policy": SHELL_CSP},
         )
 else:  # pragma: no cover -- a checkout that has not run `make frontend-build`
     logger.warning(

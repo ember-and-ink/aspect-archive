@@ -171,3 +171,10 @@ def test_an_imported_card_is_visible_immediately(client):
     body = post(client, card_png("Fresh", creator="someone")).json()
     listed = client.get("/api/v1/characters?limit=0").json()
     assert body["id"] in [c["id"] for c in listed["items"]]
+
+
+def test_an_adopted_card_queues_its_images_and_a_duplicate_does_not(client, queued_downloads):
+    png = card_png("Nadia", creator="someone")
+    first = post(client, png).json()
+    post(client, png)
+    assert queued_downloads == [first["id"]]
