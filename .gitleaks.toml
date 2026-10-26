@@ -1,0 +1,27 @@
+# gitleaks config — extends the built-in default ruleset.
+# https://github.com/gitleaks/gitleaks#configuration
+title = "jai-proxy gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated, vendored, or binary paths, plus known test placeholders."
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)\.venv/''',
+  '''(^|/)dist/''',
+  '''(^|/)__pycache__/''',
+  '''(^|/)uv\.lock$''',
+  '''(^|/)package-lock\.json$''',
+  '''^proxy/pngquant$''',
+  '''\.png$''',
+  '''\.jpg$''',
+  '''\.jpeg$''',
+  '''\.webp$''',
+  '''\.ico$''',
+]
+# The login-gate token the userscript tests compile in (tests/api/test_userscripts.py).
+regexes = [
+  '''jai_abc-DEF_123''',
+]

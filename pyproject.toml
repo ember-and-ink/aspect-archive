@@ -30,6 +30,7 @@ jai-proxy = "proxy.server:main"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.7.0",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
 ]
