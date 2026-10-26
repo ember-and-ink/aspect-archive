@@ -173,6 +173,20 @@ function placeholder(img: Element, dead: boolean): HTMLElement {
   return box
 }
 
+/** Matches a CSS `url(...)` with an http(s) target; `data:` URIs make no
+ *  request and are left as they are. */
+const CSS_URL_RE = /url\(\s*(["']?)(https?:\/\/[^"')\s]+)\1\s*\)/gi
+
+/** The CSS counterpart of the `<img>` pass: an image the gallery lacks becomes
+ *  `none`, since there is no element to hang a placeholder on. */
+function localizeCss(css: string, media: MediaMap | undefined): string {
+  return css.replace(CSS_URL_RE, (_, _q, src: string) => {
+    if (!media) return `url("/proxy/${proxyEncode(src)}")`
+    const local = media[src]
+    return local ? `url("${local}")` : 'none'
+  })
+}
+
 /**
  * Point every image at its gallery file (or, with no `media`, at `/proxy`),
  * open every link in a new tab, and neutralise `:host` in any card `<style>`
@@ -191,15 +205,18 @@ function localize(fragment: DocumentFragment, media: MediaMap | undefined) {
     if (local) img.setAttribute('src', local)
     else img.replaceWith(placeholder(img, local === null))
   })
+  fragment.querySelectorAll('[style*="url("]').forEach((el) => {
+    el.setAttribute('style', localizeCss(el.getAttribute('style')!, media))
+  })
   fragment.querySelectorAll('a[href]').forEach((a) => {
     a.setAttribute('target', '_blank')
     a.setAttribute('rel', 'noopener noreferrer')
   })
   fragment.querySelectorAll('style').forEach((style) => {
     // An invalid selector drops its whole rule, which is the point.
-    style.textContent = (style.textContent ?? '').replace(
-      /:host(-context)?/g,
-      ':not(*)',
+    style.textContent = localizeCss(
+      (style.textContent ?? '').replace(/:host(-context)?/g, ':not(*)'),
+      media,
     )
   })
 }

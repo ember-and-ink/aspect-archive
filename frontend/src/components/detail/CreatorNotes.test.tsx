@@ -55,6 +55,48 @@ describe('CreatorNotes', () => {
     )
   })
 
+  it('points an inline CSS background at its gallery file', () => {
+    // The shape tame_html keeps: Chub's "background image wrapper" blurbs.
+    const root = notesRoot(
+      `<div style="background-image:url('https://i.ibb.co/x/a.png');background-size:cover">hi</div>`,
+      { 'https://i.ibb.co/x/a.png': FILE },
+    )
+    const style = root.querySelector('div')!.getAttribute('style')!
+    expect(style).toContain(`url("${FILE}")`)
+    expect(style).toContain('background-size:cover')
+    expect(style).not.toContain('i.ibb.co')
+  })
+
+  it('drops a CSS background the gallery lacks rather than hotlinking it', () => {
+    const root = notesRoot(
+      '<div style="background:url(https://example.com/gone.png) center">hi</div>',
+      { 'https://example.com/gone.png': null },
+    )
+    const style = root.querySelector('div')!.getAttribute('style')!
+    expect(style).toBe('background:none center')
+  })
+
+  it('leaves data: URIs in CSS alone, since they make no request', () => {
+    const svg = `url('data:image/svg+xml,%3Csvg%3E%3C/svg%3E')`
+    const root = notesRoot(`<span style="mask:${svg}">x</span>`, {})
+    expect(root.querySelector('span')!.getAttribute('style')).toBe(`mask:${svg}`)
+  })
+
+  it('rewrites url() inside a card <style> block too', () => {
+    const root = notesRoot(
+      '<style>.x { background: url("https://example.com/a.png") }</style><p class="x">hi</p>',
+      { 'https://example.com/a.png': FILE },
+    )
+    expect(root.querySelectorAll('style')[1].textContent).toContain(`url("${FILE}")`)
+  })
+
+  it('routes CSS images through /proxy for a card with no gallery map', () => {
+    const root = notesRoot('<div style="background-image:url(https://e.com/a.png)">hi</div>')
+    expect(root.querySelector('div')!.getAttribute('style')).toBe(
+      'background-image:url("/proxy/https%3A%2F%2Fe.com%2Fa.png")',
+    )
+  })
+
   it('opens every link in a new tab', () => {
     const root = notesRoot('See [the source](https://example.com/page).', {})
     const a = root.querySelector('a')!
