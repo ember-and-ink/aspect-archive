@@ -52,7 +52,7 @@ export function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-[980px] px-5 pb-24">
-      <div className="sticky top-0 z-20 flex items-center gap-2.5 border-b border-line-soft bg-ground/85 py-[11px] backdrop-blur-[12px]">
+      <div className="sticky top-0 z-20 flex items-center gap-2.5 border-b border-line-soft bg-ground py-[11px]">
         <button
           type="button"
           onClick={() => navigate('/')}

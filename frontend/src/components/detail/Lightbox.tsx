@@ -68,7 +68,7 @@ export function Lightbox({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-60 flex items-center justify-center bg-black/88 backdrop-blur-sm"
+      className="fixed inset-0 z-60 flex items-center justify-center bg-black/88"
       onClick={onClose}
     >
       <button

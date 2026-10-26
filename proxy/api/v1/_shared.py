@@ -48,17 +48,15 @@ THUMB_CACHE_CONTROL = "public, max-age=86400"
 
 
 def index() -> catalog.ArchiveIndex:
-    """The archive index, brought in step with the directory first.
+    """The archive index, as it stands.
 
-    Refreshing per request rather than once at startup is what makes a card
-    acquired by a userscript -- or dropped in by hand, or renamed by `make
-    names` -- appear without restarting the server. It costs one stat per file
-    (21 ms across 3,839 cards) and is debounced, so a browse page's worth of
-    parallel requests sweeps the directory once between them.
+    Deliberately no refresh here. It used to stat-sweep the archive per request
+    (behind a 2 s debounce) so outside writes appeared live, but on the Unraid
+    share that sweep is ~0.5 s and nothing outside this process writes the
+    archive in practice. The index is built at startup, refreshed by every write
+    route, and rescanned on demand by `POST /refresh` -- see `proxy.archive.catalog`.
     """
-    idx = catalog.index()
-    idx.refresh()
-    return idx
+    return catalog.index()
 
 
 def require(idx: catalog.ArchiveIndex, card_id: str) -> catalog.CardSummary:

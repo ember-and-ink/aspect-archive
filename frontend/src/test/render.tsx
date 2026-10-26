@@ -1,11 +1,14 @@
+import { createRef } from 'react'
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { BatchSelectionProvider } from '@/hooks/use-batch-selection'
+import { ScrollContainerContext } from '@/hooks/use-scroll-container'
 
 /**
  * A component under the providers the app always has: a query client, a
- * router, and the batch-selection context `CharactersPage`'s grid reads from.
+ * router, the batch-selection context `CharactersPage`'s grid reads from, and
+ * AppShell's scroll container.
  * Retries are off so a test asserting an error path fails in one attempt
  * rather than three.
  */
@@ -13,13 +16,21 @@ export function renderApp(
   ui: React.ReactElement,
   { route = '/' }: { route?: string } = {},
 ) {
+  // AppShell's scroll container, without the rest of AppShell.
+  const scrollRef = createRef<HTMLDivElement>()
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[route]}>
-        <BatchSelectionProvider>{ui}</BatchSelectionProvider>
+        <BatchSelectionProvider>
+          <div ref={scrollRef}>
+            <ScrollContainerContext value={scrollRef}>
+              {ui}
+            </ScrollContainerContext>
+          </div>
+        </BatchSelectionProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   )

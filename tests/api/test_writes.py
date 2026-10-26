@@ -320,6 +320,7 @@ def test_binning_two_cards_of_the_same_name_keeps_both(client, archive_dirs, tmp
     characters = archive_dirs["characters"]
     for card_id in ("Dup_11111111.png", "Dup_22222222.png"):
         (characters / card_id).write_bytes(card_png("Dup", extensions=jai_extensions()))
+    client.post("/api/v1/refresh")
 
     first = client.delete("/api/v1/characters/Dup_11111111.png").json()["card"]
     second = client.delete("/api/v1/characters/Dup_22222222.png").json()["card"]
@@ -683,12 +684,13 @@ def test_uploading_cannot_write_outside_its_folder(client, populated_archive, tm
 
 
 @pytest.fixture
-def thumb_card(populated_archive):
+def thumb_card(client, populated_archive):
     """A Chub card saved with the 200px thumbnail, as Discover did until 2026-10-16."""
     extensions = jai_extensions("7980518", gallery_id="MMMMMMMMMMMM", source_kind="chub_core")
     extensions["chub"] = {"id": 7980518, "full_path": "Drivai/mizuki-6f5ec0abafe8"}
     path = populated_archive["characters"] / "Mizuki_7980518.png"
     path.write_bytes(card_png("Mizuki", size=(200, 200), extensions=extensions))
+    client.post("/api/v1/refresh")
     return path
 
 

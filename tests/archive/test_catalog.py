@@ -10,10 +10,8 @@ from tests.conftest import card_png, jai_extensions
 
 
 def _index(root: Path) -> catalog.ArchiveIndex:
-    # debounce off: these tests write to the directory and read back immediately,
-    # which is precisely what the debounce is there to suppress.
-    index = catalog.ArchiveIndex(root, debounce_seconds=0)
-    index.refresh(force=True)
+    index = catalog.ArchiveIndex(root)
+    index.refresh()
     return index
 
 
@@ -73,14 +71,14 @@ def test_refresh_only_reparses_what_changed(populated_archive):
     index = _index(characters)
     assert index.last_stats.parsed == 3
 
-    stats = index.refresh(force=True)
+    stats = index.refresh()
     assert stats.parsed == 0
     assert stats.unchanged == 3
 
     # Rewrite one card with different content *and* a different length: the pair
     # (mtime_ns, size) is what invalidation keys on.
     (characters / "Cleo_33334444.png").write_bytes(card_png("Cleopatra Renamed"))
-    stats = index.refresh(force=True)
+    stats = index.refresh()
     assert stats.parsed == 1
     assert stats.unchanged == 2
     assert index.get("Cleo_33334444.png").name == "Cleopatra Renamed"
@@ -93,25 +91,25 @@ def test_refresh_picks_up_new_and_deleted_cards(populated_archive):
     index = _index(characters)
 
     (characters / "Dana_55556666.png").write_bytes(card_png("Dana"))
-    stats = index.refresh(force=True)
+    stats = index.refresh()
     assert stats.parsed == 1
     assert index.get("Dana_55556666.png").name == "Dana"
 
     (characters / "Dana_55556666.png").unlink()
-    stats = index.refresh(force=True)
+    stats = index.refresh()
     assert stats.removed == 1
     assert index.get("Dana_55556666.png") is None
 
 
-def test_debounce_suppresses_repeat_sweeps(populated_archive):
+def test_reads_never_rescan_on_their_own(populated_archive):
+    """Only an explicit refresh sees an outside write -- reads trust the index."""
     characters = populated_archive["characters"]
-    index = catalog.ArchiveIndex(characters, debounce_seconds=60)
-    index.refresh(force=True)
+    index = catalog.ArchiveIndex(characters)
+    index.refresh()
 
     (characters / "Late_77778888.png").write_bytes(card_png("Late"))
+    assert index.get("Late_77778888.png") is None
     index.refresh()
-    assert index.get("Late_77778888.png") is None, "debounced refresh should not rescan"
-    index.refresh(force=True)
     assert index.get("Late_77778888.png") is not None
 
 
@@ -157,7 +155,7 @@ def test_by_fragment_is_a_dict_lookup_not_a_scan(populated_archive):
             extensions=jai_extensions(card_id="cafebabe-0000-0000-0000-000000000000"),
         )
     )
-    index.refresh(force=True)
+    index.refresh()
     assert [r.name for r in index.by_fragment("cafebabe")] == ["New"]
 
 
@@ -222,8 +220,8 @@ def test_ignores_non_png_files(archive_dirs):
 
 def test_missing_archive_dir_is_empty_not_fatal(tmp_path):
     """A fresh container mounts an empty volume; the server has to start anyway."""
-    index = catalog.ArchiveIndex(tmp_path / "nope", debounce_seconds=0)
-    index.refresh(force=True)
+    index = catalog.ArchiveIndex(tmp_path / "nope")
+    index.refresh()
     assert index.all() == ()
 
 
@@ -240,7 +238,7 @@ def _bare_png() -> bytes:
 def test_a_card_vanishing_mid_scan_is_survivable(populated_archive, monkeypatch):
     """`make names` renames cards in place; a scan can race one."""
     characters = populated_archive["characters"]
-    index = catalog.ArchiveIndex(characters, debounce_seconds=0)
+    index = catalog.ArchiveIndex(characters)
     real_stat = Path.stat
 
     def flaky_stat(self, *args, **kwargs):
@@ -249,11 +247,10 @@ def test_a_card_vanishing_mid_scan_is_survivable(populated_archive, monkeypatch)
         return real_stat(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "stat", flaky_stat)
-    index.refresh(force=True)
+    index.refresh()
     assert {r.name for r in index.cards()} == {"Abbie", "Cleo"}
     monkeypatch.undo()
-    index.refresh(force=True)
-    assert len(index.cards()) == 3
+    index.refresh()
 
 
 def test_index_is_a_singleton_bound_to_the_configured_dir(populated_archive):

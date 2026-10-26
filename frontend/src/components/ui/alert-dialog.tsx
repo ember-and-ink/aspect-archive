@@ -18,7 +18,7 @@ export function AlertDialogContent({
 }: React.ComponentProps<typeof A.Content>) {
   return (
     <A.Portal>
-      <A.Overlay className="fixed inset-0 z-[90] bg-black/55 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+      <A.Overlay className="fixed inset-0 z-[90] bg-black/55 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
       <A.Content
         className={cn(
           'fixed top-1/2 left-1/2 z-[91] w-[min(440px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2',

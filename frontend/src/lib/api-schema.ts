@@ -421,6 +421,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How many cards the archive holds
+         * @description Answered from the in-memory index alone. `/stats` stats every gallery file
+         *     and thumb on disk -- ~5 s on the Unraid share -- which is fine behind the
+         *     Settings section that shows those numbers and not for a browse header.
+         */
+        get: operations["count_api_v1_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stats": {
         parameters: {
             query?: never;
@@ -449,9 +471,9 @@ export interface paths {
         put?: never;
         /**
          * Force a rescan
-         * @description Rescan now, ignoring the debounce. Endpoints already refresh on their own;
-         *     this is for a client that has just written to the archive and wants to read
-         *     its own write back immediately.
+         * @description Rescan the archive directory. The only way a change made outside this
+         *     process -- a file dropped in by hand, a `make` script -- reaches the index:
+         *     reads never rescan, and this process's own write routes refresh themselves.
          */
         post: operations["refresh_api_v1_refresh_post"];
         delete?: never;
@@ -2176,6 +2198,13 @@ export interface components {
              */
             avatar_origin?: ("chub" | "datacat") | null;
             gallery: components["schemas"]["GalleryOut"];
+            /**
+             * Media
+             * @description Source URL -> URL of the gallery file holding it, or null when the URL is known dead. Keyed both as found in the card's text and HTML-unescaped. A URL absent from the map has not been downloaded. The creator-notes renderer loads images from here only, never from the source.
+             */
+            media?: {
+                [key: string]: string | null;
+            };
             /** @description Same shape as `gallery`, measured against data/expressions/ instead. */
             expressions: components["schemas"]["GalleryOut"];
             /**
@@ -2450,6 +2479,17 @@ export interface components {
             avatar_b64?: string | null;
             /** Gallery Id */
             gallery_id?: string | null;
+        };
+        /**
+         * CountOut
+         * @description `GET /count` -- the header's "of N", without the disk sweep `/stats` does.
+         */
+        CountOut: {
+            /**
+             * Cards
+             * @description Cards that parsed; the same number as `/stats`' `cards`.
+             */
+            cards: number;
         };
         /** DatacatBuildRequest */
         DatacatBuildRequest: {
@@ -4353,6 +4393,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    count_api_v1_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountOut"];
                 };
             };
         };

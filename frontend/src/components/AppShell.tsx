@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Outlet } from 'react-router'
 import { BatchSelectionProvider } from '@/hooks/use-batch-selection'
+import { ScrollContainerContext } from '@/hooks/use-scroll-container'
 import { useProviderSettings } from '@/hooks/use-settings'
 import { setSavedDatacatToken } from '@/lib/providers/datacat'
 import { BackToTop } from './BackToTop'
@@ -53,7 +54,9 @@ export function AppShell() {
         ref={scrollRef}
         className="absolute inset-0 top-[60px] overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]"
       >
-        <Outlet />
+        <ScrollContainerContext value={scrollRef}>
+          <Outlet />
+        </ScrollContainerContext>
       </div>
       <BackToTop scrollRef={scrollRef} />
       <SearchOverlay open={searchOpen} onOpenChange={setSearchOpen} />

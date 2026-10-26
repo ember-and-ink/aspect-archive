@@ -15,6 +15,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 
 from proxy.api.schemas import (
+    CountOut,
     FacetsOut,
     FacetValue,
     IndexStatsOut,
@@ -99,6 +100,14 @@ def _media_stats() -> MediaStatsOut:
     return MediaStatsOut(images=sum(counts.values()), bytes=sum(byte_totals.values()), by_ext=by_ext)
 
 
+@router.get("/count", response_model=CountOut, summary="How many cards the archive holds")
+def count() -> CountOut:
+    """Answered from the in-memory index alone. `/stats` stats every gallery file
+    and thumb on disk -- ~5 s on the Unraid share -- which is fine behind the
+    Settings section that shows those numbers and not for a browse header."""
+    return CountOut(cards=len(_shared.index().cards()))
+
+
 @router.get("/stats", response_model=StatsOut, summary="Archive and index health")
 def stats() -> StatsOut:
     idx = _shared.index()
@@ -139,10 +148,10 @@ def stats() -> StatsOut:
 
 @router.post("/refresh", response_model=IndexStatsOut, summary="Force a rescan")
 def refresh() -> IndexStatsOut:
-    """Rescan now, ignoring the debounce. Endpoints already refresh on their own;
-    this is for a client that has just written to the archive and wants to read
-    its own write back immediately."""
-    stats_ = catalog.index().refresh(force=True)
+    """Rescan the archive directory. The only way a change made outside this
+    process -- a file dropped in by hand, a `make` script -- reaches the index:
+    reads never rescan, and this process's own write routes refresh themselves."""
+    stats_ = catalog.index().refresh()
     return IndexStatsOut(
         scanned=stats_.scanned,
         parsed=stats_.parsed,

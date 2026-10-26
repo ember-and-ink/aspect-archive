@@ -112,6 +112,25 @@ def _no_real_login_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(settings, "security_file", tmp_path / "security.json")
 
 
+@pytest.fixture(autouse=True)
+def queued_downloads(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Every card id a write handed to `queue_direct_images`, instead of a real
+    background download.
+
+    Autouse because every build and import route now queues one, and a real
+    job would fetch the fixture cards' image URLs off the internet in the
+    background of an unrelated test. A test of the function itself opts out
+    with `@pytest.mark.real_media_queue` (and stubs the download instead).
+    """
+    calls: list[str] = []
+    if request.node.get_closest_marker("real_media_queue"):
+        return calls
+    from proxy.api.v1 import media as v1_media
+
+    monkeypatch.setattr(v1_media, "queue_direct_images", calls.append)
+    return calls
+
+
 @pytest.fixture
 def archive_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path]:
     """An empty archive laid out exactly like `data/`, with settings pointed at

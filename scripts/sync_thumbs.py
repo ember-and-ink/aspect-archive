@@ -95,7 +95,7 @@ def main() -> int:
         parser.error(f"archive dir does not exist: {args.archive_dir}")
 
     index = catalog.ArchiveIndex(args.archive_dir)
-    index.refresh(force=True)
+    index.refresh()
     store = thumbs.ThumbnailStore(args.thumbs_dir, args.archive_dir)
     filenames = [r.filename for r in index.all()]
 

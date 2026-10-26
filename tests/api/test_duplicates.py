@@ -73,6 +73,7 @@ def test_same_creator_same_avatar_groups_despite_different_description(
         extensions=jai_extensions("22222222-0000-0000-0000-000000000000", creator_name="StormSight"),
     )
 
+    client.post("/api/v1/refresh")  # the cards were written behind the server's back
     body = client.get("/api/v1/duplicates").json()
     groups = body["groups"]
     assert len(groups) == 1
@@ -114,6 +115,7 @@ def test_same_creator_same_name_different_avatar_is_weak_or_absent(
         extensions=jai_extensions("44444444-0000-0000-0000-000000000000", creator_name="EverNever"),
     )
 
+    client.post("/api/v1/refresh")  # the cards were written behind the server's back
     body = client.get("/api/v1/duplicates").json()
     groups = [g for g in body["groups"] if g["creator"] == "EverNever"]
     if not groups:
@@ -151,6 +153,7 @@ def test_different_creators_never_grouped_even_when_identical(
         extensions=jai_extensions("66666666-0000-0000-0000-000000000000", creator_name="CreatorB"),
     )
 
+    client.post("/api/v1/refresh")  # the cards were written behind the server's back
     body = client.get("/api/v1/duplicates").json()
     member_ids = {m["id"] for g in body["groups"] for m in g["members"]}
     assert "Twin_55555555.png" not in member_ids
@@ -189,6 +192,7 @@ def test_lone_card_creator_excluded(client, archive_dirs: dict[str, Path]):
         extensions=jai_extensions("99999999-0000-0000-0000-000000000000", creator_name="LoneCreator"),
     )
 
+    client.post("/api/v1/refresh")  # the cards were written behind the server's back
     body = client.get("/api/v1/duplicates").json()
     member_ids = {m["id"] for g in body["groups"] for m in g["members"]}
     assert "Solo_99999999.png" not in member_ids

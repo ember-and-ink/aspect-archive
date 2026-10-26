@@ -24,6 +24,7 @@ export function useApplyTags() {
       void qc.invalidateQueries({ queryKey: ['characters'] })
       void qc.invalidateQueries({ queryKey: ['facets'] })
       void qc.invalidateQueries({ queryKey: ['stats'] })
+      void qc.invalidateQueries({ queryKey: ['count'] })
     },
   })
 }

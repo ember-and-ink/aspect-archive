@@ -33,7 +33,7 @@ def stub_download_item(monkeypatch):
     calls: list[dict] = []
 
     async def fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None):
-        calls.append({"gallery_dir": gallery_dir, "folder_name": folder_name, "url": url})
+        calls.append({"gallery_dir": gallery_dir, "folder_name": folder_name, "url": url, "prefix": prefix})
         outcome = media_writer.DownloadOutcome("saved", url, file=f"localized_media_{index}_x.webp", bytes=123)
         media_manifest.record_saved(manifest, url, outcome.file, "deadbeef")
         return outcome
@@ -970,3 +970,74 @@ def test_dedupe_trashes_a_stale_redownload_and_leaves_live_files_alone(
     assert not stale.exists()
     assert live.exists()
     assert (gallery / "one.jpg").exists()
+
+
+# --- the add-time download and the detail view's media map --------------------
+
+
+def _add_card(archive_dirs, client, filename: str, **fields) -> None:
+    from tests.conftest import card_png, jai_extensions
+
+    fragment = filename.rsplit("_", 1)[1].removesuffix(".png")
+    (archive_dirs["characters"] / filename).write_bytes(
+        card_png(
+            filename.split("_")[0],
+            extensions=jai_extensions(f"{fragment}-0000-0000-0000-000000000000", gallery_id="EEEEEEEEEEEE"),
+            **fields,
+        )
+    )
+    client.post("/api/v1/refresh")
+
+
+@pytest.mark.real_media_queue
+def test_a_new_card_queues_its_direct_images_but_never_a_folder_link(client, archive_dirs, stub_download_item):
+    _add_card(
+        archive_dirs,
+        client,
+        "Added_99990000.png",
+        creator_notes="![me](https://cdn.example.com/notes.png)\n\nmore at https://mega.nz/folder/abc#key",
+        character_book={"entries": [{"keys": ["a"], "content": "https://cdn.example.com/lore.png"}]},
+    )
+
+    v1_media.queue_direct_images("Added_99990000.png")
+
+    jobs = client.get("/api/v1/media/jobs", params={"card_id": "Added_99990000.png"}).json()
+    assert len(jobs) == 1
+    assert _poll_job(client, jobs[0]["job_id"])["state"] == "done"
+    assert {(c["url"], c["prefix"]) for c in stub_download_item} == {
+        ("https://cdn.example.com/notes.png", "localized_media"),
+        ("https://cdn.example.com/lore.png", "lorebook_media"),
+    }
+
+
+@pytest.mark.real_media_queue
+def test_a_new_card_with_no_images_queues_nothing_and_makes_no_folder(client, archive_dirs):
+    _add_card(archive_dirs, client, "Plain_99991111.png", creator_notes="just words")
+
+    v1_media.queue_direct_images("Plain_99991111.png")
+
+    assert client.get("/api/v1/media/jobs", params={"card_id": "Plain_99991111.png"}).json() == []
+    assert not list(archive_dirs["galleries"].glob("Plain_*"))
+
+
+def test_detail_maps_each_downloaded_url_to_its_gallery_file(client, archive_dirs):
+    _add_card(archive_dirs, client, "Mapped_99992222.png")
+    folder = archive_dirs["galleries"] / "Mapped_EEEEEEEEEEEE"
+    folder.mkdir()
+    (folder / "localized_media_1_a.webp").write_bytes(b"x")
+    manifest = media_manifest.empty_manifest()
+    media_manifest.record_saved(manifest, "https://cdn.example.com/a.webp?x=1&amp;y=2", "localized_media_1_a.webp", "h")
+    # Binned since: the manifest keeps the entry, but there is no file to show.
+    media_manifest.record_saved(manifest, "https://cdn.example.com/binned.png", "localized_media_2_b.png", "h")
+    media_manifest.record_dead(manifest, "https://cdn.example.com/gone.png", "404")
+    media_manifest.save_manifest(folder, manifest)
+
+    media = client.get("/api/v1/characters/Mapped_99992222.png").json()["media"]
+
+    file_url = "/api/v1/galleries/Mapped_EEEEEEEEEEEE/files/localized_media_1_a.webp"
+    assert media == {
+        "https://cdn.example.com/a.webp?x=1&amp;y=2": file_url,
+        # The renderer looks up the decoded `src` an <img> attribute yields.
+        "https://cdn.example.com/a.webp?x=1&y=2": file_url,
+        "https://cdn.example.com/gone.png": None,
+    }

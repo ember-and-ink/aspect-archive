@@ -1,6 +1,7 @@
 import { NavLink, useLocation, useNavigate } from 'react-router'
-import { Search, Settings, SquareMousePointer } from 'lucide-react'
+import { RefreshCw, Search, Settings, SquareMousePointer } from 'lucide-react'
 import { useBatchSelection } from '@/hooks/use-batch-selection'
+import { useRescan } from '@/hooks/use-rescan'
 import { cn } from '@/lib/utils'
 import { ImportPopover } from './ImportPopover'
 
@@ -19,16 +20,28 @@ const TABS = [
  * The fixed top bar: brand, the four tabs, the search pill, settings.
  *
  * No Activity bell — dropped with the feed it opened (docs/UI_REWRITE_PLAN.md
- * §3.6). The Import ＋ opens the add-to-archive menu (Stage 3).
+ * §3.6). The Import ＋ opens the add-to-archive menu (Stage 3), and the
+ * circular arrow beside it rescans the archive directory -- the server never
+ * does that on its own (see `use-rescan`).
  */
 export function TopBar({ onSearch }: { onSearch: () => void }) {
   const navigate = useNavigate()
   const location = useLocation()
   const batch = useBatchSelection()
   const showBatchToggle = BATCH_TOGGLE_ROUTES.has(location.pathname)
+  const rescan = useRescan()
+  // The last result rides on the tooltip rather than a toast: a rescan that
+  // found nothing (the usual case) is not worth interrupting anyone over.
+  const rescanTitle = rescan.isError
+    ? `Rescan failed: ${rescan.error.message}`
+    : rescan.data
+      ? `Rescanned ${rescan.data.scanned.toLocaleString()} cards · ${(
+          rescan.data.parsed + rescan.data.removed
+        ).toLocaleString()} changed`
+      : 'Rescan the archive folder'
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 flex h-[60px] items-center gap-3.5 border-b border-line-soft bg-ground/90 px-[18px] backdrop-blur-[14px]">
+    <header className="fixed inset-x-0 top-0 z-40 flex h-[60px] items-center gap-3.5 border-b border-line-soft bg-ground px-[18px]">
       <div className="flex items-center gap-2.5 font-serif text-[21px] tracking-[0.01em]">
         <span className="block size-2 rounded-full bg-sage shadow-[0_0_12px_var(--sage)]" />
         Archive
@@ -83,6 +96,22 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
       )}
 
       <ImportPopover />
+
+      <button
+        type="button"
+        title={rescanTitle}
+        aria-label="Rescan the archive folder"
+        onClick={() => rescan.mutate()}
+        disabled={rescan.isPending}
+        className={cn(
+          'grid size-[35px] place-items-center rounded-full border border-white/7 text-muted-foreground hover:border-white/17 hover:bg-raised hover:text-text disabled:opacity-70',
+          rescan.isError && 'border-bad/40 text-bad',
+        )}
+      >
+        <RefreshCw
+          className={cn('size-4', rescan.isPending && 'animate-spin')}
+        />
+      </button>
 
       <button
         type="button"

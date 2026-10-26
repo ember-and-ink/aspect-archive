@@ -26,6 +26,7 @@ import {
   useUpdateSecurity,
 } from '@/hooks/use-auth'
 import { useArchiveStats } from '@/hooks/use-characters'
+import { useRescan } from '@/hooks/use-rescan'
 import { useDatacatFollows } from '@/hooks/use-discover'
 import {
   useProviderSettings,
@@ -1110,17 +1111,15 @@ export function MaintenanceSection() {
   const stats = useArchiveStats()
   const idx = stats.data?.index
 
-  const refresh = useMutation({
-    mutationFn: () =>
-      unwrap(apiClient.POST('/api/v1/refresh'), 'could not rescan the archive'),
-    onSuccess: (result) => {
-      toast(
-        `Rescanned: ${result.scanned} scanned, ${result.parsed} parsed, ${result.removed} removed.`,
-      )
-      void stats.refetch()
-    },
-    onError: (err) => toast(err.message, 'bad'),
-  })
+  const rescan = useRescan()
+  const refresh = () =>
+    rescan.mutate(undefined, {
+      onSuccess: (result) =>
+        toast(
+          `Rescanned: ${result.scanned} scanned, ${result.parsed} parsed, ${result.removed} removed.`,
+        ),
+      onError: (err) => toast(err.message, 'bad'),
+    })
 
   return (
     <SettingsSection
@@ -1145,16 +1144,16 @@ export function MaintenanceSection() {
       </div>
       <OptionRow
         label="Rescan now"
-        hint="Every write already refreshes the index on its own — this is for changes made outside the app (a card dropped in by hand, a bulk import script)."
+        hint="The index is built when the server starts and every write in the app refreshes it — nothing rescans on a timer. This is for changes made outside the app (a card dropped in by hand, a make script). The same button sits in the top bar."
       >
         <button
           type="button"
-          onClick={() => refresh.mutate()}
-          disabled={refresh.isPending}
+          onClick={refresh}
+          disabled={rescan.isPending}
           className="flex h-[31px] items-center gap-1.5 rounded-lg border border-line px-3 text-[12.5px] text-muted hover:border-white/20 hover:text-text disabled:opacity-60"
         >
           <RefreshCw
-            className={cn('size-3.5', refresh.isPending && 'animate-spin')}
+            className={cn('size-3.5', rescan.isPending && 'animate-spin')}
           />
           Rescan
         </button>

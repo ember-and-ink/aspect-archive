@@ -75,6 +75,21 @@ export function useFacets() {
   })
 }
 
+/**
+ * How many cards the archive holds, for the browse header's "of N". Its own
+ * route rather than `/stats`, which stats every gallery file and thumb on the
+ * share (~5 s) to fill the Settings sections that actually show those numbers.
+ */
+export function useArchiveCount() {
+  return useQuery({
+    queryKey: ['count'],
+    staleTime: 5 * 60_000,
+    queryFn: () =>
+      unwrap(apiClient.GET('/api/v1/count'), 'could not count the archive'),
+  })
+}
+
+/** The full archive and disk health -- Settings only; see `useArchiveCount`. */
 export function useArchiveStats() {
   return useQuery({
     queryKey: ['stats'],

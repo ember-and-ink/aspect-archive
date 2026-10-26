@@ -11,16 +11,19 @@ hold up:
 
 * **The filesystem is the source of truth, always.** The index is a cache of it,
   never the authority. A card dropped in by hand, renamed, or deleted outside
-  this process shows up on the next refresh with no reindex step, which is also
-  how a userscript acquisition lands in the browse grid live.
+  this process shows up on the next refresh with no reindex step.
 * **Summaries in memory, full cards from disk.** The index holds only what
   browsing needs (name, creator, tags, counts). A detail view re-reads and
   re-parses the one file it is about -- under a millisecond, and never stale.
 
 Refresh is a stat of every file, comparing (mtime_ns, size) against what was
-parsed last time; only changed and new files are re-read. On this archive that
-sweep is single-digit milliseconds, so endpoints can call it per request behind a
-short debounce rather than trusting a startup snapshot.
+parsed last time; only changed and new files are re-read. It runs at server
+startup, after each of this process's own writes, and on an explicit rescan --
+never on a timer. It used to run per request behind a 2 s debounce, but on the
+Unraid share that sweep is ~0.5 s, not the single-digit milliseconds measured on
+a laptop SSD, so the first request after every pause paid for it. Nothing
+outside this process writes the archive in practice; the Rescan button covers
+the case when something does.
 
 Cards that fail to parse are *recorded*, not skipped -- `CardSummary.error` says
 why. An archive silently dropping the files it cannot read is the exact failure
@@ -42,12 +45,6 @@ from proxy.cards.naming import id_fragment
 from proxy.config import settings
 
 logger = logging.getLogger("jai_proxy.archive")
-
-# How long a refresh's result is trusted before another stat sweep is allowed.
-# The sweep is milliseconds, but a browse page fires a dozen requests at once and
-# there is no reason for each to re-stat 3,839 files.
-_REFRESH_DEBOUNCE_SECONDS = 2.0
-
 
 def _text(value: Any) -> str:
     """A string field off a card, defensively: cards come from five importers and
@@ -329,20 +326,13 @@ class ArchiveIndex:
     the state after it and never a half-updated index.
     """
 
-    def __init__(
-        self,
-        root: Path | None = None,
-        *,
-        debounce_seconds: float = _REFRESH_DEBOUNCE_SECONDS,
-    ) -> None:
+    def __init__(self, root: Path | None = None) -> None:
         self.root = root or settings.archive_dir
-        self._debounce = debounce_seconds
         self._records: dict[str, CardSummary] = {}
         self._folded: dict[str, str] = {}
         self._by_fragment: dict[str, tuple[CardSummary, ...]] = {}
         self._stat_keys: dict[str, tuple[int, int]] = {}
         self._lock = threading.Lock()
-        self._last_refresh = 0.0
         self.last_stats = RefreshStats()
 
     # --- reading -------------------------------------------------------------
@@ -403,19 +393,12 @@ class ArchiveIndex:
 
     # --- refreshing ----------------------------------------------------------
 
-    def refresh(self, *, force: bool = False) -> RefreshStats:
+    def refresh(self) -> RefreshStats:
         """Bring the index in step with the directory: stat everything, re-read
-        what changed, drop what is gone. Cheap enough to call per request, and
-        debounced so a page's worth of parallel requests sweeps once."""
-        now = time.monotonic()
-        if not force and now - self._last_refresh < self._debounce:
-            return self.last_stats
+        what changed, drop what is gone. Called after a write and on an explicit
+        rescan, never per read -- see the module docstring."""
         with self._lock:
-            # Another thread may have refreshed while this one waited.
-            if not force and self._last_refresh > now:
-                return self.last_stats
             stats = self._rescan()
-            self._last_refresh = time.monotonic()
             self.last_stats = stats
         if stats.changed:
             logger.info(
@@ -500,5 +483,5 @@ def index() -> ArchiveIndex:
         with _index_lock:
             if _index is None:
                 _index = ArchiveIndex()
-                _index.refresh(force=True)
+                _index.refresh()
     return _index

@@ -6,10 +6,12 @@ import { CreatorPill, SourcePill, TagsPill } from '@/components/FilterPills'
 import { CardGrid } from '@/components/CardGrid'
 import { CardTile } from '@/components/CardTile'
 import { RecentShelf } from '@/components/RecentShelf'
+import { VirtualCardGrid } from '@/components/VirtualCardGrid'
 import { SortPopover } from '@/components/SortPopover'
 import { useBatchSelection } from '@/hooks/use-batch-selection'
 import { useGridColumns } from '@/hooks/use-grid-columns'
-import { useArchiveStats, useCharacters } from '@/hooks/use-characters'
+import { useScrollRestore } from '@/hooks/use-scroll-restore'
+import { useArchiveCount, useCharacters } from '@/hooks/use-characters'
 import { useSettings, useUpdateUi2 } from '@/hooks/use-settings'
 import { cn } from '@/lib/utils'
 import {
@@ -66,7 +68,7 @@ export function CharactersPage({ favorites = false }: { favorites?: boolean }) {
     setParams(writeState(next, defaultSort), { replace: true })
   }
 
-  const stats = useArchiveStats()
+  const archiveCount = useArchiveCount()
   const characters = useCharacters(state)
   const {
     data,
@@ -75,6 +77,7 @@ export function CharactersPage({ favorites = false }: { favorites?: boolean }) {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isFetching,
   } = characters
 
   const cards = data?.pages.flatMap((page) => page.items) ?? []
@@ -97,11 +100,20 @@ export function CharactersPage({ favorites = false }: { favorites?: boolean }) {
     return () => observer.disconnect()
   }, [hasNextPage, fetchNextPage, cards.length])
 
+  useScrollRestore({
+    contentRef: gridRef,
+    loaded: cards.length,
+    hasNextPage,
+    isFetching,
+    fetchNextPage,
+    resetKey: tileSearch(state),
+  })
+
   const showShelf = !shelfHidden && !favorites && !isFiltered(state)
 
   return (
     <>
-      <div className="sticky top-0 z-20 border-b border-line-soft bg-ground/95 backdrop-blur-[12px]">
+      <div className="sticky top-0 z-20 border-b border-line-soft bg-ground">
         <div className="mx-auto flex max-w-[1560px] items-center gap-3.5 px-5 py-3">
           {/* The heading is the toggle: click it to retitle every tile with
               its listing name (the tagline) and back. There is no room on this
@@ -143,7 +155,9 @@ export function CharactersPage({ favorites = false }: { favorites?: boolean }) {
             {isPending
               ? 'reading…'
               : `${total.toLocaleString()}${
-                  stats.data ? ` of ${stats.data.cards.toLocaleString()}` : ''
+                  archiveCount.data
+                    ? ` of ${archiveCount.data.cards.toLocaleString()}`
+                    : ''
                 }`}
           </span>
           {/* The three long-list filters, then the fixed flag strip. Ordered so
@@ -183,19 +197,28 @@ export function CharactersPage({ favorites = false }: { favorites?: boolean }) {
           </p>
         )}
 
-        <CardGrid ref={gridRef} className="pt-[22px] pb-[90px]">
-          {cards.map((card) => (
-            <CardTile
-              key={card.id}
-              card={card}
-              search={tileSearch(state)}
-              showListingName={listingNames}
-              batchMode={batch.active}
-              selected={batch.selected.has(card.id)}
-              onToggleSelect={batch.toggleSelected}
-            />
-          ))}
-        </CardGrid>
+        {/* An empty CardGrid as a ruler: `useGridColumns` reads the track
+            count off it (and the shelf sizes itself from that), so the grid's
+            responsive column rule still lives only in CardGrid. The cards
+            themselves render through the virtualizer. */}
+        <CardGrid ref={gridRef} aria-hidden className="h-0" />
+        <div className="pt-[22px] pb-[90px]">
+          <VirtualCardGrid
+            items={cards}
+            columns={columns}
+            getKey={(card) => card.id}
+            renderItem={(card) => (
+              <CardTile
+                card={card}
+                search={tileSearch(state)}
+                showListingName={listingNames}
+                batchMode={batch.active}
+                selected={batch.selected.has(card.id)}
+                onToggleSelect={batch.toggleSelected}
+              />
+            )}
+          />
+        </div>
 
         <div ref={sentinelRef} className="h-px" />
         {isFetchingNextPage && (

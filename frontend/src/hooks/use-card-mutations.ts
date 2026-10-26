@@ -23,11 +23,19 @@ export class StaleWriteError extends Error {
 /**
  * The queries a write can invalidate: the grid and the shelf both key on
  * `['characters', …]`, the tag popover on `['facets']`, the counts on
- * `['stats']`, and the detail's Related rows on `['related', …]`. A card edit
- * can move any of them, so all four are refetched after one lands.
+ * `['count']` and `['stats']`, and the detail's Related rows on
+ * `['related', …]`. A card edit can move any of them, so all are marked stale
+ * after one lands -- and only the ones on screen refetch, which is what keeps
+ * an edit from re-running `/stats`' disk sweep unless Settings is open.
  */
 export function invalidateArchive(client: ReturnType<typeof useQueryClient>) {
-  for (const key of [['characters'], ['facets'], ['stats'], ['related']])
+  for (const key of [
+    ['characters'],
+    ['facets'],
+    ['count'],
+    ['stats'],
+    ['related'],
+  ])
     void client.invalidateQueries({ queryKey: key })
 }
 

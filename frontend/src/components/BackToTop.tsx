@@ -40,7 +40,7 @@ export function BackToTop({
         scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
       }
       className={cn(
-        'fixed right-6 bottom-6 z-30 grid size-11 place-items-center rounded-full border border-line bg-raised/95 text-muted shadow-lg backdrop-blur-sm transition-all hover:border-sage-line hover:text-sage',
+        'fixed right-6 bottom-6 z-30 grid size-11 place-items-center rounded-full border border-line bg-raised text-muted shadow-lg transition-all hover:border-sage-line hover:text-sage',
         shown
           ? 'pointer-events-auto translate-y-0 opacity-100'
           : 'pointer-events-none translate-y-2 opacity-0',
