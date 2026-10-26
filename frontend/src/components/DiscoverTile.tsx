@@ -50,7 +50,7 @@ export function DiscoverTile({
     >
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-line-soft bg-raised group-hover:border-sage-line">
         {have ? (
-          <span className="absolute top-[7px] right-[7px] z-2 rounded-[6px] border border-sage-line bg-ground/80 px-1.5 py-px text-[10px] font-bold tracking-[0.05em] text-sage uppercase backdrop-blur-[6px]">
+          <span className="absolute top-[7px] right-[7px] z-2 rounded-[6px] border border-sage-line bg-ground/85 px-1.5 py-px text-[10px] font-bold tracking-[0.05em] text-sage uppercase">
             Have
           </span>
         ) : (

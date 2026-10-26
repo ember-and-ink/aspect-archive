@@ -4,6 +4,15 @@ import { tileName, type Card } from '@/lib/browse'
 import { cn } from '@/lib/utils'
 
 /**
+ * The height of the name + creator block under the art, in px: an 8px gap, two
+ * lines of name at 13.5/1.3, and the creator line. Fixed rather than
+ * content-sized so every grid row is the same height and the virtualized grid
+ * (`VirtualCardGrid`) can compute row offsets instead of measuring them. A
+ * one-line name leaves the space blank; a longer one already clamps to two.
+ */
+export const TILE_TEXT_HEIGHT = 62
+
+/**
  * One card in the grid: portrait, name, creator, and the two badges the mock
  * puts on the art — lore-entry count (or greeting count, when there is no
  * lorebook) and the star.
@@ -77,10 +86,10 @@ export function CardTile({
         {batchMode && (
           <span
             className={cn(
-              'absolute top-1.5 left-1.5 z-3 grid size-6 place-items-center rounded-[7px] border backdrop-blur-[6px]',
+              'absolute top-1.5 left-1.5 z-3 grid size-6 place-items-center rounded-[7px] border',
               selected
                 ? 'border-sage bg-sage text-on-sage'
-                : 'border-white/30 bg-ground/72 text-transparent',
+                : 'border-white/30 bg-ground/85 text-transparent',
             )}
           >
             <Check className="size-3.5" />
@@ -89,7 +98,7 @@ export function CardTile({
         {badge && (
           <span
             className={cn(
-              'absolute top-[7px] z-2 rounded-[7px] border border-white/12 bg-ground/78 px-[7px] py-0.5 text-[10.5px] backdrop-blur-[6px]',
+              'absolute top-[7px] z-2 rounded-[7px] border border-white/12 bg-ground/85 px-[7px] py-0.5 text-[10.5px]',
               batchMode ? 'left-[38px]' : 'left-[7px]',
               card.lore_entries ? 'border-sage-line text-sage' : 'text-text',
             )}
@@ -98,7 +107,7 @@ export function CardTile({
           </span>
         )}
         {card.favorite && (
-          <span className="absolute top-1.5 right-1.5 z-2 grid size-6 place-items-center rounded-[7px] bg-ground/72 text-sage backdrop-blur-[6px]">
+          <span className="absolute top-1.5 right-1.5 z-2 grid size-6 place-items-center rounded-[7px] bg-ground/85 text-sage">
             <Star className="size-3.5 fill-current" />
           </span>
         )}
@@ -110,7 +119,7 @@ export function CardTile({
         {card.is_fork && (
           <span
             title="Fork"
-            className="absolute right-1.5 bottom-1.5 z-2 grid size-6 place-items-center rounded-[7px] bg-ground/72 text-faint backdrop-blur-[6px]"
+            className="absolute right-1.5 bottom-1.5 z-2 grid size-6 place-items-center rounded-[7px] bg-ground/85 text-faint"
           >
             <GitFork className="size-3.5" />
           </span>
@@ -131,17 +140,19 @@ export function CardTile({
             light-coloured portrait does not fight the name beneath it. */}
         <span className="pointer-events-none absolute inset-0 shadow-[inset_0_-54px_44px_-30px_#0f1113de]" />
       </div>
-      <h3
-        // Listing names run long and routinely clamp to their two lines, so
-        // the full one is reachable on hover; a bare character name never
-        // needs the tooltip.
-        title={showListingName ? title : undefined}
-        className="mt-2 line-clamp-2 text-[13.5px] leading-[1.3] font-medium"
-      >
-        {title}
-      </h3>
-      <div className="mt-px truncate text-[11.5px] text-faint">
-        {card.creator || 'unknown'}
+      <div className="overflow-hidden" style={{ height: TILE_TEXT_HEIGHT }}>
+        <h3
+          // Listing names run long and routinely clamp to their two lines, so
+          // the full one is reachable on hover; a bare character name never
+          // needs the tooltip.
+          title={showListingName ? title : undefined}
+          className="mt-2 line-clamp-2 text-[13.5px] leading-[1.3] font-medium"
+        >
+          {title}
+        </h3>
+        <div className="mt-px truncate text-[11.5px] leading-[1.5] text-faint">
+          {card.creator || 'unknown'}
+        </div>
       </div>
     </Link>
   )

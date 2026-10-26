@@ -65,7 +65,7 @@ export function AvatarCropDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/55 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/55 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
         <Dialog.Content className="fixed top-1/2 left-1/2 z-[91] w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-[15px] border border-line bg-surface p-5 shadow-[0_30px_80px_#000000c0] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95">
           <div className="flex items-center justify-between">
             <Dialog.Title className="font-serif text-[21px]">

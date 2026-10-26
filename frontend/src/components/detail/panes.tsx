@@ -702,10 +702,10 @@ function GalleryThumb({
       {selectMode && (
         <span
           className={cn(
-            'absolute top-1.5 left-1.5 z-1 grid size-5 place-items-center rounded-[6px] border backdrop-blur-[6px]',
+            'absolute top-1.5 left-1.5 z-1 grid size-5 place-items-center rounded-[6px] border',
             selected
               ? 'border-sage bg-sage text-on-sage'
-              : 'border-white/30 bg-ground/72 text-transparent',
+              : 'border-white/30 bg-ground/85 text-transparent',
           )}
         >
           <Check className="size-3" />

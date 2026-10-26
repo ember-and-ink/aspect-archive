@@ -358,15 +358,20 @@ def test_stats(client):
     }, "Abbie's gallery holds one.jpg (103 bytes incl. JPEG header) and two.jpg (203 bytes)"
 
 
+def test_count_matches_stats(client):
+    assert client.get("/api/v1/count").json()["cards"] == client.get("/api/v1/stats").json()["cards"]
+
+
 def test_stats_tracks_thumb_coverage_as_it_is_generated(client):
     client.get("/api/v1/characters/Abbie_0d162f5f.png/thumb")
     assert client.get("/api/v1/stats").json()["thumbs"]["cached"] == 1
 
 
-def test_refresh_reads_back_a_write_immediately(client, populated_archive):
-    """The debounce must never make a client unable to see its own write."""
-    client.get("/api/v1/characters")  # build the index, so `parsed` means the new card
+def test_an_outside_write_appears_only_after_a_rescan(client, populated_archive):
+    """Reads never rescan; `POST /refresh` (the Rescan button) is the only door
+    for a file that arrived behind the server's back."""
     (populated_archive["characters"] / "Dana_55556666.png").write_bytes(card_png("Dana"))
+    assert "Dana" not in _names(client.get("/api/v1/characters").json())
     stats = client.post("/api/v1/refresh").json()
     assert stats["parsed"] == 1
     assert "Dana" in _names(client.get("/api/v1/characters").json())

@@ -66,7 +66,7 @@ export function SearchOverlay({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-70 bg-[#0a0c0d]/80 backdrop-blur-[16px]" />
+        <Dialog.Overlay className="fixed inset-0 z-70 bg-[#0a0c0d]/80" />
         <Dialog.Content
           aria-describedby={undefined}
           className="fixed inset-0 z-70 flex flex-col px-5 pt-16 pb-5 focus:outline-none"

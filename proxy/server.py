@@ -31,6 +31,7 @@ from proxy.api.cors_proxy import router as cors_proxy_router
 from proxy.api.datacat import router as datacat_router
 from proxy.api.gate import GateMiddleware
 from proxy.api.v1 import _shared as v1_shared
+from proxy.archive import catalog
 from proxy.config import REQUIRED_DIRS, ROOT, STARTUP_DIR_ERRORS, settings
 from proxy.runtime import dashboard as dashboard_mod
 
@@ -55,6 +56,11 @@ async def _lifespan(_app: FastAPI):
     # (docs/PHASE_3C_PLAN.md §7) -- module import happens before that loop
     # exists, so this can't be done at module scope.
     v1_shared.job_store.bind(asyncio.get_running_loop())
+    # Build the archive index before serving: reads never rescan (see
+    # proxy.archive.catalog), so this is the sweep that would otherwise land on
+    # whoever opens the page first. Off the loop, since a cold build parses every
+    # card on the share.
+    await asyncio.to_thread(catalog.index)
     yield
 
 

@@ -226,7 +226,7 @@ export function DiscoverPage() {
 
   return (
     <>
-      <div className="sticky top-0 z-20 border-b border-line-soft bg-ground/95 backdrop-blur-[12px]">
+      <div className="sticky top-0 z-20 border-b border-line-soft bg-ground">
         <div className="mx-auto flex max-w-[1560px] flex-wrap items-center gap-3.5 px-5 py-3">
           <h1 className="text-[19px] font-semibold tracking-[-0.015em] whitespace-nowrap">
             Discover

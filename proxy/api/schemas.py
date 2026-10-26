@@ -514,6 +514,12 @@ class MediaStatsOut(BaseModel):
     by_ext: list[MediaExtStatOut] = Field(description="Sorted by count, descending.")
 
 
+class CountOut(BaseModel):
+    """`GET /count` -- the header's "of N", without the disk sweep `/stats` does."""
+
+    cards: int = Field(description="Cards that parsed; the same number as `/stats`' `cards`.")
+
+
 class StatsOut(BaseModel):
     """The archive at a glance, and the health of the index behind it."""
 

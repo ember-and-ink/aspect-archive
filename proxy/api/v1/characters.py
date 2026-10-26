@@ -584,7 +584,7 @@ def import_character(
     # New pixels behind a name the cache may already hold -- the avatar cache has
     # no staleness check, so an overwrite would otherwise keep showing the old face.
     _shared.thumbnail_store.forget(path.name)
-    catalog.index().refresh(force=True)
+    catalog.index().refresh()
     logger.info("import: saved %s card %s (%s)", prepared.source, prepared.name, path.name)
     return CardImportOut(
         id=path.name,
@@ -653,7 +653,7 @@ def fork_character(card_id: str) -> CardDetailOut:
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"cannot write the fork: {exc}") from exc
 
-    catalog.index().refresh(force=True)
+    catalog.index().refresh()
     logger.info("fork: %s -> %s", parent.filename, path.name)
     return get_character(path.name)
 
@@ -696,9 +696,9 @@ def put_character(
     except edit.WriteError as exc:
         raise _shared.write_error(exc) from exc
 
-    # The client is about to read its own write, and the index would otherwise
-    # sit behind its two-second debounce.
-    catalog.index().refresh(force=True)
+    # The client is about to read its own write, and the index never rescans on
+    # its own.
+    catalog.index().refresh()
     return get_character(record.filename)
 
 
@@ -733,7 +733,7 @@ def set_favorite(card_id: str, body: FavoriteIn) -> FavoriteOut:
         edit.patch_card(path, data)
     except edit.WriteError as exc:
         raise _shared.write_error(exc) from exc
-    catalog.index().refresh(force=True)
+    catalog.index().refresh()
     return FavoriteOut(id=record.filename, favorite=body.value)
 
 
@@ -772,7 +772,7 @@ def delete_character(
     _shared.thumbnail_store.forget(record.filename)
     if binned_gallery is not None:
         _shared.thumbnail_store.forget_gallery(binned_gallery[0])
-    catalog.index().refresh(force=True)
+    catalog.index().refresh()
 
     return DeletedOut(
         id=record.filename,
@@ -816,7 +816,7 @@ def bulk_delete(body: BulkDeleteIn) -> BulkDeleteOut:
         deleted.append(record.filename)
 
     if deleted:
-        catalog.index().refresh(force=True)
+        catalog.index().refresh()
     return BulkDeleteOut(deleted=deleted, failed=failed)
 
 
@@ -848,7 +848,7 @@ def put_character_avatar(
     # Same filename, different pixels: without this the cached thumb is the old
     # face, served indefinitely, since the avatar cache has no staleness check.
     _shared.thumbnail_store.forget(record.filename)
-    catalog.index().refresh(force=True)
+    catalog.index().refresh()
     return get_character(record.filename)
 
 
@@ -883,7 +883,7 @@ def refetch_character_avatar(
         raise _shared.write_error(exc) from exc
 
     _shared.thumbnail_store.forget(record.filename)
-    catalog.index().refresh(force=True)
+    catalog.index().refresh()
     # With the response, so the new ETag comes back and the page's next edit
     # carries a current precondition.
     return get_character(record.filename, response)
@@ -936,7 +936,7 @@ def bulk_tags(body: BulkTagsIn) -> BulkTagsOut:
             failed[record.filename] = str(exc)
 
     if changed:
-        catalog.index().refresh(force=True)
+        catalog.index().refresh()
     return BulkTagsOut(changed=changed, unchanged=unchanged, failed=failed)
 
 
@@ -1019,7 +1019,7 @@ def apply_tags(body: TagsApplyIn) -> TagsApplyOut:
             failed[record.filename] = str(exc)
 
     if changed:
-        catalog.index().refresh(force=True)
+        catalog.index().refresh()
     return TagsApplyOut(changed=changed, unchanged=unchanged, failed=failed)
 
 

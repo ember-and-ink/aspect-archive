@@ -121,22 +121,30 @@ docker-up-prod: ## Start the published image
 # cards folder for orphans (cards dropped in by hand, with no extensions.jai
 # stamp), imports them in place and retires the originals to state/orphans.
 # Extra flags pass through via ARGS, e.g. `make import ARGS=--no-compress`.
+# The server never rescans the archive on its own, so a running one cannot see
+# what these scripts write until the top bar's Rescan button is pressed.
+RESCAN_HINT = @echo "If cards were written, press Rescan in the UI (or POST /api/v1/refresh) -- a running server won't see them until then."
+
 import: ## Bulk-import card PNGs from ./import
 	uv run python scripts/import_cards.py $(ARGS) --fetch-datacat-images
+	$(RESCAN_HINT)
 
 # Backfill `extensions.gallery_id` (SillyTavern-CharacterLibrary's per-character
 # gallery handle) into any card missing one. Read-only report by default;
 # `make gallery-ids ARGS=--apply` writes them in place.
 gallery-ids: ## Backfill extensions.gallery_id (ARGS=--apply)
 	uv run python scripts/backfill_gallery_ids.py $(ARGS)
+	$(RESCAN_HINT)
 
 datacat-ids: ## Backfill extensions.datacat ids (ARGS=--apply)
 	uv run python scripts/backfill_datacat_ids.py $(ARGS)
+	$(RESCAN_HINT)
 
 # Re-audit built cards against the current macro/formatting rules. Read-only;
 # `make check ARGS=--repair` rewrites the cards that would change.
 check: ## Re-audit built cards (ARGS=--repair)
 	uv run python scripts/check_cards.py $(ARGS)
+	$(RESCAN_HINT)
 
 # Find card names that aren't names -- a tagline welded on (`Mia, your desperate
 # roommate`) or a generic placeholder hiding the real character (`Narrator`).
@@ -149,6 +157,7 @@ check: ## Re-audit built cards (ARGS=--repair)
 # `make names ARGS=--stats` scores them against it.
 names: ## Find card names that are not names (ARGS=--interactive)
 	uv run python scripts/fix_names.py $(ARGS)
+	$(RESCAN_HINT)
 
 # Tidy the browse grid's thumbnail cache (data/cache/thumbs/avatar): render the
 # cards that have no thumb, retire the thumbs whose card is gone, and fix the

@@ -51,7 +51,7 @@ export function CardDetailLayout({
 }) {
   return (
     <>
-      <div className="sticky top-0 z-20 flex items-center gap-2.5 border-b border-line-soft bg-ground/85 px-5 py-[11px] backdrop-blur-[12px]">
+      <div className="sticky top-0 z-20 flex items-center gap-2.5 border-b border-line-soft bg-ground px-5 py-[11px]">
         <Link
           to={back}
           className="flex h-8 items-center gap-2 rounded-[10px] border border-line px-3 text-[13px] hover:bg-raised"

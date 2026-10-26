@@ -32,18 +32,9 @@ function pageOffsets(queries: URL[]): (string | null)[] {
     .filter((offset) => offset !== null)
 }
 
-const stats = http.get('*/api/v1/stats', () =>
-  HttpResponse.json({
-    cards: 3868,
-    unreadable: 0,
-    bytes: 0,
-    creators: 1,
-    tags: 1,
-    galleries: 0,
-    archive_dir: '/tmp',
-    thumbs: { cached: 0, missing: 0, stale: 0 },
-    index: { scanned: 0, parsed: 0, unchanged: 0, removed: 0, seconds: 0 },
-  }),
+// The header's "of N" -- from `/count`, never `/stats` and its disk sweep.
+const count = http.get('*/api/v1/count', () =>
+  HttpResponse.json({ cards: 3868 }),
 )
 
 const facets = http.get('*/api/v1/facets', () =>
@@ -68,7 +59,7 @@ const facets = http.get('*/api/v1/facets', () =>
 
 describe('CharactersPage', () => {
   it('lists the archive and says how much of it is showing', async () => {
-    server.use(listHandler(), stats, facets)
+    server.use(listHandler(), count, facets)
 
     renderApp(<CharactersPage />)
 
@@ -80,7 +71,7 @@ describe('CharactersPage', () => {
     const queries: URL[] = []
     server.use(
       listHandler((url) => queries.push(url)),
-      stats,
+      count,
       facets,
     )
 
@@ -100,7 +91,7 @@ describe('CharactersPage', () => {
     const queries: URL[] = []
     server.use(
       listHandler((url) => queries.push(url)),
-      stats,
+      count,
       facets,
     )
 
@@ -123,7 +114,7 @@ describe('CharactersPage', () => {
     const queries: URL[] = []
     server.use(
       listHandler((url) => queries.push(url)),
-      stats,
+      count,
       facets,
     )
 
@@ -145,7 +136,7 @@ describe('CharactersPage', () => {
     const queries: URL[] = []
     server.use(
       listHandler((url) => queries.push(url)),
-      stats,
+      count,
       facets,
     )
 
@@ -176,7 +167,7 @@ describe('CharactersPage', () => {
           ],
         }),
       ),
-      stats,
+      count,
       facets,
       http.get('*/api/v1/settings', () => HttpResponse.json(stored)),
       http.put('*/api/v1/settings', async ({ request }) => {
@@ -218,7 +209,7 @@ describe('CharactersPage', () => {
           ),
         })
       }),
-      stats,
+      count,
       facets,
     )
 
@@ -230,15 +221,18 @@ describe('CharactersPage', () => {
 
     scrollSentinelIntoView()
 
-    expect(await screen.findByText('Card 100')).toBeInTheDocument()
     await waitFor(() => expect(pageOffsets(queries)).toEqual(['0', '100']))
+    // Paged in, but not mounted: the grid renders only the rows near the
+    // viewport, so the DOM does not grow with every page scrolled past.
+    expect(screen.queryByText('Card 100')).not.toBeInTheDocument()
+    expect(screen.queryByText('Card 150')).not.toBeInTheDocument()
   })
 
   it('stops paging at the end of the filtered set', async () => {
     const queries: URL[] = []
     server.use(
       listHandler((url) => queries.push(url)),
-      stats,
+      count,
       facets,
     )
 
@@ -257,7 +251,7 @@ describe('CharactersPage', () => {
       http.get('*/api/v1/characters', () =>
         HttpResponse.json({ total: 0, limit: 100, offset: 0, items: [] }),
       ),
-      stats,
+      count,
       facets,
     )
 
@@ -274,7 +268,7 @@ describe('CharactersPage', () => {
         '*/api/v1/characters',
         () => new HttpResponse(null, { status: 500 }),
       ),
-      stats,
+      count,
       facets,
     )
 
