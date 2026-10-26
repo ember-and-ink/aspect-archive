@@ -1,4 +1,4 @@
-"""Spec for proxy/sources.saucepan against real captured saucepan exports.
+"""Spec for aspect/sources.saucepan against real captured saucepan exports.
 
 Fixtures are the thin JSON the (refactored) saucepan userscript posts to
 /build-saucepan -- {id, definition, companion, lorebooks} -- captured live from
@@ -13,8 +13,8 @@ saucepan's API. Four representative fully-open cards:
 import json
 from pathlib import Path
 
-from proxy.sources import saucepan as m
-from proxy.cards.builder import CardBuilder
+from aspect.sources import saucepan as m
+from aspect.cards.builder import CardBuilder
 
 FIX = Path(__file__).parent.parent / "fixtures" / "saucepan"
 

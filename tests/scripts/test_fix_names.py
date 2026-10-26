@@ -14,7 +14,7 @@ import json
 from PIL import Image
 
 import scripts.fix_names as fix_names
-from proxy.cards import pngtools
+from aspect.cards import pngtools
 
 
 def card(name: str, description: str = "") -> dict:

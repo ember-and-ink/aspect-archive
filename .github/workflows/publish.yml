@@ -6,8 +6,8 @@
 # created by the release at the end of the run.
 #
 # The deployment target is an unraid box (amd64), which pulls
-# ghcr.io/ember-and-ink/jai-proxy:latest. Development on a Mac runs from
-# source (`uv run python -m proxy.server`) rather than from this image, so
+# ghcr.io/ember-and-ink/aspect-archive:latest. Development on a Mac runs from
+# source (`uv run python -m aspect.server`) rather than from this image, so
 # there is no arm64 variant to build -- adding one means QEMU emulation on the
 # runner and a several-times-slower build for an image nothing pulls.
 #
@@ -30,7 +30,7 @@ on:
 env:
   # Lowercase: the registry rejects uppercase path components, and the owner is
   # spelled "ember-and-ink".
-  IMAGE_NAME: ghcr.io/ember-and-ink/jai-proxy
+  IMAGE_NAME: ghcr.io/ember-and-ink/aspect-archive
 
 # One release at a time, so two merges in quick succession cannot both claim
 # the same version number.
@@ -121,7 +121,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Without this every run reinstalls pngquant and re-resolves the whole
-          # locked dependency set; with it, a change under proxy/ only
+          # locked dependency set; with it, a change under aspect/ only
           # rebuilds the COPY layers.
           cache-from: type=gha
           cache-to: type=gha,mode=max

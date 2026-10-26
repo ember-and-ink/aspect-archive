@@ -13,7 +13,7 @@ const FILE = '/api/v1/galleries/Mara_X/files/localized_media_1_a.webp'
 
 describe('CreatorNotes', () => {
   it('renders markdown image syntax as an <img> from the gallery, not a mangled link', () => {
-    // The shape proxy/text/html_md.py produces for every source that flattens
+    // The shape aspect/text/html_md.py produces for every source that flattens
     // creator notes to markdown (JanitorAI, saucepan, datacat, JannyAI).
     const root = notesRoot(
       'Look at this:\n\n![a portrait](https://example.com/a.png)',

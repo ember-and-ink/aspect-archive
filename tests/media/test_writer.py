@@ -1,4 +1,4 @@
-"""proxy/media/writer.py: the server-side download pipeline for one media URL
+"""aspect/media/writer.py: the server-side download pipeline for one media URL
 -- guard, name-index skip, dead-ledger skip, fetch, sniff, WebP normalize,
 content-hash dedupe, write, thumbnail, manifest record
 (docs/PHASE_3C_PLAN.md §3, step 4).
@@ -22,8 +22,8 @@ import httpx
 import pytest
 from PIL import Image
 
-from proxy.archive import thumbs
-from proxy.media import manifest as media_manifest, names as media_names, writer as media_writer
+from aspect.archive import thumbs
+from aspect.media import manifest as media_manifest, names as media_names, writer as media_writer
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
@@ -1162,7 +1162,7 @@ async def test_download_item_mega_url_fetches_and_decrypts(gallery_dir, thumbnai
     from Crypto.Cipher import AES
     from Crypto.Util import Counter
 
-    from proxy.media import mega as media_mega
+    from aspect.media import mega as media_mega
 
     png = _png_bytes()
     file_key = os.urandom(16)
@@ -1205,7 +1205,7 @@ async def test_download_item_mega_url_fetches_and_decrypts(gallery_dir, thumbnai
 
 @pytest.mark.asyncio
 async def test_download_item_mega_api_error_is_a_skip_not_a_crash(gallery_dir, thumbnail_store):
-    from proxy.media import mega as media_mega
+    from aspect.media import mega as media_mega
 
     pseudo_url = media_mega._build_pseudo_url("folderXYZ", "handle1", os.urandom(16), os.urandom(8), 10)
 

@@ -1,4 +1,4 @@
-"""proxy/media/manifest.py: per-gallery `.media.json` and the global
+"""aspect/media/manifest.py: per-gallery `.media.json` and the global
 cross-character dead-URL ledger (docs/PHASE_3C_PLAN.md §3), the state a media
 download run reads before starting and writes when it finishes."""
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from proxy.media import manifest as media_manifest
+from aspect.media import manifest as media_manifest
 
 
 @pytest.fixture

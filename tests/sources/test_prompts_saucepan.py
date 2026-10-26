@@ -1,4 +1,4 @@
-"""Spec for proxy/saucepan_prompt_parser against a real captured saucepan chat
+"""Spec for aspect/saucepan_prompt_parser against a real captured saucepan chat
 system prompt -- the plaintext definition saucepan's Custom API Provider sends
 to a chat endpoint.
 
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from proxy.sources.prompts.saucepan import SaucepanPromptParser, is_saucepan_prompt
+from aspect.sources.prompts.saucepan import SaucepanPromptParser, is_saucepan_prompt
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "saucepan"
 

@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from bs4 import BeautifulSoup
 
-from proxy.text.notes_html import clean_creator_notes, has_layout_structure, tame_html
+from aspect.text.notes_html import clean_creator_notes, has_layout_structure, tame_html
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "notes"
 

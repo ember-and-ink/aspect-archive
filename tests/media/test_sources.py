@@ -10,7 +10,7 @@ re-arm exactly the cards it can now handle, with no archive-wide rescan.
 
 from __future__ import annotations
 
-from proxy.media import discovery, manifest as media_manifest
+from aspect.media import discovery, manifest as media_manifest
 
 
 def _card(**fields) -> dict:

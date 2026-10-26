@@ -18,9 +18,9 @@ from pathlib import Path
 
 from PIL import Image
 
-from proxy.sources import chub as mapper
-from proxy.cards import pngtools
-from proxy.text.macros import MacroSanitizer
+from aspect.sources import chub as mapper
+from aspect.cards import pngtools
+from aspect.text.macros import MacroSanitizer
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "chub"
 
@@ -114,7 +114,7 @@ def test_tags_normalized_through_the_shared_intake_pipeline():
     # A tag list carrying #, emoji, stray whitespace and a case-dupe -- the
     # regression that would have caught the DataCat gap (Phase 5 plan §2/§6
     # step 3). Chub is the one source that never builds a ProfileFields, so it
-    # needs its own coverage of proxy.text.tags.normalize_tags.
+    # needs its own coverage of aspect.text.tags.normalize_tags.
     data = load_data("sakura_makoto")
     data["tags"] = ["#wildwest", "👤 outlaw", "  slow   burn  ", "Femdom", "femdom"]
     cleaned, _ = mapper.clean_card(data, MacroSanitizer(user_names=["USER"]))

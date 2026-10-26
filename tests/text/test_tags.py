@@ -1,6 +1,6 @@
 import pytest
 
-from proxy.text.tags import clean_tag, normalize_tag, normalize_tags
+from aspect.text.tags import clean_tag, normalize_tag, normalize_tags
 
 # ---------------------------------------------------------------------------
 # clean_tag -- real emoji-prefixed tag chips (SillyTavern can't render emoji

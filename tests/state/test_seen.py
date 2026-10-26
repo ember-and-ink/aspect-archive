@@ -1,6 +1,6 @@
 """Discover's first-seen stamps: the store, and the API over it.
 
-A stamp is never rewritten (see `proxy/state/seen.py`), so the failures that
+A stamp is never rewritten (see `aspect/state/seen.py`), so the failures that
 matter are the ones that would make an old card "new" again: a stamp moved
 forward on a second sighting, a bucket overwritten instead of merged, a damaged
 file read as "nothing seen yet".
@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from proxy.state import seen
-from proxy.state.seen import SeenError, SeenStore
+from aspect.state import seen
+from aspect.state.seen import SeenError, SeenStore
 
 
 @pytest.fixture
@@ -159,7 +159,7 @@ def test_an_unknown_provider_is_refused(client, archive_dirs) -> None:
 
 
 def test_too_many_ids_in_one_request_is_refused(client, archive_dirs, monkeypatch) -> None:
-    from proxy.api.v1 import discover
+    from aspect.api.v1 import discover
 
     monkeypatch.setattr(discover, "MAX_IDS_PER_REQUEST", 3)
     resp = client.post(

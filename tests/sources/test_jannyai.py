@@ -13,8 +13,8 @@ test_datacat_mapper's.
 import json
 from pathlib import Path
 
-from proxy.sources import jannyai as mapper
-from proxy.cards.builder import CardBuilder
+from aspect.sources import jannyai as mapper
+from aspect.cards.builder import CardBuilder
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "jannyai"
 

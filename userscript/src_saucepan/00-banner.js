@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         saucepan-proxy bridge
 // @namespace    https://github.com/mjnitz02/jai-proxy
-// @version      0.9.0
-// @description  Thin bridge: exports a Saucepan companion as a V3 card PNG via Saucepan's clean JSON API (no DOM scraping) and shows a local jai-proxy connection pill. Card assembly lives server-side.
+// @version      0.9.1
+// @description  Thin bridge: exports a Saucepan companion as a V3 card PNG via Saucepan's clean JSON API (no DOM scraping) and shows a local Aspect Archive connection pill. Card assembly lives server-side.
 // @match        https://saucepan.ai/*
 // @run-at       document-idle
 // @grant        GM_xmlhttpRequest

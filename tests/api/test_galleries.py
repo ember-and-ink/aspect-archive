@@ -14,9 +14,9 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from proxy.archive import thumbs
-from proxy.config import settings
-from proxy.media import manifest as media_manifest
+from aspect.archive import thumbs
+from aspect.config import settings
+from aspect.media import manifest as media_manifest
 
 
 def real_jpeg(size: tuple[int, int] = (800, 600)) -> bytes:

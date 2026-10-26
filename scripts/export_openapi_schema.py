@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from proxy.server import app
+from aspect.server import app
 
 OUTPUT = Path(__file__).resolve().parent.parent / "frontend" / "openapi.json"
 

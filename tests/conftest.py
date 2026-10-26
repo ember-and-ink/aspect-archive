@@ -18,13 +18,13 @@ from typing import Any
 import pytest
 from PIL import Image
 
-from proxy import deps
-from proxy.archive import catalog
-from proxy.cards import pngtools
-from proxy.cards.builder import PngWriter
-from proxy.archive import thumbs
-from proxy.api.v1 import _shared as v1_shared
-from proxy.config import settings
+from aspect import deps
+from aspect.archive import catalog
+from aspect.cards import pngtools
+from aspect.cards.builder import PngWriter
+from aspect.archive import thumbs
+from aspect.api.v1 import _shared as v1_shared
+from aspect.config import settings
 
 
 def card_png(
@@ -125,7 +125,7 @@ def queued_downloads(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyP
     calls: list[str] = []
     if request.node.get_closest_marker("real_media_queue"):
         return calls
-    from proxy.api.v1 import media as v1_media
+    from aspect.api.v1 import media as v1_media
 
     monkeypatch.setattr(v1_media, "queue_direct_images", calls.append)
     return calls
@@ -235,7 +235,7 @@ def populated_archive(archive_dirs: dict[str, Path]) -> dict[str, Path]:
     # Same folder-naming scheme as the gallery, under its own root -- the two
     # never collide even though Abbie has both. Real filenames end in .webp;
     # the bytes are JPEG magic, same "extension lies" shape as the inherited
-    # avatar cache (proxy/archive/thumbs.py), which sniffing already handles.
+    # avatar cache (aspect/archive/thumbs.py), which sniffing already handles.
     expressions = archive_dirs["expressions"] / "Abbie_kzbYR2QbpncC"
     expressions.mkdir()
     (expressions / "neutral-_00001_.webp").write_bytes(b"\xff\xd8\xff" + b"0" * 100)
@@ -252,7 +252,7 @@ def client(populated_archive: dict[str, Path]):
     """
     from fastapi.testclient import TestClient
 
-    from proxy.server import app
+    from aspect.server import app
 
     with TestClient(app) as test_client:
         yield test_client

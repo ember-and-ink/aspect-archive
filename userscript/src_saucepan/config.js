@@ -1,12 +1,12 @@
   // ---------------------------------------------------------------------------
   // Config + logging. The saucepan bridge is the twin of the JanitorAI bridge:
   // it fetches a companion straight from saucepan's own JSON API and hands the
-  // raw export to the local jai-proxy server (POST /build-saucepan), which does
+  // raw export to the local Aspect Archive server (POST /build-saucepan), which does
   // all the deobfuscation / mapping / PNG assembly. (That whole pipeline used to
   // be a 1200-line in-page DOM scraper; it now lives server-side in
-  // proxy/saucepan_fragments.py + saucepan_mapper.py + cardbuilder.py.)
+  // aspect/saucepan_fragments.py + saucepan_mapper.py + cardbuilder.py.)
   // ---------------------------------------------------------------------------
-  // Where the jai-proxy server is. Persisted in Tampermonkey storage rather
+  // Where the Aspect Archive server is. Persisted in Tampermonkey storage rather
   // than compiled in, because it may now be a container on another machine
   // (docs/DEPLOY.md). To repoint the bridge, run this once in the console on
   // saucepan.ai — no recompile, no reinstall:

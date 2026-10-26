@@ -1,4 +1,4 @@
-"""CLI wrapper around `proxy.media.dedupe` -- see that module for what counts
+"""CLI wrapper around `aspect.media.dedupe` -- see that module for what counts
 as a safe duplicate and why. The same logic backs `POST /api/v1/media/dedupe`
 (Settings -> Media -> "Clean up duplicates"), which is the one-click way to
 run this; this script exists for a dry-run look at the whole archive, or for
@@ -17,8 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from proxy.config import settings  # noqa: E402
-from proxy.media import dedupe as media_dedupe  # noqa: E402
+from aspect.config import settings  # noqa: E402
+from aspect.media import dedupe as media_dedupe  # noqa: E402
 
 
 def main() -> int:

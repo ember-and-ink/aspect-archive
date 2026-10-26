@@ -1,4 +1,4 @@
-"""`proxy/media/mega.py` -- MEGA folder listing + decrypt, ported from
+"""`aspect/media/mega.py` -- MEGA folder listing + decrypt, ported from
 `web/modules/gallery-extractors/mega.js`.
 
 The fixtures below build a small, real MEGA-shaped folder (root -> one file,
@@ -20,7 +20,7 @@ import pytest
 from Crypto.Cipher import AES
 from Crypto.Util import Counter
 
-from proxy.media import mega
+from aspect.media import mega
 
 MASTER_KEY = b"0123456789abcdef"
 

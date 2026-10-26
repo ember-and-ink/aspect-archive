@@ -22,9 +22,9 @@ from pathlib import Path
 
 from PIL import Image
 
-from proxy.sources import datacat as mapper
-from proxy.cards import pngtools
-from proxy.cards.builder import CardBuilder
+from aspect.sources import datacat as mapper
+from aspect.cards import pngtools
+from aspect.cards.builder import CardBuilder
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "datacat"
 

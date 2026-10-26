@@ -3,7 +3,7 @@ import logging
 
 from rich.console import Console
 
-from proxy.runtime.dashboard import (
+from aspect.runtime.dashboard import (
     Dashboard,
     DownloadFeed,
     LogBuffer,
@@ -20,7 +20,7 @@ def _render(dashboard: Dashboard, *, width: int = 120, height: int = 30) -> str:
 
 def test_log_buffer_captures_records():
     buffer = LogBuffer()
-    logger = logging.getLogger("jai_proxy.test_dashboard")
+    logger = logging.getLogger("aspect.test_dashboard")
     logger.addHandler(buffer)
     logger.setLevel(logging.INFO)
     try:
@@ -88,7 +88,7 @@ def test_download_feed_counts_duplicates_apart_from_saves():
 
 
 def test_duplicate_download_is_marked_in_the_panel():
-    dashboard = Dashboard(title="jai-proxy", address="http://x")
+    dashboard = Dashboard(title="aspect-archive", address="http://x")
     dashboard.feed.record(
         source="saucepan",
         name="Emma",
@@ -111,7 +111,7 @@ def test_download_feed_names_unnamed_cards():
 
 def test_frame_renders_header_and_both_columns():
     dashboard = Dashboard(
-        title="jai-proxy",
+        title="aspect-archive",
         address="http://127.0.0.1:8000",
         stats=lambda: "3 captures",
     )
@@ -119,7 +119,7 @@ def test_frame_renders_header_and_both_columns():
     dashboard.feed.record(source="janitor", name="Aurora", creator="Ravenborn")
 
     out = _render(dashboard)
-    assert "jai-proxy" in out
+    assert "aspect-archive" in out
     assert "http://127.0.0.1:8000" in out
     assert "3 captures" in out
     assert "server log" in out and "listening for requests" in out
@@ -129,25 +129,25 @@ def test_frame_renders_header_and_both_columns():
 
 
 def test_frame_renders_empty_and_survives_a_short_terminal():
-    dashboard = Dashboard(title="jai-proxy", address="http://127.0.0.1:8000")
+    dashboard = Dashboard(title="aspect-archive", address="http://127.0.0.1:8000")
     out = _render(dashboard)
     assert "no characters yet" in out
     assert "waiting for requests" in out
 
     # A terminal barely taller than the header band must still render.
-    assert "jai-proxy" in _render(dashboard, height=5)
+    assert "aspect-archive" in _render(dashboard, height=5)
 
 
 def test_frame_survives_a_failing_stats_callable():
     def boom() -> str:
         raise RuntimeError("stats unavailable")
 
-    dashboard = Dashboard(title="jai-proxy", address="http://x", stats=boom)
-    assert "jai-proxy" in _render(dashboard)
+    dashboard = Dashboard(title="aspect-archive", address="http://x", stats=boom)
+    assert "aspect-archive" in _render(dashboard)
 
 
 def test_failed_download_shows_its_reason():
-    dashboard = Dashboard(title="jai-proxy", address="http://x")
+    dashboard = Dashboard(title="aspect-archive", address="http://x")
     dashboard.feed.record(
         source="janitor",
         name="Ghost",
@@ -162,7 +162,7 @@ def test_failed_download_shows_its_reason():
 
 
 def test_problems_are_kept_for_replay():
-    dashboard = Dashboard(title="jai-proxy", address="http://x")
+    dashboard = Dashboard(title="aspect-archive", address="http://x")
     dashboard.log.append("INFO", "listening")
     dashboard.log.append("ERROR", "[Errno 48] Address already in use")
 
@@ -176,7 +176,7 @@ def test_problems_are_kept_for_replay():
 
 
 def test_replay_is_silent_with_nothing_to_report():
-    dashboard = Dashboard(title="jai-proxy", address="http://x")
+    dashboard = Dashboard(title="aspect-archive", address="http://x")
     dashboard.log.append("INFO", "listening")
     stream = io.StringIO()
     replay_problems(dashboard, stream)

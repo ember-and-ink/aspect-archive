@@ -1,6 +1,6 @@
 from PIL import Image
 
-from proxy.cards.avatar_image import normalize_avatar
+from aspect.cards.avatar_image import normalize_avatar
 
 
 def _image(width: int, height: int, color=(200, 100, 50, 255)) -> Image.Image:

@@ -97,7 +97,7 @@
     async clear() {
       if (
         !window.confirm(
-          "Clear the jai-proxy lorebook cache? The next export will re-fetch " +
+          "Clear the Aspect Archive lorebook cache? The next export will re-fetch " +
             "each lorebook fresh from saucepan. Exported PNGs are not affected."
         )
       ) {

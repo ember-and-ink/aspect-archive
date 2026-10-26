@@ -1,4 +1,4 @@
-"""`proxy/media/extractors.py` -- album page -> direct image URLs.
+"""`aspect/media/extractors.py` -- album page -> direct image URLs.
 
 Ported from `web/modules/gallery-extractors/*` at Stage 6B, for the four hosts a
 scan of all 3,868 cards showed are actually used. The HTML fixtures below are
@@ -12,8 +12,8 @@ from pathlib import Path
 import httpx
 import pytest
 
-from proxy.config import settings
-from proxy.media import extractors
+from aspect.config import settings
+from aspect.media import extractors
 
 
 def _client(handler) -> httpx.Client:

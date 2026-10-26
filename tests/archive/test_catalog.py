@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from proxy.archive import catalog
+from aspect.archive import catalog
 from tests.conftest import card_png, jai_extensions
 
 

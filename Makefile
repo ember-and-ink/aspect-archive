@@ -2,8 +2,8 @@
 	frontend-install frontend-lint frontend-typing frontend-test frontend-build frontend-dev frontend-smoke api-schema \
 	bump-minor bump-major pre-commit-install
 
-# Every target reads .env (see .env.template) via proxy/config.py -- most
-# importantly JAI_PROXY_ARCHIVE_DIR, the cards folder they all read and write.
+# Every target reads .env (see .env.template) via aspect/config.py -- most
+# importantly ASPECT_ARCHIVE_DIR, the cards folder they all read and write.
 
 # `make` on its own prints this. A target's one-line summary is the `##` comment
 # on the target's own line, and `##@` starts a section; the longer comments above
@@ -41,7 +41,7 @@ pre-commit-install: ## Install the pre-commit git hooks
 	uv run pre-commit install
 
 run: ## Start the server on :8000
-	uv run python -m proxy.server
+	uv run python -m aspect.server
 
 # Patch releases need nothing: the publish workflow assigns the patch number
 # from the git tags on every merge to main. These raise the version in
@@ -109,7 +109,7 @@ docker-up: ## Start the locally built container
 	docker compose up -d
 
 # The published image instead of a local build -- what a server runs. Defaults
-# in compose.prod.yaml target unraid (/mnt/user/appdata/jai-proxy, uid 99:100);
+# in compose.prod.yaml target unraid (/mnt/user/appdata/aspect-archive, uid 99:100);
 # see docs/DEPLOY.md. Useful on the Mac too, to check what :latest actually
 # does before the server pulls it.
 docker-pull: ## Pull the published image (compose.prod.yaml)

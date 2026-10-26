@@ -7,13 +7,13 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from proxy.sources import janitor
-from proxy.cards import pngtools
-from proxy.cards.builder import CardBuilder, PngWriter
-from proxy.cards.naming import id_fragment, safe_filename
-from proxy.config import settings
-from proxy.text.macros import MacroSanitizer
-from proxy.cards.models import CaptureRecord, CharacterBook, LoreEntry, ProfileFields
+from aspect.sources import janitor
+from aspect.cards import pngtools
+from aspect.cards.builder import CardBuilder, PngWriter
+from aspect.cards.naming import id_fragment, safe_filename
+from aspect.config import settings
+from aspect.text.macros import MacroSanitizer
+from aspect.cards.models import CaptureRecord, CharacterBook, LoreEntry, ProfileFields
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -65,7 +65,7 @@ def test_build_maps_greetings_to_first_mes_and_alternates():
 # ---------------------------------------------------------------------------
 # Tag normalization -- CardBuilder is the single choke point for the four
 # sources that build a ProfileFields (janitor, datacat, saucepan, jannyai);
-# see proxy/text/tags.py and docs/PHASE_5_TAGS_PLAN.md §2/§6 step 3. Chub
+# see aspect/text/tags.py and docs/PHASE_5_TAGS_PLAN.md §2/§6 step 3. Chub
 # never goes through ProfileFields, so it gets its own test in test_chub.py.
 # ---------------------------------------------------------------------------
 
@@ -252,7 +252,7 @@ def test_png_writer_converts_non_png_avatar_source(tmp_path):
 
 
 def _stacked_avatar_png(panel: int = 300) -> bytes:
-    """A 3-image stack (height == 3x width) -- the shape jai-proxy detects and
+    """A 3-image stack (height == 3x width) -- the shape the archive detects and
     crops down to the top panel before embedding."""
     buf = io.BytesIO()
     Image.new("RGBA", (panel, panel * 3), (5, 5, 5, 255)).save(buf, "PNG")
@@ -327,7 +327,7 @@ def test_existing_and_find_match_across_both_layouts(tmp_path):
 # ---------------------------------------------------------------------------
 # gallery_id -- stamped at write time (the one choke point every save path,
 # native and import, funnels through) so a card drops into its own gallery
-# folder in SillyTavern-CharacterLibrary. See proxy/cards/gallery.py.
+# folder in SillyTavern-CharacterLibrary. See aspect/cards/gallery.py.
 # ---------------------------------------------------------------------------
 
 

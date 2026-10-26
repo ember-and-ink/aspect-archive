@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from proxy.sources.prompts.janitor import SystemPromptParser
+from aspect.sources.prompts.janitor import SystemPromptParser
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -176,7 +176,7 @@ def test_slash_in_name_is_parsed_from_persona_tag(parser):
 def test_slash_name_key_matches_chat_name_end_to_end(parser):
     # The whole point of the fix: normalize(parsed.name) must equal the key a
     # /build-jai derives from chat_name, or capture_store.get() returns None.
-    from proxy.state.captures import normalize
+    from aspect.state.captures import normalize
 
     raw = "<A / B's Persona>body</A / B's Persona>"
     parsed = parser.parse(raw)

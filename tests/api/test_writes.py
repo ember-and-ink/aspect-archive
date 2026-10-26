@@ -18,8 +18,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from proxy.cards import pngtools
-from proxy.config import settings
+from aspect.cards import pngtools
+from aspect.config import settings
 from tests.conftest import card_png, jai_extensions
 
 
@@ -563,7 +563,7 @@ def test_apply_is_idempotent(client, populated_archive):
 
 
 def test_apply_reports_partial_failure_without_undoing_the_rest(client, populated_archive, monkeypatch):
-    from proxy.cards import edit
+    from aspect.cards import edit
 
     real_patch = edit.patch_card
 
@@ -701,7 +701,7 @@ def test_low_res_filter_finds_only_thumbnails(client, thumb_card):
 
 
 def test_refetch_replaces_a_thumbnail(client, thumb_card, monkeypatch):
-    from proxy.cards import avatar_refetch
+    from aspect.cards import avatar_refetch
 
     urls: list[str] = []
     monkeypatch.setattr(avatar_refetch, "download", lambda url: urls.append(url) or image_bytes((600, 900)))
@@ -717,7 +717,7 @@ def test_refetch_replaces_a_thumbnail(client, thumb_card, monkeypatch):
 
 
 def test_refetch_refuses_a_thumbnail_sized_source(client, thumb_card, monkeypatch):
-    from proxy.cards import avatar_refetch
+    from aspect.cards import avatar_refetch
 
     monkeypatch.setattr(avatar_refetch, "download", lambda url: image_bytes((200, 200)))
     before = thumb_card.read_bytes()

@@ -1,7 +1,7 @@
 """Drop the dead keys the old frontend left in `data/settings.json`.
 
 The settings blob is one opaque JSON document the server does not schema-check
-(`proxy/state/ui_settings.py`), so every key the vendored CharacterLibrary
+(`aspect/state/ui_settings.py`), so every key the vendored CharacterLibrary
 frontend ever wrote is still sitting in it -- 117 of them, including credentials
 for six providers that were cut before the rewrite, a theme customizer, a mobile
 mode and a duplicate-scanner's thresholds. None of it is read by anything any
@@ -15,7 +15,7 @@ WHAT SURVIVES
 `ui2`, the browser client's own namespace, plus the root keys it deliberately
 reads flat -- the provider credentials and `httpProxyUrl`, which are not
 preferences this app invented but real data the old UI and the server already
-share (see `frontend/src/hooks/use-settings.ts` and `proxy/runtime/net.py`).
+share (see `frontend/src/hooks/use-settings.ts` and `aspect/runtime/net.py`).
 That list is the whole schema; anything else is by definition a leftover.
 
 THE ONE MIGRATION
@@ -42,12 +42,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from proxy.config import settings  # noqa: E402
-from proxy.state import ui_settings  # noqa: E402
+from aspect.config import settings  # noqa: E402
+from aspect.state import ui_settings  # noqa: E402
 
 # Everything still read from the blob's root, and by whom.
 LIVE_ROOT_KEYS = {
-    "httpProxyUrl": "proxy/runtime/net.py",
+    "httpProxyUrl": "aspect/runtime/net.py",
     "chubToken": "Settings -> Providers",
     "chubRememberToken": "Settings -> Providers",
     "chubNsfw": "Discover",

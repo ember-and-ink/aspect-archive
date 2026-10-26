@@ -35,7 +35,7 @@ function load(server = "http://127.0.0.1:8000") {
     addEventListener() {},
     createElement: () => ({ textContent: "", remove() {} }),
     // Stands in for the browser running the injected script on append.
-    appendChild: () => documentElement.setAttribute("data-jai-proxy-hook", "1"),
+    appendChild: () => documentElement.setAttribute("data-aspect-hook", "1"),
   };
   document.head = document;
   return loadModules(
@@ -182,11 +182,11 @@ function makePageRealm() {
 // answers a relay request with `reply`, and records what was asked.
 function attachSandbox(realm, reply) {
   const seen = [];
-  realm.document.addEventListener("jai-proxy:relay-request", (event) => {
+  realm.document.addEventListener("aspect:relay-request", (event) => {
     const message = JSON.parse(event.detail);
     seen.push(message);
     realm.document.dispatchEvent(
-      new realm.context.CustomEvent("jai-proxy:relay-response", {
+      new realm.context.CustomEvent("aspect:relay-response", {
         detail: JSON.stringify({ id: message.id, ...reply(message) }),
       })
     );
@@ -204,7 +204,7 @@ function installPageHook(server = "http://192.168.1.50:8000") {
 test("the injected source patches the PAGE realm's fetch, not the sandbox's", () => {
   const realm = installPageHook();
   assert.equal(
-    realm.document.documentElement.getAttribute("data-jai-proxy-hook"),
+    realm.document.documentElement.getAttribute("data-aspect-hook"),
     "1",
     "the hook marks <html> so the injector can tell it actually ran"
   );

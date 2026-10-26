@@ -1,10 +1,15 @@
-# jai-proxy
+# Aspect Archive
 
-Archives JanitorAI character cards as SillyTavern-compatible **Character Card V3**
-PNGs, for personal use. It captures both **public** cards and **creator-hidden**
-definitions, and saves each as a self-contained PNG (definition + all greetings +
-lorebook + avatar) straight into the archive it also browses and serves —
-`data/characters/` (see [Configuration](#configuration-env)).
+A self-hosted character card library. Each card is kept as a SillyTavern-compatible
+**Character Card V3** PNG (definition, every greeting, lorebook and avatar in one
+file) alongside its image gallery and expressions, with a browser UI for searching,
+editing and tagging them. Front-ends like SillyTavern load cards from it; the
+archive keeps the originals.
+
+Cards come in from JanitorAI (both **public** cards and **creator-hidden**
+definitions), Chub, DataCat and Saucepan, or from an existing card file dropped
+into the UI. Everything lands in `data/characters/` (see
+[Configuration](#configuration-env)).
 
 ## How it works
 
@@ -34,7 +39,7 @@ make docker-up        # docker compose up -d  -> http://127.0.0.1:8000
 One image, one mount (`./data`), one port. The image carries the **server only**:
 everything writable already defaults under `data/` — the archive, galleries,
 thumbnail cache, `settings.json` and the server's working state — so that single
-bind mount is the whole of the container's state, and `JAI_PROXY_HOST=0.0.0.0`
+bind mount is the whole of the container's state, and `ASPECT_HOST=0.0.0.0`
 is the only variable it needs. Nothing is architecture-specific, so it builds
 natively on arm64 and amd64 alike (the *published* image is amd64 only — see
 below — because the deployment target is a NAS and development runs from
@@ -48,7 +53,7 @@ move as long as you set the same one there.
 
 ### Remote (unraid)
 
-Pushing to `main` publishes `ghcr.io/ember-and-ink/jai-proxy` — `linux/amd64`,
+Pushing to `main` publishes `ghcr.io/ember-and-ink/aspect-archive` — `linux/amd64`,
 `:latest` plus `:sha-<short>` and the release version, e.g. `:0.1.4` — and cuts
 a matching GitHub release (`.github/workflows/publish.yml`). The patch number is
 assigned automatically; `make bump-minor` / `make bump-major` start a new
@@ -60,7 +65,7 @@ make docker-up-prod
 ```
 
 `compose.prod.yaml` and `unraid-template.xml` are the two ways to run it there;
-both default to `/mnt/user/appdata/jai-proxy` for the mount and uid `99:100`
+both default to `/mnt/user/appdata/aspect-archive` for the mount and uid `99:100`
 (unraid's `nobody:users`) for the process. Acquisition keeps working against a
 remote archive with no TLS — the userscripts reach it through
 `GM_xmlhttpRequest`, which is exempt from the page's mixed-content rules. The
@@ -87,22 +92,22 @@ For development, run it directly instead:
 
 ```bash
 uv sync
-uv run python -m proxy.server        # serves http://127.0.0.1:8000
+uv run python -m aspect.server        # serves http://127.0.0.1:8000
 ```
 
-In a terminal the server draws a live dashboard (`proxy/runtime/dashboard.py`): a header
+In a terminal the server draws a live dashboard (`aspect/runtime/dashboard.py`): a header
 band with the address, the server log on the left, and every character exported
 this run -- source, name, creator -- on the right. A card that was **already in
 the cards folder** (see [Re-exporting](#re-exporting)) is drawn in yellow and
 marked `dup`, and counted apart in the panel title (`downloads · 3 new · 1 dup`),
 so a wasted click is obvious at a glance. Piping the output, or setting
-`JAI_PROXY_DASHBOARD=false`, falls back to plain line-by-line logging -- which
+`ASPECT_DASHBOARD=false`, falls back to plain line-by-line logging -- which
 reports the same thing, naming the file either way (`saved janitor card: Emma by
 Theodrax (Emma_123456.png)` / `already have janitor card: …`).
 
 ### Configuration (`.env`)
 
-Defaults live in `proxy/config.py`; override them per-machine in a git-ignored
+Defaults live in `aspect/config.py`; override them per-machine in a git-ignored
 `.env` at the repo root, which the server, every script under `scripts/`, and the
 test suite all read:
 
@@ -114,8 +119,8 @@ The two keys that matter most:
 
 | key | default | what it does |
 | --- | --- | --- |
-| `JAI_PROXY_ARCHIVE_DIR` | `./data/characters` | the archive: what the browse API reads and what a build writes into |
-| `JAI_PROXY_CARD_LAYOUT` | `flat` | `flat` = `<name>_<id8>.png`; `nested` = `<creator>/<name>_<id8>.png` |
+| `ASPECT_ARCHIVE_DIR` | `./data/characters` | the archive: what the browse API reads and what a build writes into |
+| `ASPECT_CARD_LAYOUT` | `flat` | `flat` = `<name>_<id8>.png`; `nested` = `<creator>/<name>_<id8>.png` |
 
 A build writes into `ARCHIVE_DIR` directly, so a retrieved card is in the
 archive the moment it's written — one directory, no sync step, no second copy
@@ -130,7 +135,7 @@ archive rather than inside it — under the one directory that has to be mounted
 and backed up, so nothing the server writes can land anywhere else.
 
 Install `userscript/jai-proxy-bridge.user.js` in Tampermonkey. In JanitorAI's
-proxy/config settings, set the endpoint to
+aspect/config settings, set the endpoint to
 `http://127.0.0.1:8000/v1/chat/completions` (any model name — the server answers
 whatever it is called). Point it at whatever host the bridge itself is
 configured for: the URL has to share the bridge's `serverUrl` host and port, or
@@ -156,7 +161,7 @@ remembered with the rest of your settings.
 Nothing is generated by a model. The chat endpoint exists only because sending a
 message is what makes JanitorAI put the hidden definition in the system prompt;
 the reply is assembled locally from canned roleplay fragments
-(`proxy/runtime/mock_responder.py`) — an action beat, a line of dialogue, and one word
+(`aspect/runtime/mock_responder.py`) — an action beat, a line of dialogue, and one word
 lifted from what you just said. It is meant to read as a small, distracted model
 so a chat doesn't visibly break mid-capture, and nothing else.
 
@@ -168,7 +173,7 @@ make compile        # -> userscript/jai-proxy-bridge.user.js
                     #    + userscript/saucepan-proxy-bridge.user.js
 ```
 
-The concatenation itself lives in `proxy/userscripts.py`, not in the two scripts
+The concatenation itself lives in `aspect/userscripts.py`, not in the two scripts
 under `scripts/` — the server runs the same code for Settings → Userscripts, with
 `DEFAULT_SERVER` and `BULK_TAG_FILTER` substituted. With nothing substituted the
 output is byte-identical to what `make compile` writes, and a test asserts that
@@ -186,8 +191,8 @@ with a server warning.)
 A pill in the bottom-right corner shows 🟢/🔴 for server reachability and, on a
 card page, whether the card in view is exportable right now — **without** naming
 the character (the server pulls that cleanly from the API at build time). Open
-cards show `🟢 jai-proxy · ready ✓`; hidden cards show `· hidden ✓` once captured
-(`· hidden ✗` before). Off a card the pill is just `🟢 jai-proxy`. It carries a
+cards show `🟢 Aspect · ready ✓`; hidden cards show `· hidden ✓` once captured
+(`· hidden ✗` before). Off a card the pill is just `🟢 Aspect`. It carries a
 small **CLEAR** link on its right edge.
 
 Just above the pill is the purple **⬇ Export to card** button; it dims slightly
@@ -346,14 +351,14 @@ Two decisions worth knowing, because both were the alternative being rejected:
 vendored with no JavaScript changes at all — and would sign this server up to
 impersonate SillyTavern's internals forever. What is worth keeping is *format*
 compatibility (V3 PNG, the bundle zip, the `gallery_id` convention); none of that
-requires matching anyone else's URLs. See `proxy/api/__init__.py`.
+requires matching anyone else's URLs. See `aspect/api/__init__.py`.
 
 **There is no database.** A full scan — decode every PNG's tEXt chunk, base64,
 JSON — costs ~1.3 s across all 3,839 cards, and the stat sweep that keeps the
 index honest costs 21 ms. So the index is a dict in memory, rebuilt at startup and
 re-validated per request on `(mtime, size)`; the filesystem stays the only source
 of truth. A card acquired, renamed or deleted outside the process appears in the
-grid within one debounce interval with no reindex step (`proxy/archive/catalog.py`).
+grid within one debounce interval with no reindex step (`aspect/archive/catalog.py`).
 
 Cards that fail to parse are recorded rather than skipped — `GET
 /api/v1/characters?health=broken` lists them with the reason, because an archive
@@ -376,12 +381,12 @@ make thumbs ARGS=--apply  # render the misses, retire the orphans
 4,663 of them. The media type is therefore always sniffed from the file's magic
 number and never derived from its name; generated thumbs keep the same convention
 so the cache stays uniform and drop-in compatible in both directions
-(`proxy/archive/thumbs.py`).
+(`aspect/archive/thumbs.py`).
 
 ## Code layout
 
 ```
-proxy/
+aspect/
   server.py     the app: what gets mounted, in what order, how it is run
   config.py     settings, read from the environment then .env
   deps.py       the singletons the route modules share
@@ -408,7 +413,7 @@ came from. `tests/` mirrors this layout directory for directory.
 ## Tests
 
 ```bash
-uv run pytest        # server (proxy/)
+uv run pytest        # server (aspect/)
 make test-js          # userscript (userscript/src_jai/)
 ```
 
@@ -449,7 +454,7 @@ folded under `data/`, and the whole thing runs from one image with one mount.
 underneath — was replaced by the React client in `frontend/`, built against
 `/api/v1` and nothing else, and deleted at the Stage 7 cut-over. The client now
 owns `/`. The old directory is preserved on the **`legacy-web` branch**, which
-is where the "ported from `web/...`" comments throughout `proxy/` and
+is where the "ported from `web/...`" comments throughout `aspect/` and
 `frontend/src/` resolve — and, until `POST /api/v1/bundle` exists, where a
 bundle `.zip` gets restored from.
 

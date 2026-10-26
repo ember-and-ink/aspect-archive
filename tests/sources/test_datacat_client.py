@@ -1,4 +1,4 @@
-"""proxy/datacat_client.py -- the datacat.run original-avatar resolver used by
+"""aspect/datacat_client.py -- the datacat.run original-avatar resolver used by
 `scripts/import_cards.py --fetch-datacat-images`. Covers the identify/detail
 handshake, retry-then-give-up behaviour, and picking the untouched
 source-CDN avatar out of a character-detail payload over datacat's own
@@ -7,8 +7,8 @@ re-hosted variants."""
 import httpx
 import pytest
 
-from proxy.sources import datacat_client
-from proxy.sources.datacat_client import DatacatImageResolver, _original_avatar_url
+from aspect.sources import datacat_client
+from aspect.sources.datacat_client import DatacatImageResolver, _original_avatar_url
 
 
 @pytest.fixture(autouse=True)
@@ -221,7 +221,7 @@ def test_drops_and_refetches_a_rejected_stored_token(monkeypatch, tmp_path):
     assert resolver.resolve("char-id") == "https://ella.janitorai.com/y.webp"
     assert identify_calls == 1
     # The freshly-identified replacement got persisted too.
-    assert "JAI_PROXY_DATACAT_SESSION_TOKEN=fresh-tok" in env_path.read_text()
+    assert "ASPECT_DATACAT_SESSION_TOKEN=fresh-tok" in env_path.read_text()
 
 
 def test_persists_freshly_fetched_token_to_env_file(tmp_path):
@@ -234,13 +234,13 @@ def test_persists_freshly_fetched_token_to_env_file(tmp_path):
         )
 
     env_path = tmp_path / ".env"
-    env_path.write_text("JAI_PROXY_ARCHIVE_DIR=/somewhere\n")
+    env_path.write_text("ASPECT_ARCHIVE_DIR=/somewhere\n")
     resolver = DatacatImageResolver(client=_client(handler), env_path=env_path)
     resolver.resolve("char-id")
 
     contents = env_path.read_text()
-    assert "JAI_PROXY_DATACAT_SESSION_TOKEN=brand-new-tok" in contents
-    assert "JAI_PROXY_ARCHIVE_DIR=/somewhere" in contents  # untouched
+    assert "ASPECT_DATACAT_SESSION_TOKEN=brand-new-tok" in contents
+    assert "ASPECT_ARCHIVE_DIR=/somewhere" in contents  # untouched
 
 
 def test_persist_false_never_touches_the_env_file(tmp_path):
@@ -260,28 +260,28 @@ def test_persist_false_never_touches_the_env_file(tmp_path):
 
 def test_persist_session_token_replaces_existing_line(tmp_path):
     env_path = tmp_path / ".env"
-    env_path.write_text("JAI_PROXY_ARCHIVE_DIR=/somewhere\nJAI_PROXY_DATACAT_SESSION_TOKEN=old-tok\nJAI_PROXY_CARD_LAYOUT=flat\n")
+    env_path.write_text("ASPECT_ARCHIVE_DIR=/somewhere\nASPECT_DATACAT_SESSION_TOKEN=old-tok\nASPECT_CARD_LAYOUT=flat\n")
 
     datacat_client._persist_session_token("new-tok", env_path)
 
     lines = env_path.read_text().splitlines()
     assert lines == [
-        "JAI_PROXY_ARCHIVE_DIR=/somewhere",
-        "JAI_PROXY_DATACAT_SESSION_TOKEN=new-tok",
-        "JAI_PROXY_CARD_LAYOUT=flat",
+        "ASPECT_ARCHIVE_DIR=/somewhere",
+        "ASPECT_DATACAT_SESSION_TOKEN=new-tok",
+        "ASPECT_CARD_LAYOUT=flat",
     ]
 
 
 def test_persist_session_token_appends_when_no_existing_line(tmp_path):
     env_path = tmp_path / ".env"
-    env_path.write_text("JAI_PROXY_ARCHIVE_DIR=/somewhere\n")
+    env_path.write_text("ASPECT_ARCHIVE_DIR=/somewhere\n")
 
     datacat_client._persist_session_token("new-tok", env_path)
 
-    assert env_path.read_text() == "JAI_PROXY_ARCHIVE_DIR=/somewhere\nJAI_PROXY_DATACAT_SESSION_TOKEN=new-tok\n"
+    assert env_path.read_text() == "ASPECT_ARCHIVE_DIR=/somewhere\nASPECT_DATACAT_SESSION_TOKEN=new-tok\n"
 
 
 def test_persist_session_token_creates_missing_env_file(tmp_path):
     env_path = tmp_path / ".env"
     datacat_client._persist_session_token("new-tok", env_path)
-    assert env_path.read_text() == "JAI_PROXY_DATACAT_SESSION_TOKEN=new-tok\n"
+    assert env_path.read_text() == "ASPECT_DATACAT_SESSION_TOKEN=new-tok\n"

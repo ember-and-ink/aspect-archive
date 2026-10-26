@@ -47,8 +47,8 @@ import os
 import shutil
 from pathlib import Path
 
-from proxy.archive import catalog, thumbs
-from proxy.config import settings
+from aspect.archive import catalog, thumbs
+from aspect.config import settings
 
 
 def main() -> int:

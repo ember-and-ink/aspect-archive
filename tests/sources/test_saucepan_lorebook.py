@@ -1,11 +1,11 @@
 """Executable spec for saucepan.ai's obfuscated lorebook wire format.
 
-saucepan.ai is NOT JanitorAI -- nothing in `proxy/` reads this format today, and
+saucepan.ai is NOT JanitorAI -- nothing in `aspect/` reads this format today, and
 `userscript/saucepan-export.user.js` (which this algorithm is ported from) is parked.
 This file exists because the reassembly scheme was reverse-engineered out of saucepan's
 minified app bundle (`T0`/`T0t`/`gW`), and the two fixtures here are the only real
 captures of it that exist. Pin both while they're pinnable: if saucepan support ever
-becomes real, lift `deobfuscate_fragments` into `proxy/` and keep these tests.
+becomes real, lift `deobfuscate_fragments` into `aspect/` and keep these tests.
 
 Wire shape, per chapter (`GET /api/v2/lorebooks/<id>/chapters/<index>`):
 
@@ -19,9 +19,9 @@ See tests/fixtures/README.md for provenance.
 import json
 from pathlib import Path
 
-# The algorithm under test now lives in proxy/ (lifted here once saucepan support
+# The algorithm under test now lives in aspect/ (lifted here once saucepan support
 # became real). This file stays the executable spec, pinned against real captures.
-from proxy.sources.saucepan_fragments import _is_real, deobfuscate_fragments
+from aspect.sources.saucepan_fragments import _is_real, deobfuscate_fragments
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "saucepan"
 

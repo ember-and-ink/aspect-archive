@@ -24,7 +24,7 @@ import {
  * Same-creator duplicate review (docs/plans/ticklish-moseying-shore.md).
  *
  * Detection is entirely server-side (`GET /api/v1/duplicates`, backed by
- * `proxy.cards.dupes`) and scoped hard to one creator at a time -- this page
+ * `aspect.cards.dupes`) and scoped hard to one creator at a time -- this page
  * never sees, and could not accidentally render, a cross-creator match. What
  * it owns is review: showing *why* a group was flagged, letting a card be
  * discarded (the existing reversible bin, `DELETE /characters/{id}`), or the

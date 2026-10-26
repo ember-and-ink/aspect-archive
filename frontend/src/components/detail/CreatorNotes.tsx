@@ -8,7 +8,7 @@ import DOMPurify from 'dompurify'
  * place:
  *
  *  1. DOMPurify strips scripts, event handlers and dangerous tags/protocols,
- *     and the app shell's CSP (`script-src 'self'`, proxy/server.py) stops
+ *     and the app shell's CSP (`script-src 'self'`, aspect/server.py) stops
  *     anything that slips past it from running. This is the content boundary.
  *  2. The shadow root is the style boundary: a card's `<style>` cannot restyle
  *     the app, and the app's styles do not leak into the notes. `contain:
@@ -283,7 +283,7 @@ function escapeHtml(text: string): string {
  *  links, images. Images must be matched before links -- `![alt](url)`
  *  contains a valid `[alt](url)` link, and the link pattern would otherwise
  *  eat it first and leave a stray `!` beside an anchor instead of a picture.
- *  `html_to_md` (proxy/text/html_md.py) is what produces this syntax for every
+ *  `html_to_md` (aspect/text/html_md.py) is what produces this syntax for every
  *  source that flattens creator notes to markdown, so an image-bearing note
  *  from any of them depends on this ordering to render at all. */
 function markdownToHtml(md: string): string {

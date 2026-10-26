@@ -29,8 +29,8 @@ ENV UV_PYTHON_DOWNLOADS=never \
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 # --no-install-project: the app is not imported as an installed package, it is
-# run as `python -m proxy.server` from /app. Keeping the project out of the venv
-# means this layer depends only on the lockfile, so editing proxy/ never
+# run as `python -m aspect.server` from /app. Keeping the project out of the venv
+# means this layer depends only on the lockfile, so editing aspect/ never
 # re-resolves dependencies.
 RUN uv sync --frozen --no-dev --no-install-project
 
@@ -40,12 +40,12 @@ FROM python:3.13-slim-bookworm
 # image.source is what links the published package to this repository on GHCR:
 # without it the package shows up in the org with no repo, no README and no
 # provenance, and it cannot inherit the repository's visibility.
-LABEL org.opencontainers.image.source="https://github.com/ember-and-ink/jai-proxy" \
+LABEL org.opencontainers.image.source="https://github.com/ember-and-ink/aspect-archive" \
       org.opencontainers.image.description="Character archive: browses, builds and serves SillyTavern V3 character cards." \
       org.opencontainers.image.licenses="NOASSERTION"
 
 # pngquant compresses card avatars before they are embedded. The vendored
-# binary next to proxy/ is a macOS Mach-O one and is excluded by .dockerignore,
+# binary next to aspect/ is a macOS Mach-O one and is excluded by .dockerignore,
 # so PngWriter's PATH fallback picks up this one.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends pngquant \
@@ -55,13 +55,13 @@ RUN useradd --create-home --uid 1000 app
 
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
-COPY proxy/ ./proxy/
+COPY aspect/ ./proxy/
 # The client's built output only -- no node_modules, no sources. Serving it is
-# proxy/server.py's FRONTEND_DIST, and it answers at the root.
+# aspect/server.py's FRONTEND_DIST, and it answers at the root.
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 # Source fragments only, not the compiled bundles: the server concatenates them
 # per request with the user's server URL and tag filter substituted in
-# (proxy/userscripts.py). ~60 KB, and it is what makes the userscripts
+# (aspect/userscripts.py). ~60 KB, and it is what makes the userscripts
 # installable without a checkout.
 COPY userscript/src_jai/ ./userscript/src_jai/
 COPY userscript/src_saucepan/ ./userscript/src_saucepan/
@@ -72,9 +72,9 @@ ENV PATH="/app/.venv/bin:${PATH}" \
     # Bind all interfaces: 127.0.0.1 would only be reachable from inside the
     # container. This is the one variable the container actually needs -- every
     # writable path already defaults under /app/data, which is the mount.
-    JAI_PROXY_HOST=0.0.0.0
+    ASPECT_HOST=0.0.0.0
 
-# proxy/config.py creates its directories at import time; /app/data is normally
+# aspect/config.py creates its directories at import time; /app/data is normally
 # a mount, but pre-creating it keeps a mountless `docker run` from failing.
 #
 # uid 1000 is only the DEFAULT. The image must also run under an arbitrary uid
@@ -93,4 +93,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).read()"]
 
-CMD ["python", "-m", "proxy.server"]
+CMD ["python", "-m", "aspect.server"]

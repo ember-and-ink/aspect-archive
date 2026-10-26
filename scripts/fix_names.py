@@ -6,7 +6,7 @@ the model that is its name, and `Narrator` hides whoever the card is really
 about. Neither defect is visible until the roleplay is already going wrong.
 
 This scans the archive (or ./import), classifies each name via
-proxy.text.name_repair.diagnose, and shows what it would change:
+aspect.text.name_repair.diagnose, and shows what it would change:
 
     uv run python scripts/fix_names.py                  # read-only report
     uv run python scripts/fix_names.py --dir import     # scan a staging folder
@@ -25,7 +25,7 @@ the *current* rules over the same cards, which is the loop to tune against.
 `--no-log` opts out.
 
 Nothing is ever renamed without a human saying so. The name engine offers
-exactly the right answer about 80% of the time (see proxy/name_repair), which is
+exactly the right answer about 80% of the time (see aspect/name_repair), which is
 good enough to propose and nowhere near good enough to apply blindly -- so there
 is deliberately no `--apply-all`. `--interactive` walks the findings one at a time
 showing the alternates and a slice of the description, and accepts a typed name
@@ -48,10 +48,10 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-from proxy.cards import pngtools
-from proxy.cards.naming import id_fragment, safe_filename
-from proxy.config import settings
-from proxy.text.name_repair import GENERIC, JUNK, OK, TITLE, Candidate, Diagnosis, diagnose
+from aspect.cards import pngtools
+from aspect.cards.naming import id_fragment, safe_filename
+from aspect.config import settings
+from aspect.text.name_repair import GENERIC, JUNK, OK, TITLE, Candidate, Diagnosis, diagnose
 
 _VERDICT_ORDER = (GENERIC, TITLE, JUNK)
 _ID_FRAGMENT = re.compile(r"_([A-Za-z0-9]{6,8})$")

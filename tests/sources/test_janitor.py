@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from proxy.cards.builder import CardBuilder
-from proxy.sources import janitor as mapper
+from aspect.cards.builder import CardBuilder
+from aspect.sources import janitor as mapper
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "hampter"
 

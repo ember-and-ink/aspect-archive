@@ -1,7 +1,7 @@
 """Give every card in the archive a `gallery_id`.
 
 `extensions.gallery_id` is the handle SillyTavern-CharacterLibrary keys a
-character's image gallery on (see proxy/cards/gallery.py). Every card written from now
+character's image gallery on (see aspect/cards/gallery.py). Every card written from now
 on gets one at write time -- PngWriter stamps it -- but cards built before that
 existed, and imports whose source carried no id, don't have one. This is the
 catch-up pass: scan the cards folder, mint an id for each card missing one, and patch it
@@ -25,8 +25,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from proxy.cards import gallery, pngtools
-from proxy.config import settings
+from aspect.cards import gallery, pngtools
+from aspect.config import settings
 
 
 def main() -> int:

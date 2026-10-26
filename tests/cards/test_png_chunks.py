@@ -5,7 +5,7 @@ import io
 import pytest
 from PIL import Image
 
-from proxy.cards import pngtools
+from aspect.cards import pngtools
 
 
 def _png() -> bytes:

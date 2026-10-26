@@ -4,7 +4,7 @@ import io
 import httpx
 from PIL import Image
 
-from proxy.cards.avatar_fetch import PLACEHOLDER_PNG, AvatarFetcher
+from aspect.cards.avatar_fetch import PLACEHOLDER_PNG, AvatarFetcher
 
 
 def _png_bytes(color=(10, 20, 30, 255)) -> bytes:

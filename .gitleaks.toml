@@ -1,6 +1,6 @@
 # gitleaks config — extends the built-in default ruleset.
 # https://github.com/gitleaks/gitleaks#configuration
-title = "jai-proxy gitleaks config"
+title = "aspect-archive gitleaks config"
 
 [extend]
 useDefault = true
@@ -14,7 +14,7 @@ paths = [
   '''(^|/)__pycache__/''',
   '''(^|/)uv\.lock$''',
   '''(^|/)package-lock\.json$''',
-  '''^proxy/pngquant$''',
+  '''^aspect/pngquant$''',
   '''\.png$''',
   '''\.jpg$''',
   '''\.jpeg$''',

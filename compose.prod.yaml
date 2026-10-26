@@ -11,8 +11,8 @@
 
 services:
   archive:
-    image: ghcr.io/ember-and-ink/jai-proxy:${JAI_PROXY_TAG:-latest}
-    container_name: jai-proxy
+    image: ghcr.io/ember-and-ink/aspect-archive:${ASPECT_TAG:-latest}
+    container_name: aspect-archive
     # Only the HOST side is configurable. The container always listens on 8000,
     # so the healthcheck baked into the image keeps working; move the host port
     # if something else on the box already has 8000 (SillyTavern's stock port is
@@ -20,20 +20,20 @@ services:
     # storage now, so whatever you publish here is fine -- set the same
     # host:port there. See docs/DEPLOY.md.
     ports:
-      - "${JAI_PROXY_PORT:-8000}:8000"
+      - "${ASPECT_PORT:-8000}:8000"
     # The only mount there is. Archive, galleries, thumbnail cache,
     # settings.json and the server's working state all live under it, so this
     # single bind is the whole of the container's state.
     volumes:
-      - "${JAI_PROXY_DATA:-/mnt/user/appdata/jai-proxy}:/app/data"
+      - "${ASPECT_DATA:-/mnt/user/appdata/aspect-archive}:/app/data"
     # unraid's shares are owned by nobody:users (99:100); the image's own user
     # is uid 1000. Running as the directory's owner is simpler and safer than
     # chowning the share to 1000, and the image supports an arbitrary uid --
     # everything it needs under /app is world-readable and it writes only into
     # /app/data. If the mount is unwritable the server says so in one line and
-    # exits rather than dying in a traceback (proxy/server.py::_preflight).
+    # exits rather than dying in a traceback (aspect/server.py::_preflight).
     user: "${PUID:-99}:${PGID:-100}"
     environment:
       # 127.0.0.1 would only be reachable from inside the container.
-      JAI_PROXY_HOST: "0.0.0.0"
+      ASPECT_HOST: "0.0.0.0"
     restart: unless-stopped

@@ -30,10 +30,10 @@ import argparse
 import hashlib
 from pathlib import Path
 
-from proxy.cards import edit
-from proxy.archive import thumbs
-from proxy.media import manifest as media_manifest, writer as media_writer
-from proxy.config import settings
+from aspect.cards import edit
+from aspect.archive import thumbs
+from aspect.media import manifest as media_manifest, writer as media_writer
+from aspect.config import settings
 
 _CANDIDATE_EXTS = frozenset((".jpg", ".jpeg", ".png"))
 

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from proxy.cards import pngtools
+from aspect.cards import pngtools
 from tests.conftest import card_png, jai_extensions
 
 

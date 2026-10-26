@@ -1,4 +1,4 @@
-"""proxy/media/dedupe.py: trashing exact-duplicate gallery files left behind
+"""aspect/media/dedupe.py: trashing exact-duplicate gallery files left behind
 by a media re-download that repointed `.media.json` at a new filename without
 cleaning up the old one."""
 
@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from proxy.archive import thumbs
-from proxy.config import settings
-from proxy.media import dedupe as media_dedupe, manifest as media_manifest
+from aspect.archive import thumbs
+from aspect.config import settings
+from aspect.media import dedupe as media_dedupe, manifest as media_manifest
 
 
 def _sha(data: bytes) -> str:

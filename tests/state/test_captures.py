@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from proxy.state.captures import CaptureStore, normalize
+from aspect.state.captures import CaptureStore, normalize
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 

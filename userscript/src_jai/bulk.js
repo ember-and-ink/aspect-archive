@@ -115,7 +115,7 @@
 
     build() {
       const el = document.createElement("div");
-      el.id = "jai-proxy-bulk";
+      el.id = "aspect-bulk";
 
       const head = document.createElement("div");
       head.className = "jai-bulk-head";
@@ -123,7 +123,7 @@
       title.className = "jai-bulk-title";
       title.textContent = "⬇ All open cards";
       const btn = document.createElement("button");
-      btn.id = "jai-proxy-bulk-btn";
+      btn.id = "aspect-bulk-btn";
       btn.textContent = "Download";
       btn.addEventListener("click", () => this.run());
       head.append(title, btn);

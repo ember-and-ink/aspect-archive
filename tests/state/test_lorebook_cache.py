@@ -1,4 +1,4 @@
-from proxy.state.lorebook_cache import LorebookCache
+from aspect.state.lorebook_cache import LorebookCache
 
 
 def _cache(tmp_path) -> LorebookCache:

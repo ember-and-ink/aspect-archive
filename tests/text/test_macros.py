@@ -1,4 +1,4 @@
-from proxy.text.macros import MacroSanitizer, reverse_persona_names
+from aspect.text.macros import MacroSanitizer, reverse_persona_names
 
 
 def test_empty_and_none_are_untouched():

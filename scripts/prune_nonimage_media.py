@@ -37,9 +37,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from proxy.archive import thumbs  # noqa: E402
-from proxy.config import settings  # noqa: E402
-from proxy.media import manifest as media_manifest, writer as media_writer  # noqa: E402
+from aspect.archive import thumbs  # noqa: E402
+from aspect.config import settings  # noqa: E402
+from aspect.media import manifest as media_manifest, writer as media_writer  # noqa: E402
 
 AUDIO_EXT = {".mp3", ".wav", ".ogg", ".opus", ".m4a", ".m4b", ".flac", ".aac", ".mid", ".midi"}
 VIDEO_EXT = {".mp4", ".webm", ".mov", ".m4v", ".mkv", ".avi", ".flv"}

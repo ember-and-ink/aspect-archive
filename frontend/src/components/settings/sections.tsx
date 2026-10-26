@@ -58,7 +58,7 @@ import {
 // ---- Security ---------------------------------------------------------------
 
 /**
- * The login gate (`proxy/api/gate.py`): one username and password in front of
+ * The login gate (`aspect/api/gate.py`): one username and password in front of
  * the whole server. Not accounts — there is one set of credentials and no
  * notion of who is logged in beyond "someone who knew them".
  *
@@ -679,7 +679,7 @@ function ChubTokenRow() {
  *
  * Lives under Media rather than Providers because Civitai is not a card
  * source — it is one of the gallery extractors
- * (`proxy/media/civitai.py`), reached only when a card links a post.
+ * (`aspect/media/civitai.py`), reached only when a card links a post.
  * Public posts need no key at all; a key is what reaches content Civitai
  * hides behind a login.
  */
@@ -709,7 +709,7 @@ function CivitaiKeyRow() {
  * DataCat's anonymous session.
  *
  * The server holds the token in process memory only
- * (`proxy/sources/datacat_client.py:239-244`), so before Stage 6B a restart
+ * (`aspect/sources/datacat_client.py:239-244`), so before Stage 6B a restart
  * silently minted a new anonymous identity with no way to see or steer it.
  * Saving persists it into the settings blob and pushes it back into the
  * server's session on load.

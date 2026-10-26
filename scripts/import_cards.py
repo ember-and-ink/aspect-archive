@@ -3,24 +3,24 @@
 Two kinds of already-embedded PNG export are recognised when dropped into
 `./import`, both re-homed into the configured cards folder as
 `<name>_<id>.png` -- the exact layout and naming the native retriever produces
-(see JAI_PROXY_ARCHIVE_DIR / JAI_PROXY_CARD_LAYOUT in .env.template) -- so a
+(see ASPECT_ARCHIVE_DIR / ASPECT_CARD_LAYOUT in .env.template) -- so a
 landed card shows as acquired on the next scan (which keys off the `_<id>`
 filename fragment):
 
   * datacat  -- a JanitorAI card pulled by the closed-source datacat retriever.
     It carries no lorebook, so it's rebuilt through the CardBuilder (macro
     sanitize, creator-notes cleanup) with a fresh datacat_import provenance
-    block. See proxy/datacat.py.
+    block. See aspect/datacat.py.
   * JannyAI  -- a jannyai.com card export, structurally a twin of datacat
     (definition-only, no lorebook, macros intact), rebuilt the same way with a
-    fresh jannyai_import provenance block. See proxy/jannyai.py.
+    fresh jannyai_import provenance block. See aspect/jannyai.py.
   * Chub.ai  -- an already-complete chara_card_v3 (its own lorebook + rich
     extensions). It's passed through near-verbatim: macros sanitized,
     creator_notes tamed (layout kept, stylesheet dropped -- see
-    proxy/text/notes_html.py), tags cleaned, everything else (the whole
+    aspect/text/notes_html.py), tags cleaned, everything else (the whole
     character_book, Chub's own extensions block) preserved as is -- plus a
     fresh `extensions.jai` provenance stamp layered on top, the same one every
-    other source gets. See proxy/chub.py.
+    other source gets. See aspect/chub.py.
 
 Both share the same tail: avatar normalize + pngquant compression, and a card
 whose id already lives in the cards folder is skipped, never overwritten (the
@@ -32,7 +32,7 @@ upstream has its old `<name>_<id8>.png` pruned so the overwrite can't fork.
 
 `--fetch-datacat-images` (datacat only) turns on one extra, opt-in network
 step: for each datacat card, ask datacat.run's own API (see
-proxy/datacat_client.py) for the untouched original JanitorAI avatar URL, and
+aspect/datacat_client.py) for the untouched original JanitorAI avatar URL, and
 lead creator_notes with it -- mirroring what the native retriever already
 does for its own avatar_url, so SillyTavern-CharacterLibrary's creator-notes
 media scan picks up the full-resolution original as a gallery image even
@@ -41,7 +41,7 @@ stays a pure offline batch otherwise; a card whose original can't be
 recovered (gone from datacat's index, etc.) just imports without the link.
 
 One field is the exception to never-touch: `extensions.gallery_id`, the handle a
-card carries to its stored image gallery (see proxy/cards/gallery.py). A legacy export
+card carries to its stored image gallery (see aspect/cards/gallery.py). A legacy export
 often has one an older on-disk card lacks, so when an import matches an existing
 card (same name + id) the gallery_id is *backfilled* into that card in place --
 pixels and every other field untouched -- rather than the import simply being
@@ -76,13 +76,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from proxy.sources import chub, datacat, jannyai
-from proxy.cards import gallery, pngtools
-from proxy.cards.builder import CardBuilder, PngWriter
-from proxy.cards.naming import id_fragment
-from proxy.config import settings
-from proxy.sources.datacat_client import DatacatImageResolver
-from proxy.text.macros import MacroSanitizer
+from aspect.sources import chub, datacat, jannyai
+from aspect.cards import gallery, pngtools
+from aspect.cards.builder import CardBuilder, PngWriter
+from aspect.cards.naming import id_fragment
+from aspect.config import settings
+from aspect.sources.datacat_client import DatacatImageResolver
+from aspect.text.macros import MacroSanitizer
 
 
 def _utc_now_iso() -> str:
@@ -126,7 +126,7 @@ def _import_datacat(
     card, warnings = builder.build(profile, greetings, capture=None, book=None, avatar_url=avatar_url)
     if image_resolver and cid and not avatar_url:
         warnings.append("datacat: original avatar not recovered (no link added)")
-    card.character_version = datacat.source_url(data) or "jai-proxy"
+    card.character_version = datacat.source_url(data) or "aspect-archive"
     card.extensions = _datacat_extensions(data, profile.creator)
     out = writer.write(card, raw, card_id=cid or None)
     return out, warnings
@@ -159,7 +159,7 @@ def _import_jannyai(
     profile = jannyai.to_profile_fields(data)
     greetings = jannyai.greetings(data)
     card, warnings = builder.build(profile, greetings, capture=None, book=None)
-    card.character_version = jannyai.source_url(data) or "jai-proxy"
+    card.character_version = jannyai.source_url(data) or "aspect-archive"
     card.extensions = _jannyai_extensions(data, profile.creator)
     out = writer.write(card, raw, card_id=cid or None)
     return out, warnings
@@ -371,7 +371,7 @@ def main() -> int:
         help=(
             "for datacat imports, call datacat.run to recover the original avatar "
             "URL and lead creator_notes with it (off by default; the only network "
-            "call this script makes -- see proxy/datacat_client.py)"
+            "call this script makes -- see aspect/datacat_client.py)"
         ),
     )
     args = parser.parse_args()

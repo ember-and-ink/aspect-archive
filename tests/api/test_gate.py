@@ -1,4 +1,4 @@
-"""The login gate (proxy/api/gate.py, Settings -> Security).
+"""The login gate (aspect/api/gate.py, Settings -> Security).
 
 What is pinned here is the boundary: off by default, everything the server
 answers closed once it is on, and exactly three things left open -- the auth
@@ -13,8 +13,8 @@ import json
 
 import pytest
 
-from proxy.server import FRONTEND_DIST
-from proxy.state import security
+from aspect.server import FRONTEND_DIST
+from aspect.state import security
 
 CREDS = {"username": "matt", "password": "correct horse"}
 
@@ -180,14 +180,14 @@ def test_basic_auth_is_accepted_for_clients_without_a_cookie(gated):
 
 def test_changing_the_password_ends_existing_sessions(gated):
     gated.post("/api/v1/auth/login", json=CREDS)
-    stale = gated.cookies.get("jai_proxy_session")
+    stale = gated.cookies.get("aspect_session")
 
     changed = gated.put("/api/v1/security", json={"enabled": True, "username": "matt", "password": "new one"})
     assert changed.status_code == 200
     assert gated.get("/api/v1/characters").status_code == 200  # re-issued to the caller
 
     gated.cookies.clear()
-    gated.cookies.set("jai_proxy_session", stale)
+    gated.cookies.set("aspect_session", stale)
     assert gated.get("/api/v1/characters").status_code == 401
     assert gated.post("/existing", json={"ids": []}, headers=_basic(**CREDS)).status_code == 401
 

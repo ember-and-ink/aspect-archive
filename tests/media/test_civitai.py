@@ -1,4 +1,4 @@
-"""`proxy/media/civitai.py` -- Civitai post/image galleries.
+"""`aspect/media/civitai.py` -- Civitai post/image galleries.
 
 The shapes below are trimmed from real 2026-09-04 responses: `/api/v1/images`
 answers `{"items": [...]}` with `url` already pointing at the `original=true`
@@ -13,8 +13,8 @@ from pathlib import Path
 import httpx
 import pytest
 
-from proxy.config import settings
-from proxy.media import civitai, extractors
+from aspect.config import settings
+from aspect.media import civitai, extractors
 
 
 def _client(handler) -> httpx.Client:

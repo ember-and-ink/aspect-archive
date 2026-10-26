@@ -9,7 +9,7 @@ gallery folder that may already hold images.
 
 import string
 
-from proxy.cards import gallery
+from aspect.cards import gallery
 
 # ---------------------------------------------------------------------------
 # generate_id -- CharacterLibrary's generateGalleryId, in Python

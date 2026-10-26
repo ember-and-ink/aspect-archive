@@ -2,7 +2,7 @@
 macro/formatting rules.
 
 Cards are imported once and kept, but the cleaners keep improving -- new macro
-typos get added to proxy.text.macros over time, the creator_notes de-HTML gets
+typos get added to aspect.text.macros over time, the creator_notes de-HTML gets
 tighter. This asks: given today's rules, does any card in the archive still carry a
 macro we'd now fix, an unresolvable macro worth a human eyeball, or a leaked
 HTML/CSS artifact in its notes?
@@ -34,9 +34,9 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from proxy.cards import pngtools
-from proxy.config import settings
-from proxy.text.macros import MacroSanitizer
+from aspect.cards import pngtools
+from aspect.config import settings
+from aspect.text.macros import MacroSanitizer
 
 # The prose fields CardBuilder / sources.chub run through the sanitizer. Superset
 # of every source path so one scan covers native, datacat and Chub cards.
