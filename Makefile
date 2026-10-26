@@ -1,6 +1,6 @@
 .PHONY: help compile test test-js run docker-build docker-up docker-pull docker-up-prod import gallery-ids check names thumbs settings-import \
 	frontend-install frontend-lint frontend-typing frontend-test frontend-build frontend-dev frontend-smoke api-schema \
-	bump-minor bump-major
+	bump-minor bump-major pre-commit-install
 
 # Every target reads .env (see .env.template) via proxy/config.py -- most
 # importantly JAI_PROXY_ARCHIVE_DIR, the cards folder they all read and write.
@@ -34,6 +34,11 @@ test: ## Run the Python test suite
 # `make frontend-test`, vitest, below.
 test-js: ## Run the userscript unit tests (node:test)
 	cd userscript && node --test
+
+# Once per checkout. The hooks in .pre-commit-config.yaml run the frontend
+# lint/format/typing checks CI runs, plus generic hygiene and gitleaks.
+pre-commit-install: ## Install the pre-commit git hooks
+	uv run pre-commit install
 
 run: ## Start the server on :8000
 	uv run python -m proxy.server

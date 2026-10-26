@@ -695,7 +695,7 @@ export interface paths {
          *     claiming its source URL as downloaded, so a plain localize run (which
          *     skips any card its last run completed without checking the manifest
          *     entries against disk) does not go re-fetch it. Only a full rescan --
-         *     `skip_complete=false` -- re-derives the URL list from the card's own
+         *     `mode="everything"` -- re-derives the URL list from the card's own
          *     text and finds the gap.
          */
         post: operations["bulk_delete_files_api_v1_galleries__folder__files_bulk_delete_post"];
@@ -923,7 +923,7 @@ export interface paths {
          *     claiming its source URL as downloaded, so a plain localize run (which
          *     skips any card its last run completed without checking the manifest
          *     entries against disk) does not go re-fetch it. Only a full rescan --
-         *     `skip_complete=false` -- re-derives the URL list from the card's own
+         *     `mode="everything"` -- re-derives the URL list from the card's own
          *     text and finds the gap.
          */
         post: operations["bulk_delete_files_api_v1_expressions__folder__files_bulk_delete_post"];
@@ -3270,11 +3270,12 @@ export interface components {
              */
             discover: boolean;
             /**
-             * Skip Complete
-             * @description scope="all" only: skip cards whose last run finished with no errors.
-             * @default true
+             * Mode
+             * @description scope="all" only. "pending" (Localize all) visits cards whose sources are not all accounted for; "everything" re-resolves every album and retries every dead link on every card; "broken" retries only failed albums and dead links, on the cards that have them.
+             * @default pending
+             * @enum {string}
              */
-            skip_complete: boolean;
+            mode: "pending" | "everything" | "broken";
             /**
              * Prefix
              * @description Filename prefix and dedupe-priority class: localized_media, lorebook_media, extgallery, or <provider>gallery.

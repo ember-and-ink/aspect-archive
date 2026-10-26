@@ -459,6 +459,7 @@ make frontend-dev     # the client on :5173, /api proxied to :8000
 make api-schema       # regenerate the typed client after any route change
 make frontend-test frontend-typing frontend-lint
 make frontend-smoke   # the browser gate, against a running server
+make pre-commit-install  # once per checkout: lint/format/typing on every commit
 ```
 
 Deliberately out of scope unless a real need surfaces: reconstructing lorebook

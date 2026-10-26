@@ -619,8 +619,16 @@ async def download_item(
     ledger: dict[str, Any],
     thumbnail_store: thumbs.ThumbnailStore,
     fetch_gate: "asyncio.Semaphore | None" = None,
+    retry_dead: bool = False,
 ) -> DownloadOutcome:
-    """Everything the plan's §3 numbered list says for one URL, end to end."""
+    """Everything the plan's §3 numbered list says for one URL, end to end.
+
+    `retry_dead` (Rescan everything / Rescan broken) fetches a URL that either
+    dead ledger already marks gone. Nothing is cleared first: a recovered URL
+    leaves both ledgers through the ordinary success path, and one still
+    failing keeps its manifest `dead` entry and its attempt count, so it is
+    dead again the moment the run ends rather than re-arming Localize all.
+    """
 
     # 0. Manifest hit -- this gallery already downloaded this exact URL and
     # still has the file. Nothing left to decide, so this runs ahead of even
@@ -639,7 +647,7 @@ async def download_item(
 
     # 3. Per-gallery dead ledger -- already known gone for this character.
     dead_here = manifest.get("dead", {}).get(url)
-    if dead_here:
+    if dead_here and not retry_dead:
         return DownloadOutcome("skipped", url, reason=dead_here.get("reason", "known dead"))
 
     is_mega = media_mega.is_mega_url(url)
@@ -656,7 +664,7 @@ async def download_item(
             return DownloadOutcome("skipped", url, reason=safety.reason, permanent=True)
 
     # Cross-character dead ledger -- a URL confirmed gone on another card.
-    if media_manifest.is_dead(ledger, url):
+    if not retry_dead and media_manifest.is_dead(ledger, url):
         reason = media_manifest.dead_reason(ledger, url)
         media_manifest.record_dead(manifest, url, reason)
         return DownloadOutcome("skipped", url, reason=reason)
@@ -764,7 +772,9 @@ async def download_batch(
     that one item -- `_discovered_items` (proxy/api/v1/media.py) uses this so
     a `discover=true` job can mix embedded, lorebook, and gallery-extractor
     items (each its own dedupe-priority class, see media_names.PREFIX_PRIORITY)
-    in one batch without misclassifying any of them.
+    in one batch without misclassifying any of them. `"retry_dead"` is per
+    item for the same reason: a rescan mixes retried dead links with ordinary
+    items.
 
     Concurrency is safe here without a lock precisely because only the fetch
     awaits: `finish_item` -- hash dedupe, write, thumbnail, manifest record --
@@ -815,6 +825,7 @@ async def download_batch(
                 ledger=ledger,
                 thumbnail_store=thumbnail_store,
                 fetch_gate=gate,
+                retry_dead=bool(item.get("retry_dead")),
             )
             await queue.put(outcome)
 

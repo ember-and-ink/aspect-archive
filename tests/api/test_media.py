@@ -32,8 +32,10 @@ def stub_download_item(monkeypatch):
 
     calls: list[dict] = []
 
-    async def fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None):
-        calls.append({"gallery_dir": gallery_dir, "folder_name": folder_name, "url": url, "prefix": prefix})
+    async def fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None, retry_dead=False):
+        calls.append(
+            {"gallery_dir": gallery_dir, "folder_name": folder_name, "url": url, "prefix": prefix, "retry_dead": retry_dead}
+        )
         outcome = media_writer.DownloadOutcome("saved", url, file=f"localized_media_{index}_x.webp", bytes=123)
         media_manifest.record_saved(manifest, url, outcome.file, "deadbeef")
         return outcome
@@ -123,7 +125,7 @@ def test_get_media_manifest_reflects_a_completed_run(client, populated_archive, 
 
 
 def test_download_totals_count_mixed_outcomes(client, populated_archive, monkeypatch):
-    async def fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None):
+    async def fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None, retry_dead=False):
         if "ok" in url:
             outcome = media_writer.DownloadOutcome("saved", url, file="localized_media_0_ok.webp", bytes=1)
             media_manifest.record_saved(manifest, url, outcome.file, "abc")
@@ -329,7 +331,7 @@ def test_media_status_reflects_a_completed_run(client, populated_archive, stub_d
 
 
 def test_media_status_incomplete_when_last_run_had_errors(client, populated_archive, monkeypatch):
-    async def fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None):
+    async def fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None, retry_dead=False):
         return media_writer.DownloadOutcome("error", url, reason="boom", permanent=False)
 
     monkeypatch.setattr(v1_media.media_writer, "download_item", fake)
@@ -515,7 +517,7 @@ def test_cancel_stops_a_job_before_it_finishes_every_item(client, populated_arch
 
     calls: list[str] = []
 
-    async def slow_fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None):
+    async def slow_fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None, retry_dead=False):
         calls.append(url)
         await asyncio.sleep(0.05)
         outcome = media_writer.DownloadOutcome("saved", url, file=f"localized_media_{index}_x.webp", bytes=1)
@@ -781,14 +783,173 @@ def test_batch_re_arms_a_source_that_has_since_gained_a_handler(client, populate
     assert reloaded["sources"]["https://catbox.moe/c/abc123"]["h"] == "catbox"
 
 
-def test_batch_skip_complete_false_visits_the_accounted_for_card_anyway(client, populated_archive, stub_download_item, stub_discovery):
+def test_batch_settles_a_card_whose_album_is_gone(client, populated_archive, stub_download_item, stub_discovery, monkeypatch):
+    """A 404'd album is recorded `failed` and the card stops re-arming over
+    it. Before, it recorded nothing, so the card -- and every other gallery
+    on it -- was re-resolved on every Localize all."""
+    monkeypatch.setattr(
+        v1_media.media_discovery,
+        "collect_card_text_chunks",
+        lambda data: (["gallery: https://imgchest.com/p/m9yx53zvq7q"], []),
+    )
+    monkeypatch.setattr(v1_media.media_discovery, "find_character_media_urls", lambda data: ([], []))
+    resolved = []
+
+    def gone(client_, url):
+        resolved.append(url)
+        raise media_extractors.GalleryGone("HTTP 404")
+
+    monkeypatch.setattr(media_extractors, "resolve_gallery_url", gone)
+
+    first = _poll_job(client, _submit_batch(client))
+    calls_after_first = len(resolved)
+    second = _poll_job(client, _submit_batch(client))
+
+    assert first["cards_skipped"] == 0
+    assert calls_after_first > 0
+    entry = media_manifest.load_manifest(populated_archive["galleries"] / "Abbie_kzbYR2QbpncC")["sources"][
+        "https://imgchest.com/p/m9yx53zvq7q"
+    ]
+    assert (entry["h"], entry["st"], entry["r"]) == ("imgchest", media_manifest.SOURCE_FAILED, "HTTP 404")
+    assert len(resolved) == calls_after_first
+    assert second["cards_skipped"] == first["cards_done"]
+
+
+def test_batch_everything_visits_the_accounted_for_card_anyway(client, populated_archive, stub_download_item, stub_discovery):
     _account_for_abbies_media(populated_archive["galleries"])
 
-    body = _poll_job(client, _submit_batch(client, skip_complete=False))
+    body = _poll_job(client, _submit_batch(client, mode="everything"))
 
     assert body["cards_skipped"] == 0
     assert body["cards_done"] == 3
     assert any("Abbie" in call["url"] for call in stub_download_item)
+
+
+# --- Rescan everything / Rescan broken -------------------------------------
+
+# Real `dead` entries, from a dev-archive card (Vespera's file.garden images).
+_VESPERA_DEAD = {
+    "https://file.garden/akviCfKE-zqjKa2t/ves_job.jpg": {"reason": "HTTP 404", "attempts": 1, "at": "2026-08-30T10:49:12Z"},
+    "https://file.garden/akviCfKE-zqjKa2t/ves_medic.png": {"reason": "HTTP 404", "attempts": 1, "at": "2026-08-30T10:49:12Z"},
+}
+_FAILED_ALBUM = "https://imgchest.com/p/m9yx53zvq7q"
+_DONE_ALBUM = "https://imgchest.com/p/ej7mjmm597d"
+_UNSEEN_ALBUM = "https://catbox.moe/c/abc123"
+
+
+def _broken_abbie(galleries, *, dead=_VESPERA_DEAD, failed_album=False) -> None:
+    """Abbie after a real run: her own image saved, some links dead, the done
+    album recorded, maybe an album gone."""
+    manifest = media_manifest.empty_manifest()
+    media_manifest.record_saved(manifest, "https://cdn.example.com/Abbie.png", "localized_media_0_Abbie.webp", "abc")
+    manifest["dead"].update({url: dict(entry) for url, entry in dead.items()})
+    media_manifest.record_source(manifest, _DONE_ALBUM, "imgchest", media_manifest.SOURCE_DONE, count=10)
+    if failed_album:
+        media_manifest.record_source(manifest, _FAILED_ALBUM, "imgchest", media_manifest.SOURCE_FAILED, reason="HTTP 404")
+    media_manifest.append_run(manifest, {"at": media_manifest.now_iso(), "saved": 1, "skipped": 0, "errors": 0})
+    media_manifest.save_manifest(galleries / "Abbie_kzbYR2QbpncC", manifest)
+
+
+@pytest.fixture
+def albums_on_every_card(monkeypatch):
+    """Every card links the done album, the failed one and one no run has
+    seen; resolving records which were fetched."""
+    monkeypatch.setattr(
+        v1_media.media_discovery,
+        "collect_card_text_chunks",
+        lambda data: ([f"{_DONE_ALBUM} {_FAILED_ALBUM} {_UNSEEN_ALBUM}"], []),
+    )
+    resolved: list[str] = []
+
+    def resolve(client_, url):
+        resolved.append(url)
+        return [media_extractors.GalleryImage(f"{url}/img.png", "img.png")]
+
+    monkeypatch.setattr(media_extractors, "resolve_gallery_url", resolve)
+    return resolved
+
+
+def test_broken_visits_only_cards_with_broken_entries(client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card):
+    _broken_abbie(populated_archive["galleries"])
+
+    body = _poll_job(client, _submit_batch(client, mode="broken"))
+
+    assert body["cards_done"] == 1
+    assert body["cards_skipped"] == 2
+    assert all(c["gallery_dir"].name == "Abbie_kzbYR2QbpncC" for c in stub_download_item)
+
+
+def test_broken_retries_only_dead_links_and_failed_albums(client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card):
+    galleries = populated_archive["galleries"]
+    _broken_abbie(galleries, failed_album=True)
+
+    _poll_job(client, _submit_batch(client, mode="broken"))
+
+    # The done album and the never-seen one are not fetched; only the failed one.
+    assert albums_on_every_card == [_FAILED_ALBUM]
+    assert {c["url"] for c in stub_download_item} == {*_VESPERA_DEAD, f"{_FAILED_ALBUM}/img.png"}
+    assert all(c["retry_dead"] for c in stub_download_item)
+    sources = media_manifest.load_manifest(galleries / "Abbie_kzbYR2QbpncC")["sources"]
+    assert sources[_FAILED_ALBUM]["st"] == media_manifest.SOURCE_DONE
+    # Left for Localize all.
+    assert _UNSEEN_ALBUM not in sources
+
+
+def test_broken_infers_each_dead_links_prefix(client, populated_archive, stub_download_item, monkeypatch):
+    embedded = "https://cdn.example.com/Abbie.png"
+    lore = "https://cdn.example.com/lore.png"
+    chub_child = "https://avatars.charhub.io/avatars/uploads/images/gallery/file/1/x.webp"
+    mega_child = "mega://6ymghrcr/abc?k=x&n=y&s=1"
+    monkeypatch.setattr(
+        v1_media.media_discovery,
+        "find_character_media_urls",
+        lambda data: ([embedded], [lore]) if data.get("name") == "Abbie" else ([], []),
+    )
+    _broken_abbie(
+        populated_archive["galleries"],
+        dead={url: {"reason": "HTTP 404", "attempts": 1, "at": "x"} for url in (embedded, lore, chub_child, mega_child)},
+    )
+
+    _poll_job(client, _submit_batch(client, mode="broken"))
+
+    assert {c["url"]: c["prefix"] for c in stub_download_item} == {
+        embedded: "localized_media",
+        lore: "lorebook_media",
+        chub_child: "chubgallery",
+        mega_child: "extgallery",
+    }
+
+
+def test_broken_never_mints_a_folder(client, populated_archive, stub_download_item, stub_discovery):
+    galleries = populated_archive["galleries"]
+    before = sorted(p.name for p in galleries.iterdir())
+
+    body = _poll_job(client, _submit_batch(client, mode="broken"))
+
+    assert body["cards_skipped"] == 3
+    assert stub_download_item == []
+    assert sorted(p.name for p in galleries.iterdir()) == before
+
+
+def test_everything_re_resolves_every_album_and_retries_every_dead_link(client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card):
+    _broken_abbie(populated_archive["galleries"], failed_album=True)
+
+    _poll_job(client, _submit_batch(client, mode="everything"))
+
+    abbie = {c["url"]: c["retry_dead"] for c in stub_download_item if c["gallery_dir"].name == "Abbie_kzbYR2QbpncC"}
+    # Dead links the card's text no longer names are retried too.
+    assert set(_VESPERA_DEAD) <= set(abbie)
+    assert all(abbie.values())
+    assert set(albums_on_every_card) == {_DONE_ALBUM, _FAILED_ALBUM, _UNSEEN_ALBUM}
+
+
+def test_pending_never_retries_dead_links(client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card):
+    _broken_abbie(populated_archive["galleries"])
+
+    _poll_job(client, _submit_batch(client))
+
+    assert not any(c["retry_dead"] for c in stub_download_item)
+    assert not set(_VESPERA_DEAD) & {c["url"] for c in stub_download_item}
 
 
 def test_batch_creates_no_gallery_folder_for_a_card_with_no_media(client, populated_archive, stub_download_item, monkeypatch):
@@ -834,7 +995,7 @@ def test_batch_cancel_stops_on_a_card_boundary(client, populated_archive, stub_d
     run keeps its manifest."""
     started: list[str] = []
 
-    async def fake(client_, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None):
+    async def fake(client_, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None, retry_dead=False):
         started.append(url)
         outcome = media_writer.DownloadOutcome("saved", url, file=f"localized_media_{index}_x.webp", bytes=1)
         media_manifest.record_saved(manifest, url, outcome.file, "deadbeef")

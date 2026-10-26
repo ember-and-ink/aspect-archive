@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -49,6 +50,7 @@ export function CardDetailLayout({
   /** The active pane's content. */
   children: React.ReactNode
 }) {
+  const { ref: tabStripRef, style: tabStripStyle } = useTabStrip(activeTab)
   return (
     <>
       <div className="sticky top-0 z-20 flex items-center gap-2.5 border-b border-line-soft bg-ground px-5 py-[11px]">
@@ -99,16 +101,21 @@ export function CardDetailLayout({
 
             {tags}
 
-            <nav className="mt-6 flex gap-5 overflow-x-auto overflow-y-hidden border-b border-line">
+            <nav
+              ref={tabStripRef}
+              className="mt-6 flex gap-5 overflow-x-auto overflow-y-hidden border-b border-line [scrollbar-width:none]"
+              style={tabStripStyle}
+            >
               {panes.map((pane) => {
                 const count = tabCount?.(pane)
                 return (
                   <button
                     key={pane}
                     type="button"
+                    data-active={activeTab === pane || undefined}
                     onClick={() => onTabChange(pane)}
                     className={cn(
-                      '-mb-px border-b-2 border-transparent py-2.5 text-[13.5px] whitespace-nowrap text-muted hover:text-text',
+                      '-mb-px shrink-0 border-b-2 border-transparent py-2.5 text-[13.5px] whitespace-nowrap text-muted hover:text-text',
                       activeTab === pane &&
                         'border-sage font-semibold text-text',
                     )}
@@ -132,6 +139,77 @@ export function CardDetailLayout({
       </div>
     </>
   )
+}
+
+/**
+ * The tab bar scrolls sideways when it does not fit (a phone), and a phone
+ * shows no scrollbar, so the edges fade wherever there is more to scroll to
+ * and the active tab is scrolled fully into view. Nothing fades when the
+ * tabs fit.
+ *
+ * The scroll is set on the strip directly rather than by `scrollIntoView`,
+ * which would also scroll the page to the tab bar on first load.
+ */
+function useTabStrip(activeTab: Pane) {
+  const ref = useRef<HTMLElement>(null)
+  const [edges, setEdges] = useState({ left: false, right: false })
+
+  const measure = () => {
+    const nav = ref.current
+    if (!nav) return
+    const left = nav.scrollLeft > 1
+    const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1
+    setEdges((prev) =>
+      prev.left === left && prev.right === right ? prev : { left, right },
+    )
+  }
+
+  useEffect(() => {
+    const nav = ref.current
+    if (!nav) return
+    nav.addEventListener('scroll', measure, { passive: true })
+    const observer = new ResizeObserver(measure)
+    observer.observe(nav)
+    return () => {
+      nav.removeEventListener('scroll', measure)
+      observer.disconnect()
+    }
+  }, [])
+
+  // Every render, not just on resize: a tab count arriving widens the strip's
+  // content without resizing the strip itself.
+  useEffect(measure)
+
+  useEffect(() => {
+    const nav = ref.current
+    const tab = nav?.querySelector<HTMLElement>('[data-active]')
+    if (!nav || !tab) return
+    const pad = 24
+    const start = Math.max(0, tab.offsetLeft - pad)
+    if (start < nav.scrollLeft) {
+      nav.scrollTo({ left: start, behavior: 'smooth' })
+    } else if (
+      tab.offsetLeft + tab.offsetWidth + pad >
+      nav.scrollLeft + nav.clientWidth
+    ) {
+      nav.scrollTo({
+        left: tab.offsetLeft + tab.offsetWidth + pad - nav.clientWidth,
+        behavior: 'smooth',
+      })
+    }
+  }, [activeTab])
+
+  const fade = 32
+  const mask =
+    edges.left || edges.right
+      ? `linear-gradient(to right, ${
+          edges.left ? `transparent, black ${fade}px` : 'black'
+        }, ${edges.right ? `black calc(100% - ${fade}px), transparent` : 'black'})`
+      : undefined
+  return {
+    ref,
+    style: mask ? { maskImage: mask, WebkitMaskImage: mask } : undefined,
+  }
 }
 
 /** The `‹ ›` pair in the header bar. */

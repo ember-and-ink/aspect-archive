@@ -114,7 +114,7 @@ export function CharactersPage({ favorites = false }: { favorites?: boolean }) {
   return (
     <>
       <div className="sticky top-0 z-20 border-b border-line-soft bg-ground">
-        <div className="mx-auto flex max-w-[1560px] items-center gap-3.5 px-5 py-3">
+        <div className="mx-auto flex max-w-[1560px] flex-wrap items-center gap-3.5 px-5 py-3">
           {/* The heading is the toggle: click it to retitle every tile with
               its listing name (the tagline) and back. There is no room on this
               row for a control of its own, and the word it swaps *is* the

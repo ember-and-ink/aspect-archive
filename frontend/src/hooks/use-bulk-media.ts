@@ -9,19 +9,25 @@ import { apiClient, unwrap } from '@/lib/api-client'
  * and then only polls, so the run survives the tab, the laptop lid, and a
  * reload. What it does *not* survive is a server restart -- job state is a live
  * progress cache, and the manifests on disk are the real record. Re-submitting
- * after a restart is cheap precisely because `skip_complete` passes over
+ * after a restart is cheap precisely because `pending` mode passes over
  * everything that already finished.
+ *
+ * `everything` and `broken` are the rare rescans: the first re-resolves every
+ * album and retries every dead link, the second retries only dead links and
+ * failed albums, on just the cards that have them.
  */
+export type BulkMode = 'pending' | 'everything' | 'broken'
+
 export function useBulkLocalize() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (opts: { skipComplete: boolean }) =>
+    mutationFn: (opts: { mode: BulkMode }) =>
       unwrap(
         apiClient.POST('/api/v1/media/jobs', {
           body: {
             scope: 'all',
             discover: true,
-            skip_complete: opts.skipComplete,
+            mode: opts.mode,
             prefix: 'localized_media',
             phase: 'embedded',
           },

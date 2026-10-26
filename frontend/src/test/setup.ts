@@ -13,6 +13,8 @@ Element.prototype.hasPointerCapture ??= () => false
 Element.prototype.setPointerCapture ??= () => {}
 Element.prototype.releasePointerCapture ??= () => {}
 Element.prototype.scrollIntoView ??= () => {}
+// The detail tab strip scrolls its active tab into view (CardDetailLayout).
+Element.prototype.scrollTo ??= () => {}
 
 // jsdom implements neither observer, and both are load-bearing here: the grid
 // pages on IntersectionObserver and the shelf measures its row with

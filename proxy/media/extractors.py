@@ -346,8 +346,11 @@ def find_urls(text: str) -> list[str]:
     found: list[str] = []
     seen: set[str] = set()
     for match in _URL_IN_TEXT.finditer(text):
-        # Markdown and prose leave punctuation glued to the end of a URL.
-        url = match.group(0).rstrip(".,;:!?)}]")
+        # Markdown and prose leave punctuation glued to the end of a URL --
+        # including emphasis: `[**https://ibb.co/album/X**](...)` is a real
+        # card's link text, and the `**` 404s. `_` is NOT stripped despite
+        # also being emphasis: some image ids genuinely end in one.
+        url = match.group(0).rstrip(".,;:!?)}]*")
         if url in seen:
             continue
         seen.add(url)
@@ -375,10 +378,20 @@ def resolve_gallery_urls(client: httpx.Client, urls: Iterable[str]) -> list[Gall
     """
     out: list[GalleryImage] = []
     for url in urls:
-        images = resolve_gallery_url(client, url)
+        try:
+            images = resolve_gallery_url(client, url)
+        except GalleryGone:
+            continue
         if images:
             out.extend(images)
     return _dedupe(out)
+
+
+class GalleryGone(Exception):
+    """The album host answered 404/410: the album is gone, not unreachable."""
+
+
+_GONE_STATUSES = frozenset({404, 410})
 
 
 def resolve_gallery_url(client: httpx.Client, url: str) -> list[GalleryImage] | None:
@@ -389,6 +402,11 @@ def resolve_gallery_url(client: httpx.Client, url: str) -> list[GalleryImage] | 
     post was reached and is empty), whereas an album that raised is a
     transient nothing that must leave the card un-satisfied so the next run
     tries again.
+
+    A 404/410 is neither, and raises `GalleryGone`: the album was reached and
+    is permanently absent. Folding it into None is what kept a card with one
+    deleted imgchest post re-resolving every gallery it has on every
+    Localize all, forever.
     """
     extractor = extractor_for(url)
     if extractor is None:
@@ -397,6 +415,12 @@ def resolve_gallery_url(client: httpx.Client, url: str) -> list[GalleryImage] | 
         if extractor.fetch is not None:
             return _dedupe(extractor.fetch(client, url))
         return _dedupe(extractor.parse(_get_text(client, url)))
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in _GONE_STATUSES:
+            logger.info("gallery extractor %s: %s is gone (%d)", extractor.id, url, exc.response.status_code)
+            raise GalleryGone(f"HTTP {exc.response.status_code}") from exc
+        logger.warning("gallery extractor %s failed on %s: %s", extractor.id, url, exc)
+        return None
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("gallery extractor %s failed on %s: %s", extractor.id, url, exc)
         return None

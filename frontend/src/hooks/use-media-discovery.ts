@@ -31,7 +31,8 @@ export function useSubmitDiscoveredMedia(cardId: string) {
             card_id: cardId,
             discover: true,
             items: [],
-            skip_complete: false,
+            // Batch-only; a single-card job always runs.
+            mode: 'pending',
             prefix: 'localized_media',
             // A label recorded in the manifest run, not a filter: `discover`
             // scans embedded *and* lorebook surfaces and downloads both under

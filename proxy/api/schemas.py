@@ -670,9 +670,13 @@ class MediaJobSubmitIn(BaseModel):
     card_id: str | None = Field(default=None, description='Required when scope is "card".')
     items: list[MediaItemIn] = Field(default_factory=list)
     discover: bool = Field(default=False, description="Scan the card server-side instead of taking an explicit item list.")
-    skip_complete: bool = Field(
-        default=True,
-        description='scope="all" only: skip cards whose last run finished with no errors.',
+    mode: Literal["pending", "everything", "broken"] = Field(
+        default="pending",
+        description=(
+            'scope="all" only. "pending" (Localize all) visits cards whose sources are not all accounted for; '
+            '"everything" re-resolves every album and retries every dead link on every card; '
+            '"broken" retries only failed albums and dead links, on the cards that have them.'
+        ),
     )
     prefix: str = Field(
         default="localized_media",
