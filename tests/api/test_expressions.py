@@ -1,6 +1,6 @@
 """`/api/v1/expressions` -- the same list/get/thumb/upload/delete routes
 `/api/v1/galleries` serves, mounted a second time over `data/expressions/`
-(`proxy.api.v1.galleries.register_folder_routes`).
+(`aspect.api.v1.galleries.register_folder_routes`).
 
 `tests/api/test_galleries.py` already proves the shared route logic works --
 listing, file serving, thumbnailing, path-traversal rejection, revalidation.
@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from proxy.config import settings
+from aspect.config import settings
 
 
 def sprite_bytes(fmt: str = "PNG") -> bytes:

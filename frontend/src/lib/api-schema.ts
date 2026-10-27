@@ -21,7 +21,7 @@ export interface paths {
          *
          *     The other door into the archive. The `/build-*` routes each know a site and
          *     take what the browser captured there; this one is handed the finished card
-         *     and has to work out what it is -- see `proxy.cards.intake`, which owns that
+         *     and has to work out what it is -- see `aspect.cards.intake`, which owns that
          *     judgement and the cleaning that follows from it.
          *
          *     Duplicates are decided on the `_<id8>` fragment alone, never the name, like
@@ -94,7 +94,7 @@ export interface paths {
          * Bin a card
          * @description Move a card into the bin. Nothing here unlinks anything.
          *
-         *     See `proxy.cards.edit` for why: this is the one archive operation with no undo
+         *     See `aspect.cards.edit` for why: this is the one archive operation with no undo
          *     and no second copy, and `data/.trash/` costs disk where the alternative costs
          *     the card. Emptying the bin is a separate, deliberate act.
          */
@@ -280,7 +280,7 @@ export interface paths {
         put?: never;
         /**
          * Which of these provider card ids are already in the archive
-         * @description The `/api/v1` peer of `POST /existing` (`proxy/api/capture.py`) -- same
+         * @description The `/api/v1` peer of `POST /existing` (`aspect/api/capture.py`) -- same
          *     id-fragment match, exposed here so Discover (UI_REWRITE_PLAN.md §3.8)
          *     doesn't have to reach into the userscript's own route namespace for the
          *     pre-import duplicate guard.
@@ -583,7 +583,7 @@ export interface paths {
         /**
          * Bin a gallery file
          * @description Move one file to the bin. Binned rather than unlinked for the same
-         *     reason cards are -- see `proxy.cards.edit`.
+         *     reason cards are -- see `aspect.cards.edit`.
          */
         delete: operations["delete_file_api_v1_galleries__folder__files__filename__delete"];
         options?: never;
@@ -660,7 +660,7 @@ export interface paths {
          *
          *     The flattening is ST's (`getImageBuffers` keeps only
          *     `path.parse(name).base`), which means both shapes
-         *     `proxy.media.expressions` exports load here: the flat
+         *     `aspect.media.expressions` exports load here: the flat
          *     single-character zip and the `<folder>/<file>` multi-character one.
          *     The latter collapses every character into this one folder, exactly as
          *     ST's own importer would -- documented in §2 as the reason the two
@@ -811,7 +811,7 @@ export interface paths {
         /**
          * Bin a expression file
          * @description Move one file to the bin. Binned rather than unlinked for the same
-         *     reason cards are -- see `proxy.cards.edit`.
+         *     reason cards are -- see `aspect.cards.edit`.
          */
         delete: operations["delete_file_api_v1_expressions__folder__files__filename__delete"];
         options?: never;
@@ -888,7 +888,7 @@ export interface paths {
          *
          *     The flattening is ST's (`getImageBuffers` keeps only
          *     `path.parse(name).base`), which means both shapes
-         *     `proxy.media.expressions` exports load here: the flat
+         *     `aspect.media.expressions` exports load here: the flat
          *     single-character zip and the `<folder>/<file>` multi-character one.
          *     The latter collapses every character into this one folder, exactly as
          *     ST's own importer would -- documented in §2 as the reason the two
@@ -994,7 +994,7 @@ export interface paths {
          *     disk under its old name after `.media.json` gets repointed at a new one on
          *     a rescan. Safe by construction -- a file is only trashed when its sha256
          *     matches a file the manifest currently claims, so a manually added extra is
-         *     never touched. See `proxy/media/dedupe.py`.
+         *     never touched. See `aspect/media/dedupe.py`.
          */
         post: operations["dedupe_media_api_v1_media_dedupe_post"];
         delete?: never;
@@ -1307,7 +1307,7 @@ export interface paths {
          *     needs one without the other, and doing both under one lock means two tabs
          *     loading at once cannot each decide a card is new. An id already recorded
          *     keeps its stamp -- there is no route that moves or removes one. See
-         *     `proxy.state.seen`.
+         *     `aspect.state.seen`.
          */
         post: operations["record_seen_api_v1_discover_seen_post"];
         delete?: never;
@@ -2413,7 +2413,7 @@ export interface components {
          *     treats itself as its owner, and a partial update could never express a
          *     *cleared* field, which clearing a scenario is. The two extension keys the
          *     archive owns (`gallery_id` and `jai`) are carried over when the payload
-         *     omits them; see `proxy.cards.edit.merge_card`.
+         *     omits them; see `aspect.cards.edit.merge_card`.
          *
          *     Nothing here is re-sanitized. Intake cleans a card once on the way in; a
          *     human typing `{{char}}` into an edit box means it, and rewriting what they
@@ -2902,7 +2902,7 @@ export interface components {
          *
          *     `name` is the name on disk, which is not necessarily the name uploaded:
          *     every image is re-encoded to WebP on the way in, so the extension is
-         *     swapped (the stem never is -- see `proxy.media.uploads`).
+         *     swapped (the stem never is -- see `aspect.media.uploads`).
          */
         GalleryFileWrittenOut: {
             /** Folder */
@@ -2957,7 +2957,7 @@ export interface components {
          *     `folder` is computed from the card's current name plus its gallery_id -- the
          *     convention CharacterLibrary uses -- so `exists: false` with a non-empty
          *     folder means either no images were ever downloaded or the card was renamed
-         *     out from under its folder. See `proxy.cards.gallery.folder_name`.
+         *     out from under its folder. See `aspect.cards.gallery.folder_name`.
          */
         GalleryOut: {
             /** Gallery Id */
@@ -3031,7 +3031,7 @@ export interface components {
         /**
          * MediaDedupeOut
          * @description Result of `POST /media/dedupe` -- exact-duplicate gallery files trashed.
-         *     See `proxy/media/dedupe.py` for what counts as a safe duplicate.
+         *     See `aspect/media/dedupe.py` for what counts as a safe duplicate.
          */
         MediaDedupeOut: {
             /** Folders Touched */

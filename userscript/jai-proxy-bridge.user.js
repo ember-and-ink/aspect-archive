@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         jai-proxy bridge
 // @namespace    https://github.com/mjnitz02/jai-proxy
-// @version      0.10.0
-// @description  Thin bridge: relays JanitorAI chat completions through a local jai-proxy server (which answers them locally), shows a connection pill, and exports a character as a V3 card PNG via JanitorAI's clean JSON API (no DOM scraping). Card assembly lives server-side.
+// @version      0.10.1
+// @description  Thin bridge: relays JanitorAI chat completions through a local Aspect Archive server (which answers them locally), shows a connection pill, and exports a character as a V3 card PNG via JanitorAI's clean JSON API (no DOM scraping). Card assembly lives server-side.
 // @match        https://janitorai.com/*
 // @match        https://www.janitorai.com/*
 // @run-at       document-start
@@ -31,7 +31,7 @@
   "use strict";
 
   // ---------------------------------------------------------------------------
-  // Where the jai-proxy server is.
+  // Where the Aspect Archive server is.
   //
   // Persisted in Tampermonkey storage rather than compiled in, because the
   // server may now be a container on another machine (docs/DEPLOY.md) and the
@@ -93,12 +93,12 @@
 
   // SERVER lives in config.js (persisted, so the server can be remote).
 
-  const TAG = "[jai-proxy]";
+  const TAG = "[aspect]";
   const log = (...a) => console.log(TAG, ...a);
   const warn = (...a) => console.warn(TAG, ...a);
 
   // ---------------------------------------------------------------------------
-  // ServerClient — all traffic to the local jai-proxy server goes via
+  // ServerClient — all traffic to the local Aspect Archive server goes via
   // GM_xmlhttpRequest so it's exempt from the page's CSP / mixed-content rules.
   // ---------------------------------------------------------------------------
   const ServerClient = {
@@ -346,35 +346,35 @@
   };
 
   // ---------------------------------------------------------------------------
-  // Overlay widgets — a single fixed-position container (#jai-proxy-root) holds,
+  // Overlay widgets — a single fixed-position container (#aspect-root) holds,
   // top to bottom: the bulk panel (profile pages only), a transient status line,
   // the purple Export button, and the connection pill. All styling lives in one
   // injected <style> instead of per-element inline styles.
   // ---------------------------------------------------------------------------
   const OVERLAY_STYLE = `
-    #jai-proxy-root {
+    #aspect-root {
       position: fixed; bottom: 12px; right: 12px; z-index: 999999;
       display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
       font-family: system-ui, sans-serif; font-size: 12px; pointer-events: none;
     }
-    #jai-proxy-status {
+    #aspect-status {
       pointer-events: auto; display: none; max-width: 260px;
       padding: 3px 8px; border-radius: 8px; color: #fff;
       background: rgba(0,0,0,.6); word-break: break-word;
     }
-    #jai-proxy-export {
+    #aspect-export {
       pointer-events: auto; padding: 10px 14px; border-radius: 10px; border: none;
       background: #7a3db5; color: #fff; font-family: inherit; font-size: 13px;
       font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3);
     }
-    #jai-proxy-export:disabled { cursor: default; }
-    #jai-proxy-hide {
+    #aspect-export:disabled { cursor: default; }
+    #aspect-hide {
       pointer-events: auto; display: none; padding: 8px 12px; border-radius: 10px;
       border: none; background: #333; color: #fff; font-family: inherit;
       font-size: 12px; font-weight: 600; cursor: pointer;
       box-shadow: 0 2px 8px rgba(0,0,0,.3);
     }
-    #jai-proxy-hide.jai-on { background: #b5533d; }
+    #aspect-hide.jai-on { background: #b5533d; }
     /* Class-only, reversible hide of cards not worth showing: already saved
        (jai-captured) or skipped by the tag filter (jai-filtered). The marker
        class lands on the card wrapper; the <html> flag flips them all at once
@@ -383,39 +383,39 @@
     html.jai-hide-captured .profile-character-card-wrapper.jai-filtered {
       display: none !important;
     }
-    #jai-proxy-pill {
+    #aspect-pill {
       display: flex; align-items: center; gap: 8px; padding: 4px 10px;
       border-radius: 999px; background: #222; color: #fff; border: 1px solid #444;
       opacity: 0.9;
     }
-    #jai-proxy-pill .jai-clear {
+    #aspect-pill .jai-clear {
       pointer-events: auto; cursor: pointer; color: #ff9d9d; font-weight: bold;
       letter-spacing: 0.5px; border-left: 1px solid #555; padding-left: 8px;
     }
-    #jai-proxy-pill .jai-clear:hover { color: #ff6b6b; }
-    #jai-proxy-bulk {
+    #aspect-pill .jai-clear:hover { color: #ff6b6b; }
+    #aspect-bulk {
       pointer-events: auto; display: none; flex-direction: column; gap: 6px;
       background: #222; color: #fff; border: 1px solid #444; border-radius: 8px;
       padding: 8px 10px; width: 300px; opacity: 0.96;
     }
-    #jai-proxy-bulk .jai-bulk-head {
+    #aspect-bulk .jai-bulk-head {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
     }
-    #jai-proxy-bulk .jai-bulk-title { font-weight: bold; }
-    #jai-proxy-bulk-btn {
+    #aspect-bulk .jai-bulk-title { font-weight: bold; }
+    #aspect-bulk-btn {
       pointer-events: auto; padding: 6px 12px; border-radius: 8px; color: #fff;
       background: #7a3db5; border: none; cursor: pointer; font: inherit;
       font-weight: 600;
     }
-    #jai-proxy-bulk-btn:disabled { opacity: 0.6; cursor: default; }
-    #jai-proxy-bulk .jai-bulk-status { opacity: 0.85; word-break: break-word; }
-    #jai-proxy-bulk .jai-bulk-list {
+    #aspect-bulk-btn:disabled { opacity: 0.6; cursor: default; }
+    #aspect-bulk .jai-bulk-status { opacity: 0.85; word-break: break-word; }
+    #aspect-bulk .jai-bulk-list {
       display: flex; flex-direction: column; gap: 2px;
       max-height: 260px; overflow-y: auto; margin-top: 2px;
     }
-    #jai-proxy-bulk .jai-bulk-row { display: flex; align-items: baseline; gap: 6px; }
-    #jai-proxy-bulk .jai-bulk-icon { flex: 0 0 1.2em; text-align: center; }
-    #jai-proxy-bulk .jai-bulk-name {
+    #aspect-bulk .jai-bulk-row { display: flex; align-items: baseline; gap: 6px; }
+    #aspect-bulk .jai-bulk-icon { flex: 0 0 1.2em; text-align: center; }
+    #aspect-bulk .jai-bulk-name {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
   `;
@@ -485,7 +485,7 @@
     async clear() {
       if (
         !window.confirm(
-          "Clear jai-proxy capture cache (captured hidden definitions + greetings) " +
+          "Clear Aspect Archive capture cache (captured hidden definitions + greetings) " +
             "and reset the plugin's remembered card state? Exported PNGs are not affected."
         )
       ) {
@@ -515,26 +515,26 @@
     mount() {
       if (this._root && this._root.isConnected) return;
 
-      if (!document.getElementById("jai-proxy-style")) {
+      if (!document.getElementById("aspect-style")) {
         const style = document.createElement("style");
-        style.id = "jai-proxy-style";
+        style.id = "aspect-style";
         style.textContent = OVERLAY_STYLE;
         (document.head || document.documentElement).appendChild(style);
       }
 
       const root = document.createElement("div");
-      root.id = "jai-proxy-root";
+      root.id = "aspect-root";
 
       const status = document.createElement("div");
-      status.id = "jai-proxy-status";
+      status.id = "aspect-status";
 
       const btn = document.createElement("button");
-      btn.id = "jai-proxy-export";
+      btn.id = "aspect-export";
       btn.textContent = "⬇ Export to card";
       btn.addEventListener("click", () => ExportButton.onClick());
 
       const hideBtn = document.createElement("button");
-      hideBtn.id = "jai-proxy-hide";
+      hideBtn.id = "aspect-hide";
       hideBtn.textContent = "🙈 Hide saved";
       hideBtn.title =
         "Hide cards already saved to disk, plus cards the include/exclude tag " +
@@ -542,9 +542,9 @@
       hideBtn.addEventListener("click", () => HideCaptured.onClick());
 
       const pill = document.createElement("div");
-      pill.id = "jai-proxy-pill";
+      pill.id = "aspect-pill";
       const pillStatus = document.createElement("span");
-      pillStatus.textContent = "⚪ jai-proxy";
+      pillStatus.textContent = "⚪ Aspect";
       const clear = document.createElement("span");
       clear.className = "jai-clear";
       clear.textContent = "CLEAR";
@@ -667,11 +667,11 @@
   // self-scheduling timer runs at a time; returning to the tab wakes it.
   //
   // Pill vocabulary (shared with the saucepan bridge):
-  //   🟢 jai-proxy               — connected, no card in view
-  //   🟢 jai-proxy · ready ✓     — open card, exportable right now
-  //   🟢 jai-proxy · hidden ✓    — hidden card, definition + greeting captured
-  //   🟢 jai-proxy · hidden ✗    — hidden card, nothing captured yet
-  //   🔴 jai-proxy (server down) — server unreachable
+  //   🟢 Aspect                  — connected, no card in view
+  //   🟢 Aspect · ready ✓        — open card, exportable right now
+  //   🟢 Aspect · hidden ✓       — hidden card, definition + greeting captured
+  //   🟢 Aspect · hidden ✗       — hidden card, nothing captured yet
+  //   🔴 Aspect (server down)    — server unreachable
   // ---------------------------------------------------------------------------
   let serverDown = false;
   let pollTimer = null;
@@ -698,11 +698,11 @@
       let statusText;
       if ((!onChar && !onChat) || !id) {
         await ServerClient.health();
-        statusText = "🟢 jai-proxy";
+        statusText = "🟢 Aspect";
       } else if (!hidden) {
         // Open card: the JSON carries everything; nothing to capture.
         await ServerClient.health();
-        statusText = "🟢 jai-proxy · ready ✓";
+        statusText = "🟢 Aspect · ready ✓";
         ready = true;
       } else {
         // Hidden card: the definition + primary greeting come from the chat
@@ -711,7 +711,7 @@
         const json = await CharacterState.ensureJson(id);
         const status = await ServerClient.captureStatus(characterName(json));
         const has = !!(status.system && status.greetings);
-        statusText = `🟢 jai-proxy · hidden ${has ? "✓" : "✗"}`;
+        statusText = `🟢 Aspect · hidden ${has ? "✓" : "✗"}`;
         ready = has;
       }
       serverDown = false;
@@ -719,7 +719,7 @@
       ExportButton.setReady(ready);
     } catch {
       serverDown = true;
-      Pill.setStatus("🔴 jai-proxy (server down)");
+      Pill.setStatus("🔴 Aspect (server down)");
       ExportButton.setReady(false);
     }
   }
@@ -966,7 +966,7 @@
 
     build() {
       const el = document.createElement("div");
-      el.id = "jai-proxy-bulk";
+      el.id = "aspect-bulk";
 
       const head = document.createElement("div");
       head.className = "jai-bulk-head";
@@ -974,7 +974,7 @@
       title.className = "jai-bulk-title";
       title.textContent = "⬇ All open cards";
       const btn = document.createElement("button");
-      btn.id = "jai-proxy-bulk-btn";
+      btn.id = "aspect-bulk-btn";
       btn.textContent = "Download";
       btn.addEventListener("click", () => this.run());
       head.append(title, btn);
@@ -1360,7 +1360,7 @@
   // ---------------------------------------------------------------------------
   // FetchHook — patch window.fetch and XMLHttpRequest at document-start so
   // JanitorAI's chat-completion request is intercepted before its app code ever
-  // runs, relayed through the jai-proxy server (which answers it AND captures
+  // runs, relayed through the Aspect Archive server (which answers it AND captures
   // the hidden definition + primary greeting). Everything that doesn't look
   // like a chat-completion / models probe passes through untouched.
   //
@@ -1403,12 +1403,12 @@
   // The two CustomEvent names the injected page hook and this sandbox talk over.
   // Only JSON strings cross the boundary: a primitive is legible from both
   // realms in every browser, where an object would need cloneInto() in Firefox.
-  const BRIDGE_REQUEST = "jai-proxy:relay-request";
-  const BRIDGE_RESPONSE = "jai-proxy:relay-response";
+  const BRIDGE_REQUEST = "aspect:relay-request";
+  const BRIDGE_RESPONSE = "aspect:relay-response";
   // Set on <html> by the injected script itself, and read back synchronously —
   // an inline <script> executes on append, so if the attribute is missing the
   // injection was blocked and we know it rather than guessing later.
-  const HOOK_MARKER = "data-jai-proxy-hook";
+  const HOOK_MARKER = "data-aspect-hook";
 
   // ---------------------------------------------------------------------------
   // pageWorldHook — runs in the PAGE realm, not here.
@@ -1421,7 +1421,7 @@
   // inside this function.
   // ---------------------------------------------------------------------------
   function pageWorldHook() {
-    const TAG = "[jai-proxy/page]";
+    const TAG = "[aspect/page]";
     const plog = (...a) => console.log(TAG, ...a);
     const pwarn = (...a) => console.warn(TAG, ...a);
 
@@ -1505,8 +1505,8 @@
     const originalSend = OriginalXHR.prototype.send;
 
     OriginalXHR.prototype.open = function (method, url, ...rest) {
-      this.__jaiProxyUrl = url;
-      this.__jaiProxyMethod = method;
+      this.__aspectUrl = url;
+      this.__aspectMethod = method;
       return originalOpen.call(this, method, url, ...rest);
     };
 
@@ -1521,8 +1521,8 @@
     }
 
     OriginalXHR.prototype.send = function (body) {
-      const url = this.__jaiProxyUrl || "";
-      const method = this.__jaiProxyMethod || "GET";
+      const url = this.__aspectUrl || "";
+      const method = this.__aspectMethod || "GET";
       const bodyText = typeof body === "string" ? body : null;
       const xhr = this;
 

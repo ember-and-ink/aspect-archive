@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         saucepan-proxy bridge
 // @namespace    https://github.com/mjnitz02/jai-proxy
-// @version      0.9.0
-// @description  Thin bridge: exports a Saucepan companion as a V3 card PNG via Saucepan's clean JSON API (no DOM scraping) and shows a local jai-proxy connection pill. Card assembly lives server-side.
+// @version      0.9.1
+// @description  Thin bridge: exports a Saucepan companion as a V3 card PNG via Saucepan's clean JSON API (no DOM scraping) and shows a local Aspect Archive connection pill. Card assembly lives server-side.
 // @match        https://saucepan.ai/*
 // @run-at       document-idle
 // @grant        GM_xmlhttpRequest
@@ -31,12 +31,12 @@
   // ---------------------------------------------------------------------------
   // Config + logging. The saucepan bridge is the twin of the JanitorAI bridge:
   // it fetches a companion straight from saucepan's own JSON API and hands the
-  // raw export to the local jai-proxy server (POST /build-saucepan), which does
+  // raw export to the local Aspect Archive server (POST /build-saucepan), which does
   // all the deobfuscation / mapping / PNG assembly. (That whole pipeline used to
   // be a 1200-line in-page DOM scraper; it now lives server-side in
-  // proxy/saucepan_fragments.py + saucepan_mapper.py + cardbuilder.py.)
+  // aspect/saucepan_fragments.py + saucepan_mapper.py + cardbuilder.py.)
   // ---------------------------------------------------------------------------
-  // Where the jai-proxy server is. Persisted in Tampermonkey storage rather
+  // Where the Aspect Archive server is. Persisted in Tampermonkey storage rather
   // than compiled in, because it may now be a container on another machine
   // (docs/DEPLOY.md). To repoint the bridge, run this once in the console on
   // saucepan.ai — no recompile, no reinstall:
@@ -69,7 +69,7 @@
   const warn = (...a) => console.warn(TAG, ...a);
 
   // ---------------------------------------------------------------------------
-  // ServerClient — all traffic to the local jai-proxy server goes via
+  // ServerClient — all traffic to the local Aspect Archive server goes via
   // GM_xmlhttpRequest so it's exempt from the page's CSP / mixed-content rules.
   // `/health` drives the connection pill; `/build-saucepan` turns a raw export
   // into a saved PNG card server-side.
@@ -92,7 +92,7 @@
               reject(new Error(`HTTP ${r.status}: ${r.responseText}`));
             }
           },
-          onerror: () => reject(new Error("cannot reach jai-proxy server at " + SERVER)),
+          onerror: () => reject(new Error("cannot reach Aspect Archive server at " + SERVER)),
           ontimeout: () => reject(new Error("server timeout")),
         });
       });
@@ -481,7 +481,7 @@
     async clear() {
       if (
         !window.confirm(
-          "Clear the jai-proxy lorebook cache? The next export will re-fetch " +
+          "Clear the Aspect Archive lorebook cache? The next export will re-fetch " +
             "each lorebook fresh from saucepan. Exported PNGs are not affected."
         )
       ) {

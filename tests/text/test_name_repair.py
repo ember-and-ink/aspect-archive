@@ -1,10 +1,10 @@
-"""Tests for proxy.text.name_repair.
+"""Tests for aspect.text.name_repair.
 
 The cases here are drawn from real archive names -- every literal name string
 below is one an actual imported card carried.
 """
 
-from proxy.text.name_repair import (
+from aspect.text.name_repair import (
     GENERIC,
     JUNK,
     OK,

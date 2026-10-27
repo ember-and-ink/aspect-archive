@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from proxy.cards import avatar_refetch, pngtools
+from aspect.cards import avatar_refetch, pngtools
 from tests.conftest import card_png, jai_extensions
 
 FULL_PATH = "Drivai/mizuki-sayama-6f5ec0abafe8"

@@ -1,4 +1,4 @@
-"""How the React client at the root is served (proxy/server.py).
+"""How the React client at the root is served (aspect/server.py).
 
 The mount is conditional on `frontend/dist` existing, so these tests skip in a
 checkout that has not run `make frontend-build` -- and in CI, where the Python
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from proxy.server import FRONTEND_DIST
+from aspect.server import FRONTEND_DIST
 
 pytestmark = pytest.mark.skipif(
     not FRONTEND_DIST.is_dir(),
@@ -44,7 +44,7 @@ def test_client_side_routes_fall_back_to_the_shell(client):
 
 def test_the_shell_forbids_inline_script(client):
     """Creator notes are third-party HTML rendered into the page itself; this
-    is the boundary behind DOMPurify (`SHELL_CSP` in proxy/server.py)."""
+    is the boundary behind DOMPurify (`SHELL_CSP` in aspect/server.py)."""
     csp = client.get("/characters/Aurora_1a2b3c4d").headers["content-security-policy"]
     assert "script-src 'self'" in csp
     assert "unsafe-inline" not in csp

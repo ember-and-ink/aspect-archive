@@ -1,5 +1,5 @@
 {
-  "name": "jai-proxy-userscript-tests",
+  "name": "aspect-archive-userscript-tests",
   "private": true,
   "description": "Node-based unit tests for the userscript/src_jai modules (no bundler, no deps -- see tests/helpers/load-src.js).",
   "scripts": {

@@ -16,7 +16,7 @@ logs/
 # PngWriter._resolve_pngquant falls back to `shutil.which("pngquant")` when the
 # configured path is missing, so the Linux one installed by apt wins. Ship the
 # Mach-O binary and every card build would fail on it.
-proxy/pngquant
+aspect/pngquant
 
 # Local configuration. Correctness, not size -- config.py reads ROOT/.env, and
 # a developer's .env may set an ARCHIVE_DIR override.
@@ -26,7 +26,7 @@ proxy/pngquant
 # README, "What is in the image").
 #
 # The userscript *sources* are the exception: the server compiles a configured
-# bridge from them for Settings -> Userscripts (proxy/userscripts.py), which is
+# bridge from them for Settings -> Userscripts (aspect/userscripts.py), which is
 # the only install path a container user has. Only src_jai/ and src_saucepan/
 # are COPYd in, so the tests and the checked-in bundles below never ship.
 tests/

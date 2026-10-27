@@ -1,4 +1,4 @@
-"""`proxy/media/status.py` -- the one definition of "this card's media is
+"""`aspect/media/status.py` -- the one definition of "this card's media is
 complete", shared by `GET /media/status`, the `needs_media` browse chip, and
 bulk localize's skip list (docs/UI_REWRITE_PLAN.md Stage 6B).
 
@@ -8,9 +8,9 @@ every card in the archive, so anything it writes it writes 3,868 times.
 
 from __future__ import annotations
 
-from proxy.archive import catalog
-from proxy.config import settings
-from proxy.media import manifest as media_manifest, status as media_status
+from aspect.archive import catalog
+from aspect.config import settings
+from aspect.media import manifest as media_manifest, status as media_status
 
 
 def _index():

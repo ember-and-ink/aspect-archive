@@ -14,7 +14,7 @@ function wrapper() {
     createElement(QueryClientProvider, { client }, children)
 }
 
-describe('idFragment — the client-side mirror of proxy/cards/naming.py:id_fragment', () => {
+describe('idFragment — the client-side mirror of aspect/cards/naming.py:id_fragment', () => {
   it('takes the first 8 characters', () => {
     expect(idFragment('0d162f5f-86ab-4fdd-a2c2-3912adf24960')).toBe('0d162f5f')
   })
@@ -23,7 +23,7 @@ describe('idFragment — the client-side mirror of proxy/cards/naming.py:id_frag
     expect(idFragment('  weird/id:with*junk  ')).toBe('weirdidw')
   })
 
-  it('strips dots too, matching proxy/cards/naming.py exactly', () => {
+  it('strips dots too, matching aspect/cards/naming.py exactly', () => {
     // Only [A-Za-z0-9_-] survive server-side; a dot is not in that set.
     expect(idFragment('a.b.c.d.e.f.g.h.i')).toBe('abcdefgh')
   })

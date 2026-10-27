@@ -8,7 +8,7 @@ export type SecurityUpdate = components['schemas']['SecurityIn']
 
 /**
  * Where this browser stands with the server's login gate
- * (`proxy/api/gate.py`). One of the three API routes answerable without a
+ * (`aspect/api/gate.py`). One of the three API routes answerable without a
  * login, which is what lets `AuthGate` ask before anything else is fetched.
  */
 export function useSession() {

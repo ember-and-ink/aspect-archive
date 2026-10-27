@@ -14,13 +14,13 @@ export const apiClient = createClient<paths>({
 
 /**
  * Fired on `window` when an API call comes back 401 — the login gate
- * (`proxy/api/gate.py`) is on and this browser's session is gone. `AuthGate`
+ * (`aspect/api/gate.py`) is on and this browser's session is gone. `AuthGate`
  * listens and swaps the app for the login screen.
  *
  * An event rather than a query-client call so this module stays free of React:
  * it is imported by code that has no client to hand.
  */
-export const UNAUTHORIZED_EVENT = 'jai-proxy:unauthorized'
+export const UNAUTHORIZED_EVENT = 'aspect:unauthorized'
 
 apiClient.use({
   onResponse({ request, response }) {

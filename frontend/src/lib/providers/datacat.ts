@@ -255,7 +255,7 @@ export function hasUnfetchedLorebook(character: DatacatCharacter): boolean {
  * DataCat stopped inlining `script` on its rows; a lorebook's entries now live
  * at `api_path` on janitorai.com, one fetch per script. Skipping this is why
  * DataCat cards were importing with an empty lorebook — the mapper
- * (`proxy/sources/datacat.py:extract_character_book_from_scripts`) reads
+ * (`aspect/sources/datacat.py:extract_character_book_from_scripts`) reads
  * `script`, and there was never anything in it.
  *
  * Two things make this the browser's job rather than the server's, both ported
@@ -319,7 +319,7 @@ export async function hydrateDatacatScripts(
  * The anonymous session token, made visible and controllable.
  *
  * `DatacatSession` holds it in process memory only
- * (`proxy/sources/datacat_client.py:239-244`), so before Stage 6B a server
+ * (`aspect/sources/datacat_client.py:239-244`), so before Stage 6B a server
  * restart silently minted a brand-new anonymous identity and there was no way
  * to see, refresh, or clear it. These four wrap the server routes that already
  * existed and were called by nothing; the caller persists the token to the
@@ -335,7 +335,7 @@ export interface DatacatSessionState {
 }
 
 /** NOTE: `dc-validate` answers `{valid, reason}`, *not* the `{ok}` every other
- *  route in this group uses (`proxy/sources/datacat_client.py:295-311`). */
+ *  route in this group uses (`aspect/sources/datacat_client.py:295-311`). */
 export async function datacatValidate(): Promise<DatacatSessionState> {
   const { data } = await apiClient.GET('/api/v1/datacat/dc-validate', {})
   // The route is typed as a bare JSON object, so this narrows rather than
@@ -513,7 +513,7 @@ export interface DatacatTag {
 /**
  * DataCat's faceted tag catalogue -- a real published catalogue, unlike Chub's,
  * so no tallying is needed (`datacat-api.js:499-512`). Already allow-listed
- * server-side at `proxy/sources/datacat_client.py:227` and, until Stage 6B,
+ * server-side at `aspect/sources/datacat_client.py:227` and, until Stage 6B,
  * called by nothing.
  *
  * As with Chub, the result feeds the filter popover only; matching itself is

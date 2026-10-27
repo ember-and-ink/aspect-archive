@@ -7,14 +7,14 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from PIL import Image
 
-import proxy.server as server_module
-from proxy import deps
-from proxy.cards.builder import PngWriter
-from proxy.runtime import dashboard as dashboard_mod
-from proxy.state.captures import CaptureStore
-from proxy.state.lorebook_cache import LorebookCache
-from proxy.config import settings
-from proxy.runtime.dashboard import Dashboard
+import aspect.server as server_module
+from aspect import deps
+from aspect.cards.builder import PngWriter
+from aspect.runtime import dashboard as dashboard_mod
+from aspect.state.captures import CaptureStore
+from aspect.state.lorebook_cache import LorebookCache
+from aspect.config import settings
+from aspect.runtime.dashboard import Dashboard
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -267,10 +267,10 @@ def test_rebuilding_a_saved_card_skips_the_write(tmp_path, caplog):
         "avatar_url": "https://ella.janitorai.com/bot-avatars/example.webp",
     }
 
-    dashboard = Dashboard(title="jai-proxy", address="http://x")
+    dashboard = Dashboard(title="aspect-archive", address="http://x")
     dashboard_mod.DASHBOARD = dashboard
     try:
-        with caplog.at_level(logging.INFO, logger="jai_proxy.api.build"):
+        with caplog.at_level(logging.INFO, logger="aspect.api.build"):
             first = client.post("/build-jai", json=payload).json()
             path = Path(first["path"])
             stamped = path.read_bytes()
@@ -666,7 +666,7 @@ def test_build_falls_back_to_character_name_without_character_json(tmp_path):
 
     data = _decode(body["path"])
     assert data["name"] == "No Profile Card"
-    assert data["character_version"] == "jai-proxy"
+    assert data["character_version"] == "aspect-archive"
 
 
 def test_build_names_card_from_chat_name_not_title_blurb(tmp_path):

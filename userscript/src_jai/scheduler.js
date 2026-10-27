@@ -89,11 +89,11 @@
   // self-scheduling timer runs at a time; returning to the tab wakes it.
   //
   // Pill vocabulary (shared with the saucepan bridge):
-  //   🟢 jai-proxy               — connected, no card in view
-  //   🟢 jai-proxy · ready ✓     — open card, exportable right now
-  //   🟢 jai-proxy · hidden ✓    — hidden card, definition + greeting captured
-  //   🟢 jai-proxy · hidden ✗    — hidden card, nothing captured yet
-  //   🔴 jai-proxy (server down) — server unreachable
+  //   🟢 Aspect                  — connected, no card in view
+  //   🟢 Aspect · ready ✓        — open card, exportable right now
+  //   🟢 Aspect · hidden ✓       — hidden card, definition + greeting captured
+  //   🟢 Aspect · hidden ✗       — hidden card, nothing captured yet
+  //   🔴 Aspect (server down)    — server unreachable
   // ---------------------------------------------------------------------------
   let serverDown = false;
   let pollTimer = null;
@@ -120,11 +120,11 @@
       let statusText;
       if ((!onChar && !onChat) || !id) {
         await ServerClient.health();
-        statusText = "🟢 jai-proxy";
+        statusText = "🟢 Aspect";
       } else if (!hidden) {
         // Open card: the JSON carries everything; nothing to capture.
         await ServerClient.health();
-        statusText = "🟢 jai-proxy · ready ✓";
+        statusText = "🟢 Aspect · ready ✓";
         ready = true;
       } else {
         // Hidden card: the definition + primary greeting come from the chat
@@ -133,7 +133,7 @@
         const json = await CharacterState.ensureJson(id);
         const status = await ServerClient.captureStatus(characterName(json));
         const has = !!(status.system && status.greetings);
-        statusText = `🟢 jai-proxy · hidden ${has ? "✓" : "✗"}`;
+        statusText = `🟢 Aspect · hidden ${has ? "✓" : "✗"}`;
         ready = has;
       }
       serverDown = false;
@@ -141,7 +141,7 @@
       ExportButton.setReady(ready);
     } catch {
       serverDown = true;
-      Pill.setStatus("🔴 jai-proxy (server down)");
+      Pill.setStatus("🔴 Aspect (server down)");
       ExportButton.setReady(false);
     }
   }

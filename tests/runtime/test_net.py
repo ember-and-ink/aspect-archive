@@ -13,8 +13,8 @@ import json
 import httpx
 import pytest
 
-from proxy.config import settings
-from proxy.runtime import net
+from aspect.config import settings
+from aspect.runtime import net
 
 
 @pytest.fixture(autouse=True)
@@ -210,21 +210,21 @@ def test_no_module_builds_a_bare_httpx_client():
             if re.search(r"httpx\.(Async)?Client\s*\(", line):
                 offenders.append(f"{path.relative_to(root.parent)}:{lineno}")
     assert offenders == [], (
-        "build clients via proxy.runtime.net (async_client / sync_client / the "
+        "build clients via aspect.runtime.net (async_client / sync_client / the "
         f"holders) so they carry the configured proxy: {offenders}"
     )
 
 
 async def test_the_avatar_fetcher_uses_the_configured_proxy(monkeypatch):
     """The one fetcher that never had proxy support before this."""
-    from proxy.cards.avatar_fetch import AvatarFetcher
+    from aspect.cards.avatar_fetch import AvatarFetcher
 
     write_settings({net.SETTINGS_KEY: "http://ui:8118"})
     net.reset_cache()
 
     fetcher = AvatarFetcher()
     # Built lazily, so this is also the assertion that it is not pinned at
-    # import time the way `proxy.deps.avatar_fetcher` would otherwise pin it.
+    # import time the way `aspect.deps.avatar_fetcher` would otherwise pin it.
     assert isinstance(fetcher._clients, net.AsyncClientHolder)
     await fetcher._clients.get()
     assert fetcher._clients._proxy == "http://ui:8118"

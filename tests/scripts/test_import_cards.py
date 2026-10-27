@@ -25,8 +25,8 @@ from pathlib import Path
 from PIL import Image
 
 import scripts.import_cards as importer
-from proxy.cards import gallery, pngtools
-from proxy.cards.builder import CardBuilder, PngWriter
+from aspect.cards import gallery, pngtools
+from aspect.cards.builder import CardBuilder, PngWriter
 
 
 def _envelope(data: dict) -> dict:
@@ -157,7 +157,7 @@ def _run_import(import_dir: Path, cards_dir: Path, monkeypatch, *extra: str) -> 
     return importer.main()
 
 
-# The gallery_id accessor itself now lives in proxy/cards/gallery.py (shared with the
+# The gallery_id accessor itself now lives in aspect/cards/gallery.py (shared with the
 # writer and the backfill script) -- see tests/test_gallery.py.
 
 

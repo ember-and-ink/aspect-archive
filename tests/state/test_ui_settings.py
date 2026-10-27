@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from proxy.state import ui_settings
-from proxy.state.ui_settings import SettingsError, SettingsStore
+from aspect.state import ui_settings
+from aspect.state.ui_settings import SettingsError, SettingsStore
 
 
 @pytest.fixture

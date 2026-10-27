@@ -16,7 +16,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from proxy.archive import catalog
+from aspect.archive import catalog
 from tests.api.test_acquisition import FakeResponder, make_client
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"

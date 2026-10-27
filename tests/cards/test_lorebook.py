@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from proxy.cards.lorebook import LorebookMapper
-from proxy.cards.models import LoreEntry
+from aspect.cards.lorebook import LorebookMapper
+from aspect.cards.models import LoreEntry
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 

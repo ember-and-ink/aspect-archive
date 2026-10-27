@@ -16,9 +16,9 @@ from urllib.parse import quote
 import httpx
 import pytest
 
-from proxy.api import cors_proxy
-from proxy.config import settings
-from proxy.runtime import net
+from aspect.api import cors_proxy
+from aspect.config import settings
+from aspect.runtime import net
 
 
 def enc(url: str) -> str:
@@ -255,7 +255,7 @@ def test_the_passthrough_uses_the_configured_proxy(client, monkeypatch, populate
 @pytest.fixture
 def ip_legs(monkeypatch):
     """Control what each leg of the status check reports, by proxy value."""
-    from proxy.api.v1 import network
+    from aspect.api.v1 import network
 
     answers: dict = {}
 

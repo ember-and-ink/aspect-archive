@@ -9,7 +9,7 @@ export type DuplicatePair = components['schemas']['DuplicatePairOut']
 
 /** A full-archive duplicate scan. Server-computed in one request -- the
  *  detection itself (avatar hashing, prose comparison) runs in
- *  `proxy.cards.dupes`, never client-side, so this is a plain GET rather than
+ *  `aspect.cards.dupes`, never client-side, so this is a plain GET rather than
  *  the N-per-card detail fan-out a client-side scan would need. */
 export function useDuplicateGroups() {
   return useQuery({

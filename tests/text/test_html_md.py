@@ -3,7 +3,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-from proxy.text.html_md import html_to_md, normalize_quotes, serialize_md, tidy_text
+from aspect.text.html_md import html_to_md, normalize_quotes, serialize_md, tidy_text
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 

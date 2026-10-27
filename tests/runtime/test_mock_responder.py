@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from proxy.config import settings
-from proxy.runtime.mock_responder import MockResponder
+from aspect.config import settings
+from aspect.runtime.mock_responder import MockResponder
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 

@@ -1,4 +1,4 @@
-"""proxy/media/guard.py: the SSRF guard + size cap that must exist before any
+"""aspect/media/guard.py: the SSRF guard + size cap that must exist before any
 outbound-fetch code does (docs/PHASE_3C_PLAN.md §6/§9 step 3).
 
 Most cases are checked against real `isUrlSafeForDownload` output captured
@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-from proxy.media.guard import (
+from aspect.media.guard import (
     MAX_MEDIA_BYTES,
     MediaTooLargeError,
     UnsafeAddressError,
@@ -128,7 +128,7 @@ def test_is_safe_address_rejects_garbage():
 
 def test_resolve_safe_addresses_rejects_hostname_that_only_resolves_private():
     fake_infos = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))]
-    with patch("proxy.media.guard.socket.getaddrinfo", return_value=fake_infos):
+    with patch("aspect.media.guard.socket.getaddrinfo", return_value=fake_infos):
         with pytest.raises(UnsafeAddressError):
             resolve_safe_addresses("evil.example.com", 443)
 
@@ -138,14 +138,14 @@ def test_resolve_safe_addresses_returns_public_addresses_only():
         (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443)),
         (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443)),
     ]
-    with patch("proxy.media.guard.socket.getaddrinfo", return_value=fake_infos):
+    with patch("aspect.media.guard.socket.getaddrinfo", return_value=fake_infos):
         addrs = resolve_safe_addresses("mixed.example.com", 443)
     assert addrs == ["8.8.8.8"]
 
 
 def test_resolve_safe_addresses_propagates_nxdomain():
     with patch(
-        "proxy.media.guard.socket.getaddrinfo",
+        "aspect.media.guard.socket.getaddrinfo",
         side_effect=socket.gaierror("nodename nor servname provided"),
     ):
         with pytest.raises(socket.gaierror):

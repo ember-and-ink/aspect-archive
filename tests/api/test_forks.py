@@ -9,7 +9,7 @@ existing fork, and `fork.of` always names the root original.
 
 from __future__ import annotations
 
-from proxy.cards import pngtools
+from aspect.cards import pngtools
 from tests.conftest import card_png, jai_extensions
 
 

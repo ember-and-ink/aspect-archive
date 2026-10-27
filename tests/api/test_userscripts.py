@@ -1,4 +1,4 @@
-"""Compiling a configured Tampermonkey bridge (proxy/userscripts.py + its route).
+"""Compiling a configured Tampermonkey bridge (aspect/userscripts.py + its route).
 
 What matters here is that the substitution is *load-bearing*: the generated
 script is pasted straight into Tampermonkey, so a silently-unsubstituted
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from proxy import userscripts
+from aspect import userscripts
 
 
 def compiled(**kwargs) -> str:

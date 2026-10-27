@@ -119,7 +119,7 @@ def api(path: str):
 
 def find_card_with_notes_image(checked_limit: int = 400) -> str | None:
     """A real card whose creator notes carry an image -- markdown `![alt](url)`
-    (what most sources flatten to, proxy/text/html_md.py) or a literal `<img`
+    (what most sources flatten to, aspect/text/html_md.py) or a literal `<img`
     (Chub's laid-out HTML). Found live rather than hardcoded, so the check
     keeps working as the archive changes. Bounded: this used to be exactly the
     kind of note that silently rendered as text-only (a stray `!` beside a

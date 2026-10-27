@@ -37,7 +37,7 @@ def client(archive_dirs: dict[str, Path]):
     skipping `populated_archive` -- see the module docstring for why."""
     from fastapi.testclient import TestClient
 
-    from proxy.server import app
+    from aspect.server import app
 
     with TestClient(app) as test_client:
         yield test_client

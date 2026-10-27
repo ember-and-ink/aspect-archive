@@ -3,18 +3,18 @@
   unraid "Add Container" template. Drop this file into
   /boot/config/plugins/dockerMan/templates-user/ on the server (or paste the
   raw URL into the template field), then Docker -> Add Container -> pick
-  "jai-proxy" under User templates.
+  "aspect-archive" under User templates.
 
   compose.prod.yaml is the same deployment expressed for the Docker Compose
   Manager plugin; use whichever is less annoying on the day. Runbook:
   docs/DEPLOY.md.
 -->
 <Container version="2">
-  <Name>jai-proxy</Name>
-  <Repository>ghcr.io/ember-and-ink/jai-proxy:latest</Repository>
-  <Registry>https://github.com/ember-and-ink/jai-proxy/pkgs/container/jai-proxy</Registry>
-  <Project>https://github.com/ember-and-ink/jai-proxy</Project>
-  <Support>https://github.com/ember-and-ink/jai-proxy/issues</Support>
+  <Name>aspect-archive</Name>
+  <Repository>ghcr.io/ember-and-ink/aspect-archive:latest</Repository>
+  <Registry>https://github.com/ember-and-ink/aspect-archive/pkgs/container/aspect-archive</Registry>
+  <Project>https://github.com/ember-and-ink/aspect-archive</Project>
+  <Support>https://github.com/ember-and-ink/aspect-archive/issues</Support>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
@@ -53,17 +53,17 @@
   <Config
     Name="Data"
     Target="/app/data"
-    Default="/mnt/user/appdata/jai-proxy"
+    Default="/mnt/user/appdata/aspect-archive"
     Mode="rw"
     Description="Everything the container writes: characters/, galleries/, cache/, state/, settings.json. Seed it before first start (docs/DEPLOY.md) and make sure it is owned by the uid in Extra Parameters."
     Type="Path"
     Display="always"
     Required="true"
-    Mask="false">/mnt/user/appdata/jai-proxy</Config>
+    Mask="false">/mnt/user/appdata/aspect-archive</Config>
 
   <Config
     Name="Bind address"
-    Target="JAI_PROXY_HOST"
+    Target="ASPECT_HOST"
     Default="0.0.0.0"
     Description="Must stay 0.0.0.0 -- 127.0.0.1 would only be reachable from inside the container."
     Type="Variable"

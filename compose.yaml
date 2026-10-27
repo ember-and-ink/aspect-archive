@@ -1,8 +1,8 @@
 services:
   archive:
     build: .
-    image: jai-proxy:dev
-    container_name: jai-proxy
+    image: aspect-archive:dev
+    container_name: aspect-archive
     # 8000 is not a preference: both userscripts hardcode
     # http://127.0.0.1:8000 (userscript/src_jai/client-server.js,
     # src_saucepan/config.js). SillyTavern's stock port is also 8000, so the
@@ -15,5 +15,5 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      JAI_PROXY_HOST: "0.0.0.0"
+      ASPECT_HOST: "0.0.0.0"
     restart: unless-stopped

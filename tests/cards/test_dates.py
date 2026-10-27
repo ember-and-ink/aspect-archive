@@ -12,7 +12,7 @@ import io
 
 from PIL import Image
 
-from proxy.cards import dates, pngtools
+from aspect.cards import dates, pngtools
 
 EARLY = "2026-05-15T15:41:58.048Z"
 LATE = "2026-07-30T16:47:21.656Z"

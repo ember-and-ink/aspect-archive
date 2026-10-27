@@ -1,5 +1,5 @@
   // ---------------------------------------------------------------------------
-  // ServerClient — all traffic to the local jai-proxy server goes via
+  // ServerClient — all traffic to the local Aspect Archive server goes via
   // GM_xmlhttpRequest so it's exempt from the page's CSP / mixed-content rules.
   // `/health` drives the connection pill; `/build-saucepan` turns a raw export
   // into a saved PNG card server-side.
@@ -22,7 +22,7 @@
               reject(new Error(`HTTP ${r.status}: ${r.responseText}`));
             }
           },
-          onerror: () => reject(new Error("cannot reach jai-proxy server at " + SERVER)),
+          onerror: () => reject(new Error("cannot reach Aspect Archive server at " + SERVER)),
           ontimeout: () => reject(new Error("server timeout")),
         });
       });

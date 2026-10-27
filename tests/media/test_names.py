@@ -1,4 +1,4 @@
-"""proxy/media/names.py must match its JS counterparts exactly -- see the
+"""aspect/media/names.py must match its JS counterparts exactly -- see the
 module docstring for why. This pins two things:
 
 1. Real URLs pulled from actual cards (tests/fixtures/media_3c/real_url_names.json),
@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from proxy.media.names import (
+from aspect.media.names import (
     PREFIX_PRIORITY,
     extract_sanitized_url_name,
     keys_for_item,

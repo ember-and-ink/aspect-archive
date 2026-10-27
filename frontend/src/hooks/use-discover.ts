@@ -72,7 +72,7 @@ export interface DiscoverItem {
   created: number
   chats: number
   /** When a Following load first returned this card, epoch ms on the server's
-   *  clock (`proxy/state/seen.py`). Absent outside Following, and when the
+   *  clock (`aspect/state/seen.py`). Absent outside Following, and when the
    *  stamps could not be recorded. */
   firstSeen?: number
   raw: ChubNode | DatacatCharacter
@@ -634,7 +634,7 @@ export function useHaveGuard(providerIds: string[]) {
   })
 }
 
-/** The same `_<id8>` slice `proxy/cards/naming.py:id_fragment` derives --
+/** The same `_<id8>` slice `aspect/cards/naming.py:id_fragment` derives --
  * strip characters a filename can't carry, keep the first 8. */
 export function idFragment(providerId: string): string {
   return providerId.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 8)

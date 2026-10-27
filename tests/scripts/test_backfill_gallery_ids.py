@@ -16,7 +16,7 @@ from pathlib import Path
 from PIL import Image
 
 import scripts.backfill_gallery_ids as backfill
-from proxy.cards import pngtools
+from aspect.cards import pngtools
 
 
 def _png_bytes(colour: tuple[int, int, int, int] = (10, 20, 30, 255)) -> bytes:

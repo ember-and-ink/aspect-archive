@@ -1,11 +1,11 @@
   // SERVER lives in config.js (persisted, so the server can be remote).
 
-  const TAG = "[jai-proxy]";
+  const TAG = "[aspect]";
   const log = (...a) => console.log(TAG, ...a);
   const warn = (...a) => console.warn(TAG, ...a);
 
   // ---------------------------------------------------------------------------
-  // ServerClient — all traffic to the local jai-proxy server goes via
+  // ServerClient — all traffic to the local Aspect Archive server goes via
   // GM_xmlhttpRequest so it's exempt from the page's CSP / mixed-content rules.
   // ---------------------------------------------------------------------------
   const ServerClient = {

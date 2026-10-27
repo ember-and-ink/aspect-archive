@@ -1,12 +1,12 @@
 from pathlib import Path
 
-import proxy
-from proxy.config import ROOT, Settings
-from proxy.cards.models import CharacterCardV3
+import aspect
+from aspect.config import ROOT, Settings
+from aspect.cards.models import CharacterCardV3
 
 
 def test_package_imports():
-    assert proxy is not None
+    assert aspect is not None
 
 
 def test_settings_defaults():
@@ -25,7 +25,7 @@ def test_settings_defaults():
 def test_settings_read_env_file(tmp_path):
     env = tmp_path / ".env"
     env.write_text(
-        "JAI_PROXY_ARCHIVE_DIR=/tmp/characters\nJAI_PROXY_CARD_LAYOUT=nested\n",
+        "ASPECT_ARCHIVE_DIR=/tmp/characters\nASPECT_CARD_LAYOUT=nested\n",
         encoding="utf-8",
     )
     configured = Settings(_env_file=env)

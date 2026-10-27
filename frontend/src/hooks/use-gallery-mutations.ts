@@ -6,7 +6,7 @@ import { apiClient } from '@/lib/api-client'
  * pane's batch-select delete.
  *
  * Deliberately does *not* touch the folder's `.media.json` manifest (that's
- * server-side, `proxy/api/v1/galleries.py`'s `bulk_delete_files`): a binned
+ * server-side, `aspect/api/v1/galleries.py`'s `bulk_delete_files`): a binned
  * file keeps its manifest entry claiming the source URL as downloaded, so a
  * plain "Localize media" pass still treats the card as complete and does not
  * go re-fetch it. Only a full rescan re-derives the URL list from scratch and

@@ -11,9 +11,9 @@ import os
 
 import pytest
 
-from proxy import config, server
-from proxy.state.captures import CaptureStore
-from proxy.state.lorebook_cache import LorebookCache
+from aspect import config, server
+from aspect.state.captures import CaptureStore
+from aspect.state.lorebook_cache import LorebookCache
 
 # Permission bits do not stop uid 0, so the whole premise is untestable as root.
 pytestmark = pytest.mark.skipif(os.getuid() == 0, reason="root ignores mode bits")

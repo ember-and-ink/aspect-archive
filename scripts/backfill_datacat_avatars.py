@@ -13,7 +13,7 @@ scripts/import_cards.py). A card qualifies when:
 For each qualifying card, extensions.jai.id (the JanitorAI character id
 stamped at import time -- the same value `--fetch-datacat-images` would have
 passed to the resolver) is looked up through datacat.run's own API (see
-proxy/datacat_client.py) and, if found, prepended to creator_notes exactly the
+aspect/datacat_client.py) and, if found, prepended to creator_notes exactly the
 way CardBuilder.build does for a fresh import -- `![{name}]({avatar_url})\n\n`
 -- then re-embedded in place. Re-embedding goes through pngtools.embed_card,
 the same mechanism scripts/check_cards.py --repair uses, so only the tEXt
@@ -38,13 +38,13 @@ import argparse
 import re
 from pathlib import Path
 
-from proxy.cards import pngtools
-from proxy.config import settings
-from proxy.sources.datacat_client import DatacatImageResolver
+from aspect.cards import pngtools
+from aspect.config import settings
+from aspect.sources.datacat_client import DatacatImageResolver
 
 # A card is "already stamped" when creator_notes opens with a markdown image
 # link to one of the untouched source CDNs -- the exact shape CardBuilder
-# produces (see proxy/cards/builder.py's `if avatar_url:` block). Datacat's own
+# produces (see aspect/cards/builder.py's `if avatar_url:` block). Datacat's own
 # re-hosted media.datacat.run links don't count -- those are pre-existing
 # in-body images, not the stamp this script is checking for.
 _STAMPED_RE = re.compile(r"^!\[[^\]]*\]\(https://(?:ella\.janitorai\.com|cdn\.saucepan\.ai)/")

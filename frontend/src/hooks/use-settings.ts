@@ -32,7 +32,7 @@ export interface ProviderSettings {
   datacatToken: string | null
   datacatNsfw: boolean
   /** Civitai's API key. Not a card provider -- this is read by the Civitai
-   *  gallery extractor (`proxy/media/civitai.py`) and only matters for images
+   *  gallery extractor (`aspect/media/civitai.py`) and only matters for images
    *  Civitai hides from logged-out visitors. */
   civitaiApiKey: string | null
   /** Creators followed on DataCat. Purely local -- DataCat has no account to
@@ -138,7 +138,7 @@ export function useUpdateUi2() {
  * Update one or more keys at the blob's ROOT, not under `ui2`.
  *
  * The deliberate exception to the namespacing rule above, for two kinds of key:
- * `httpProxyUrl`, the single key `proxy/runtime/net.py` reads out of this file
+ * `httpProxyUrl`, the single key `aspect/runtime/net.py` reads out of this file
  * (see its `SETTINGS_KEY`) and reads *flat*; and the `ProviderSettings` keys,
  * which already hold real data written by the old UI. Nesting either under
  * `ui2` would not namespace it, it would orphan it -- and the failure would

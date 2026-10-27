@@ -1,5 +1,5 @@
 """`POST /api/v1/characters/{id}/media` and `GET .../media` -- the download
-route and manifest read, wired on top of `proxy/media/writer.py`
+route and manifest read, wired on top of `aspect/media/writer.py`
 (docs/PHASE_3C_PLAN.md §3, step 4). `media_writer.download_item` itself is
 covered exhaustively in tests/test_media_writer.py; these tests are about the
 route's own job: resolving the gallery folder from the card (creating it and
@@ -14,9 +14,9 @@ import json
 
 import pytest
 
-from proxy.config import settings
-from proxy.media import extractors as media_extractors, manifest as media_manifest, writer as media_writer
-from proxy.api.v1 import _shared as v1_shared, media as v1_media
+from aspect.config import settings
+from aspect.media import extractors as media_extractors, manifest as media_manifest, writer as media_writer
+from aspect.api.v1 import _shared as v1_shared, media as v1_media
 
 
 def _ndjson(response) -> list[dict]:
@@ -665,7 +665,7 @@ def test_omitting_needs_media_pays_no_manifest_io(client, populated_archive, mon
     reads: list = []
     real = media_manifest.load_manifest
     monkeypatch.setattr(
-        "proxy.api.v1.characters.media_manifest.load_manifest",
+        "aspect.api.v1.characters.media_manifest.load_manifest",
         lambda gallery_dir: (reads.append(gallery_dir), real(gallery_dir))[1],
     )
 
@@ -974,7 +974,7 @@ def test_batch_saves_the_dead_ledger_once_per_batch_not_once_per_card(
 ):
     """Trap 3: the dead ledger is one global file. Saving it per card would
     mean thousands of atomic rewrites of the same few thousand entries."""
-    from proxy.media import jobs as media_jobs_module
+    from aspect.media import jobs as media_jobs_module
 
     saves = []
     real_save = media_jobs_module.media_manifest.save_dead_ledger
@@ -1036,7 +1036,7 @@ def test_single_card_job_still_counts_items_not_cards(client, populated_archive,
 def test_discover_resolves_external_album_pages_into_the_job(client, populated_archive, stub_download_item, monkeypatch):
     """Stage 6B C3: the extGallery phase. A card linking a catbox album should
     download the album's files, not the album page."""
-    from proxy.media import extractors as media_extractors
+    from aspect.media import extractors as media_extractors
 
     monkeypatch.setattr(
         v1_media.media_discovery,
@@ -1072,7 +1072,7 @@ def test_discover_resolves_a_chub_sourced_cards_own_gallery(client, populated_ar
     """Stage 6B: the `chub` extractor. Triggered by the card's own
     `extensions.chub.id`, not a link in its text -- unlike extGallery, this
     should still fire even when the card's own prose has no gallery URL."""
-    from proxy.media import extractors as media_extractors
+    from aspect.media import extractors as media_extractors
 
     monkeypatch.setattr(v1_media.media_discovery, "find_character_media_urls", lambda data: ([], []))
     monkeypatch.setattr(v1_media.media_discovery, "collect_card_text_chunks", lambda data: ([], []))

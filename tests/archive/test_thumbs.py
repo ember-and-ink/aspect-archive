@@ -7,7 +7,7 @@ import io
 import pytest
 from PIL import Image
 
-from proxy.archive import thumbs
+from aspect.archive import thumbs
 from tests.conftest import card_png
 
 

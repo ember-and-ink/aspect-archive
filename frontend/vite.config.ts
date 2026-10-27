@@ -16,7 +16,7 @@ const SERVER = 'http://localhost:8000'
 // `/build-` is the acquisition namespace (`/build-chub`, `/build-datacat`) and
 // its absence here is why Discover's Get answered 404 on every click in dev:
 // the POST never left Vite. These routes are mounted at the server root, not
-// under /api (proxy/server.py mounts `build_router` unprefixed), so no other
+// under /api (aspect/server.py mounts `build_router` unprefixed), so no other
 // entry in this list covers them.
 const SERVER_PATHS = ['/api', '/proxy', '/health', '/existing', '/build-']
 

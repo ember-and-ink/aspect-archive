@@ -2,7 +2,7 @@
 
 SillyTavern stamps `create_date` on every card it writes and sorts on it; so
 does CharacterLibrary's "Date Created". Our builders never did -- see
-proxy/cards/dates.py -- so every card this tool produced sorted as 0 there and
+aspect/cards/dates.py -- so every card this tool produced sorted as 0 there and
 showed "(not available)" in the Info panel's Dates section.
 
 The read path no longer needs this pass: the archive index derives the value at
@@ -30,8 +30,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from proxy.cards import dates, pngtools
-from proxy.config import settings
+from aspect.cards import dates, pngtools
+from aspect.config import settings
 
 
 def main() -> int:

@@ -1,5 +1,5 @@
   // ---------------------------------------------------------------------------
-  // Where the jai-proxy server is.
+  // Where the Aspect Archive server is.
   //
   // Persisted in Tampermonkey storage rather than compiled in, because the
   // server may now be a container on another machine (docs/DEPLOY.md) and the

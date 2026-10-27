@@ -1,4 +1,4 @@
-"""proxy/media/discovery.py: `extract_media_urls` must match `extractMediaUrls`
+"""aspect/media/discovery.py: `extract_media_urls` must match `extractMediaUrls`
 (web/library-sections/30-media-localization-feature.js) exactly -- a URL it
 mangles is a file that never downloads and, worse, a fabricated URL that
 404s and gets filed as permanently dead.
@@ -9,7 +9,7 @@ named in docs/UI_REWRITE_PLAN.md §1.3 for this salvage item.
 
 from __future__ import annotations
 
-from proxy.media.discovery import collect_card_text_chunks, extract_media_urls, find_character_media_urls
+from aspect.media.discovery import collect_card_text_chunks, extract_media_urls, find_character_media_urls
 
 
 def test_janitorai_random_macro_yields_each_url_not_one_run_on_string():

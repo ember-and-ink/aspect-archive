@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write userscript/jai-proxy-bridge.user.js from userscript/src_jai/*.js.
 
-The concatenation itself lives in `proxy/userscripts.py`, because the server
+The concatenation itself lives in `aspect/userscripts.py`, because the server
 does the same job for the Settings -> Userscripts generator (with the server URL
 and tag filter substituted in). This script is the repo-side half: the
 unconfigured bundle, checked in so the file in the tree always matches its
@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from proxy.userscripts import SPECS, UserscriptError, write_userscript  # noqa: E402
+from aspect.userscripts import SPECS, UserscriptError, write_userscript  # noqa: E402
 
 
 def main() -> None:

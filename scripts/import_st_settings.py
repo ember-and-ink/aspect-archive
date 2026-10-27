@@ -44,8 +44,8 @@ import json
 import sys
 from pathlib import Path
 
-from proxy.state import ui_settings
-from proxy.config import settings
+from aspect.state import ui_settings
+from aspect.config import settings
 
 # The key the Character Library frontend stores itself under, inside
 # SillyTavern's `extension_settings`. Matches SETTINGS_KEY in web/library.js.

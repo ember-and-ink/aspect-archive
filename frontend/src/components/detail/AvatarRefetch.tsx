@@ -12,7 +12,7 @@ import type { CardDetail } from '@/hooks/use-character-detail'
 import { useRefetchAvatar } from '@/hooks/use-card-mutations'
 import { toast } from '@/lib/toast'
 
-/** Mirrors `LOW_RES_PX` in proxy/cards/avatar_refetch.py. */
+/** Mirrors `LOW_RES_PX` in aspect/cards/avatar_refetch.py. */
 const LOW_RES_PX = 250
 
 const ORIGIN_LABELS = {

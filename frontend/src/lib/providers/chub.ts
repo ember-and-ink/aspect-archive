@@ -133,7 +133,7 @@ export async function searchChub(opts: {
 
 /** The browse-tile avatar: `avatar_url` is Chub's 200x200 thumbnail, right
  *  for a grid and wrong for a card -- `/build-chub` picks the full-res image
- *  server-side (`proxy/sources/chub.py` `avatar_url`), so never send this. */
+ *  server-side (`aspect/sources/chub.py` `avatar_url`), so never send this. */
 export function chubAvatarUrl(node: ChubNode): string {
   if (node.avatar_url) return node.avatar_url
   if (node.max_res_url) return node.max_res_url
@@ -169,7 +169,7 @@ export async function fetchChubFull(
  * Port of `web/modules/providers/chub/chub-api.js:186-216`. The server-side
  * mapper already knows what to do with the result and already prefers the
  * embedded book when the linked one turns out to be empty
- * (`proxy/sources/chub.py:118-124`) — this only has to hand it over.
+ * (`aspect/sources/chub.py:118-124`) — this only has to hand it over.
  */
 export async function fetchChubLinkedLorebook(
   projectId: number | string | undefined,

@@ -1,7 +1,7 @@
   // ---------------------------------------------------------------------------
   // FetchHook — patch window.fetch and XMLHttpRequest at document-start so
   // JanitorAI's chat-completion request is intercepted before its app code ever
-  // runs, relayed through the jai-proxy server (which answers it AND captures
+  // runs, relayed through the Aspect Archive server (which answers it AND captures
   // the hidden definition + primary greeting). Everything that doesn't look
   // like a chat-completion / models probe passes through untouched.
   //
@@ -44,12 +44,12 @@
   // The two CustomEvent names the injected page hook and this sandbox talk over.
   // Only JSON strings cross the boundary: a primitive is legible from both
   // realms in every browser, where an object would need cloneInto() in Firefox.
-  const BRIDGE_REQUEST = "jai-proxy:relay-request";
-  const BRIDGE_RESPONSE = "jai-proxy:relay-response";
+  const BRIDGE_REQUEST = "aspect:relay-request";
+  const BRIDGE_RESPONSE = "aspect:relay-response";
   // Set on <html> by the injected script itself, and read back synchronously —
   // an inline <script> executes on append, so if the attribute is missing the
   // injection was blocked and we know it rather than guessing later.
-  const HOOK_MARKER = "data-jai-proxy-hook";
+  const HOOK_MARKER = "data-aspect-hook";
 
   // ---------------------------------------------------------------------------
   // pageWorldHook — runs in the PAGE realm, not here.
@@ -62,7 +62,7 @@
   // inside this function.
   // ---------------------------------------------------------------------------
   function pageWorldHook() {
-    const TAG = "[jai-proxy/page]";
+    const TAG = "[aspect/page]";
     const plog = (...a) => console.log(TAG, ...a);
     const pwarn = (...a) => console.warn(TAG, ...a);
 
@@ -146,8 +146,8 @@
     const originalSend = OriginalXHR.prototype.send;
 
     OriginalXHR.prototype.open = function (method, url, ...rest) {
-      this.__jaiProxyUrl = url;
-      this.__jaiProxyMethod = method;
+      this.__aspectUrl = url;
+      this.__aspectMethod = method;
       return originalOpen.call(this, method, url, ...rest);
     };
 
@@ -162,8 +162,8 @@
     }
 
     OriginalXHR.prototype.send = function (body) {
-      const url = this.__jaiProxyUrl || "";
-      const method = this.__jaiProxyMethod || "GET";
+      const url = this.__aspectUrl || "";
+      const method = this.__aspectMethod || "GET";
       const bodyText = typeof body === "string" ? body : null;
       const xhr = this;
 
