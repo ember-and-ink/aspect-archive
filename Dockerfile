@@ -55,7 +55,7 @@ RUN useradd --create-home --uid 1000 app
 
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
-COPY aspect/ ./proxy/
+COPY aspect/ ./aspect/
 # The client's built output only -- no node_modules, no sources. Serving it is
 # aspect/server.py's FRONTEND_DIST, and it answers at the root.
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
