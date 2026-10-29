@@ -6,7 +6,7 @@ const { loadModules, plain } = require("./helpers/load-src");
 // Neither helper touches ServerClient/passesTagFilter at load time, so
 // hide-captured.js can be loaded on its own with no globals.
 function load() {
-  return loadModules(["hide-captured.js"], ["cardIdFromHref", "tagRowFromWrapper"]);
+  return loadModules(["hide-captured.js"], ["cardIdFromHref", "tagRowFromWrapper", "isStale"]);
 }
 
 test("cardIdFromHref extracts and lower-cases the uuid from a character link", () => {
@@ -59,4 +59,26 @@ test("tagRowFromWrapper collects raw chip text, unnormalized", () => {
   const { tagRowFromWrapper } = load();
   const row = tagRowFromWrapper(makeWrapper({ chips: ["👩‍🦰 Female", "#custom"] }));
   assert.deepEqual(plain(row), { custom_tags: ["👩‍🦰 Female", "#custom"] });
+});
+
+const HOUR = 60 * 60 * 1000;
+
+test("isStale is true once a stamp is at or past the window", () => {
+  const { isStale } = load();
+  const now = 1_800_000_000_000;
+  assert.equal(isStale(now - 48 * HOUR, now, 48 * HOUR), true);
+  assert.equal(isStale(now - 200 * HOUR, now, 48 * HOUR), true);
+});
+
+test("isStale is false for a stamp inside the window", () => {
+  const { isStale } = load();
+  const now = 1_800_000_000_000;
+  assert.equal(isStale(now, now, 48 * HOUR), false);
+  assert.equal(isStale(now - 47 * HOUR, now, 48 * HOUR), false);
+});
+
+test("isStale fails open: no stamp is never stale", () => {
+  const { isStale } = load();
+  assert.equal(isStale(undefined, 1_800_000_000_000, 48 * HOUR), false);
+  assert.equal(isStale(null, 1_800_000_000_000, 48 * HOUR), false);
 });
