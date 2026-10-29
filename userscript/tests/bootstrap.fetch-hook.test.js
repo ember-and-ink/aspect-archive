@@ -262,3 +262,49 @@ test("unrelated requests are passed straight through", async () => {
   assert.equal(result, "ORIGINAL");
   assert.equal(asked.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// SPA navigation: the page hook announces a URL change over a document event.
+// ---------------------------------------------------------------------------
+
+// A page realm with a history the router drives: pushState/replaceState move
+// `location.href` the way the browser does.
+function installPageHookWithHistory() {
+  const { pageHookSource } = load();
+  const realm = makePageRealm();
+  const win = realm.context.window;
+  const popstate = [];
+  win.location = { href: "https://janitorai.com/" };
+  win.addEventListener = (type, fn) => {
+    if (type === "popstate") popstate.push(fn);
+  };
+  const move = (state, title, url) => {
+    if (url) win.location.href = new URL(url, win.location.href).href;
+  };
+  win.history = { pushState: move, replaceState: move };
+  vm.runInContext(pageHookSource(), realm.context, { filename: "page-hook.js" });
+  const announced = [];
+  realm.document.addEventListener("aspect:navigate", () => announced.push(win.location.href));
+  return { realm, win, announced, popstate };
+}
+
+test("pushState to a new URL is announced to the sandbox", () => {
+  const { win, announced } = installPageHookWithHistory();
+  win.history.pushState({}, "", "/profiles/abc_creator");
+  assert.deepEqual(announced, ["https://janitorai.com/profiles/abc_creator"]);
+});
+
+test("replaceState that keeps the URL (scroll restoration) is not announced", () => {
+  const { win, announced } = installPageHookWithHistory();
+  win.history.replaceState({ scroll: 120 }, "");
+  win.history.replaceState({ scroll: 240 }, "", "/");
+  assert.deepEqual(announced, []);
+});
+
+test("back/forward (popstate) to a new URL is announced", () => {
+  const { win, announced, popstate } = installPageHookWithHistory();
+  win.history.pushState({}, "", "/characters/x");
+  win.location.href = "https://janitorai.com/";
+  for (const fn of popstate) fn();
+  assert.deepEqual(announced, ["https://janitorai.com/characters/x", "https://janitorai.com/"]);
+});

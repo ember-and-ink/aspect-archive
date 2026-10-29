@@ -13,7 +13,7 @@ function load() {
   const document = { _hasMessageBody: false, querySelector() { return this._hasMessageBody ? {} : null; } };
   const mods = loadModules(
     ["scheduler.js"],
-    ["characterName", "currentCharacterId", "isChatView"],
+    ["characterName", "currentCharacterId", "isChatView", "pageKindFor"],
     { location, document }
   );
   return { ...mods, location, document };
@@ -53,4 +53,29 @@ test("isChatView reflects whether a message-body element is present", () => {
   assert.equal(isChatView(), false);
   document._hasMessageBody = true;
   assert.equal(isChatView(), true);
+});
+
+const UUID = "1a2b3c4d-1234-5678-9abc-1234567890ab";
+
+test("pageKindFor: a character page is 'character'", () => {
+  const { pageKindFor } = load();
+  assert.equal(pageKindFor(`/characters/${UUID}_some-slug`, false), "character");
+});
+
+test("pageKindFor: a /chats/ url or a chat in view is 'chat'", () => {
+  const { pageKindFor } = load();
+  assert.equal(pageKindFor(`/chats/${UUID}`, false), "chat");
+  assert.equal(pageKindFor("/", true), "chat");
+});
+
+test("pageKindFor: a creator profile is 'profile'", () => {
+  const { pageKindFor } = load();
+  assert.equal(pageKindFor(`/profiles/${UUID}_creator`, false), "profile");
+});
+
+test("pageKindFor: home, search and tag browse are all 'listing'", () => {
+  const { pageKindFor } = load();
+  assert.equal(pageKindFor("/", false), "listing");
+  assert.equal(pageKindFor("/search", false), "listing");
+  assert.equal(pageKindFor("/tags/female", false), "listing");
 });

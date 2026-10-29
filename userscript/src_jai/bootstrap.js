@@ -46,6 +46,9 @@
   // realms in every browser, where an object would need cloneInto() in Firefox.
   const BRIDGE_REQUEST = "aspect:relay-request";
   const BRIDGE_RESPONSE = "aspect:relay-response";
+  // Dispatched by the page hook whenever the SPA's URL changes, so the sandbox
+  // can re-apply the overlay and tile filters now rather than on the next tick.
+  const NAVIGATE_EVENT = "aspect:navigate";
   // Set on <html> by the injected script itself, and read back synchronously —
   // an inline <script> executes on append, so if the attribute is missing the
   // injection was blocked and we know it rather than guessing later.
@@ -56,7 +59,7 @@
   //
   // Stringified into the injected <script>, so it may only close over names the
   // injected preamble also defines: SERVER, looksLikeChatCompletion,
-  // looksLikeModelsProbe and the three constants above. No GM_*, no
+  // looksLikeModelsProbe and the four constants above. No GM_*, no
   // ServerClient, no log() from client-server.js — everything it needs is
   // either a parameter-free constant re-emitted by pageHookSource() or defined
   // inside this function.
@@ -192,6 +195,30 @@
       return originalSend.call(this, body);
     };
 
+    // SPA navigation. JanitorAI's router moves between pages with
+    // history.pushState, which no event announces, and the sandbox can't patch
+    // it for the same reason it can't patch fetch: its `history` isn't the one
+    // the router calls. replaceState fires constantly for scroll restoration
+    // with the URL unchanged, so only a real URL change is announced.
+    const history = window.history;
+    if (history && typeof history.pushState === "function") {
+      let lastHref = window.location.href;
+      const announce = () => {
+        if (window.location.href === lastHref) return;
+        lastHref = window.location.href;
+        document.dispatchEvent(new CustomEvent(NAVIGATE_EVENT));
+      };
+      for (const name of ["pushState", "replaceState"]) {
+        const original = history[name];
+        history[name] = function () {
+          const result = original.apply(this, arguments);
+          announce();
+          return result;
+        };
+      }
+      window.addEventListener("popstate", announce);
+    }
+
     document.documentElement.setAttribute(HOOK_MARKER, "1");
     plog("page-world fetch hook installed");
   }
@@ -207,6 +234,7 @@
       "  const BRIDGE_REQUEST = " + JSON.stringify(BRIDGE_REQUEST) + ";",
       "  const BRIDGE_RESPONSE = " + JSON.stringify(BRIDGE_RESPONSE) + ";",
       "  const HOOK_MARKER = " + JSON.stringify(HOOK_MARKER) + ";",
+      "  const NAVIGATE_EVENT = " + JSON.stringify(NAVIGATE_EVENT) + ";",
       String(looksLikeChatCompletion),
       String(looksLikeModelsProbe),
       "  (" + String(pageWorldHook) + ")();",
@@ -273,6 +301,7 @@
     Overlay.mount();
     Overlay.keepAlive();
     scheduleTick(0);
+    document.addEventListener(NAVIGATE_EVENT, onNavigate);
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) scheduleTick(0);
     });

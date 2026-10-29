@@ -35,6 +35,11 @@
   const DEFAULT_TOKEN = "";
   const SERVER_AUTH = DEFAULT_TOKEN ? "Bearer " + DEFAULT_TOKEN : "";
 
+  // "Recent only" keeps the cards first seen inside this window. The same 48h
+  // the archive's Discover uses (RECENT_WINDOW_MS in the frontend), so "recent"
+  // means one thing on both halves.
+  const RECENT_WINDOW_MS = 48 * 60 * 60 * 1000;
+
   // ---------------------------------------------------------------------------
   // User config — hand-edited, not persisted. Controls which cards the BULK
   // "download all open cards" run (creator /profiles/ page) exports. The single

@@ -101,9 +101,11 @@
   }
 
   // ---------------------------------------------------------------------------
-  // BulkPanel — the profile-page widget: a Download button, a status line, and
+  // BulkPanel — the overlay's "This creator" section (creator profiles only; the
+  // overlay decides when it shows): a Download all button, a status line, and
   // a scrollable list of rows whose leading icon tracks each card's fate
-  // (⏳ pending/working · ✓ saved · ✗ hidden-skipped · ⚠ failed).
+  // (⏳ pending/working · ✓ saved · ✗ hidden-skipped · ⚠ failed). While a run
+  // is going, `progress` ("18/38") is what the collapsed pill shows.
   // ---------------------------------------------------------------------------
   const BulkPanel = {
     _el: null,
@@ -112,26 +114,32 @@
     _list: null,
     _rows: new Map(),
     _running: false,
+    progress: "",
 
     build() {
       const el = document.createElement("div");
       el.id = "aspect-bulk";
+      el.style.display = "flex";
+      el.style.flexDirection = "column";
+      el.style.gap = "6px";
 
       const head = document.createElement("div");
       head.className = "jai-bulk-head";
       const title = document.createElement("span");
-      title.className = "jai-bulk-title";
-      title.textContent = "⬇ All open cards";
+      title.className = "jai-label";
+      title.textContent = "This creator";
       const btn = document.createElement("button");
       btn.id = "aspect-bulk-btn";
-      btn.textContent = "Download";
+      btn.type = "button";
+      btn.textContent = "Download all";
+      btn.title = "Export every open card this creator has published";
       btn.addEventListener("click", () => this.run());
       head.append(title, btn);
 
       const status = document.createElement("div");
       status.className = "jai-bulk-status";
       const fs = filterSummary();
-      status.textContent = fs ? `filter: ${fs} — click Download` : "creator profile — click Download";
+      status.textContent = fs ? `Open cards only · filter: ${fs}` : "Open cards only";
 
       const list = document.createElement("div");
       list.className = "jai-bulk-list";
@@ -142,10 +150,6 @@
       this._status = status;
       this._list = list;
       return el;
-    },
-
-    toggle(show) {
-      if (this._el) this._el.style.display = show ? "flex" : "none";
     },
 
     _setStatus(text) {
@@ -251,6 +255,8 @@
         for (let i = 0; i < pending.length; i += 1) {
           const r = pending[i];
           this._setStatus(`(${i + 1}/${pending.length}) ✓${done} ✗${hidden} ⚠${failed} — ${r.name}`);
+          this.progress = `${i + 1}/${pending.length}`;
+          Overlay.render();
           let built = false;
           try {
             this._setRow(r.id, "⏳", "checking…");
@@ -301,6 +307,8 @@
       } finally {
         this._running = false;
         this._btn.disabled = false;
+        this.progress = "";
+        Overlay.render();
       }
     },
   };

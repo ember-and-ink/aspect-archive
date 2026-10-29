@@ -3542,7 +3542,7 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "chub" | "datacat";
+            provider: "chub" | "datacat" | "janitor";
             /**
              * Ids
              * @description Every provider id one Following feed load returned -- the provider's own ids, not the archive's `_<id8>` fragments. Blanks and duplicates are dropped.

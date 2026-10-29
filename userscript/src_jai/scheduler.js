@@ -42,6 +42,24 @@
     return !!document.querySelector("[class*='_messageBody_']");
   }
 
+  // What kind of page this is, for which overlay sections apply:
+  //   character — /characters/<uuid>_…        (Export)
+  //   chat      — /chats/…, or a chat in view  (Export: where hidden captures land)
+  //   profile   — /profiles/<uuid>_…          (Download all + the switches)
+  //   listing   — anything else: home, search, tags (the switches)
+  // Pure over its inputs so it is testable; currentPageKind() feeds it the live
+  // URL and DOM.
+  function pageKindFor(pathname, chatInView) {
+    if (/\/characters?\/[0-9a-f-]{36}/i.test(pathname)) return "character";
+    if (/^\/chats?\//i.test(pathname) || chatInView) return "chat";
+    if (/\/profiles\/[0-9a-f-]{36}/i.test(pathname)) return "profile";
+    return "listing";
+  }
+
+  function currentPageKind() {
+    return pageKindFor(location.pathname, isChatView());
+  }
+
   const CharacterState = {
     _id: null,
     _json: null,
@@ -84,16 +102,16 @@
   };
 
   // ---------------------------------------------------------------------------
-  // Scheduler — one poll drives the pill + button. Paused while the tab is
-  // hidden; backs off to 15s while the server is unreachable. A single
-  // self-scheduling timer runs at a time; returning to the tab wakes it.
+  // Scheduler — one poll drives the overlay. Paused while the tab is hidden;
+  // backs off to 15s while the server is unreachable. A single self-scheduling
+  // timer runs at a time; returning to the tab, or an SPA navigation, wakes it.
   //
-  // Pill vocabulary (shared with the saucepan bridge):
-  //   🟢 Aspect                  — connected, no card in view
-  //   🟢 Aspect · ready ✓        — open card, exportable right now
-  //   🟢 Aspect · hidden ✓       — hidden card, definition + greeting captured
-  //   🟢 Aspect · hidden ✗       — hidden card, nothing captured yet
-  //   🔴 Aspect (server down)    — server unreachable
+  // Connection vocabulary (the words match the saucepan bridge's pill):
+  //   Aspect                — connected, no card in view
+  //   Aspect · ready ✓      — open card, exportable right now
+  //   Aspect · hidden ✓     — hidden card, definition + greeting captured
+  //   Aspect · hidden ✗     — hidden card, nothing captured yet (amber dot)
+  //   Aspect · server down  — server unreachable (red dot)
   // ---------------------------------------------------------------------------
   let serverDown = false;
   let pollTimer = null;
@@ -101,14 +119,9 @@
   async function tick() {
     await CharacterState.refresh();
 
-    // The bulk "download all open cards" panel lives on creator profile pages
-    // only; show/hide it as the SPA navigates.
-    BulkPanel.toggle(!!currentCreatorId());
-
-    // The "hide saved cards" toggle lives on any listing surface: show its
-    // button where cards render and, while active, fold in cards that
+    // Stamp and filter whatever tiles are rendered, folding in cards that
     // infinite-scroll has appended since the last tick.
-    await HideCaptured.refresh();
+    await TileFilters.refresh();
 
     const onChar = !!currentCharacterId();
     const onChat = isChatView();
@@ -117,14 +130,14 @@
 
     try {
       let ready = false;
-      let statusText;
+      let detail;
       if ((!onChar && !onChat) || !id) {
         await ServerClient.health();
-        statusText = "🟢 Aspect";
+        detail = "";
       } else if (!hidden) {
         // Open card: the JSON carries everything; nothing to capture.
         await ServerClient.health();
-        statusText = "🟢 Aspect · ready ✓";
+        detail = "ready ✓";
         ready = true;
       } else {
         // Hidden card: the definition + primary greeting come from the chat
@@ -133,17 +146,26 @@
         const json = await CharacterState.ensureJson(id);
         const status = await ServerClient.captureStatus(characterName(json));
         const has = !!(status.system && status.greetings);
-        statusText = `🟢 Aspect · hidden ${has ? "✓" : "✗"}`;
+        detail = `hidden ${has ? "✓" : "✗"}`;
         ready = has;
       }
       serverDown = false;
-      Pill.setStatus(statusText);
+      Overlay.setConnection("ok", detail);
       ExportButton.setReady(ready);
     } catch {
       serverDown = true;
-      Pill.setStatus("🔴 Aspect (server down)");
+      Overlay.setConnection("down");
       ExportButton.setReady(false);
     }
+  }
+
+  // The SPA changed the URL (bootstrap's page hook). Sections follow the URL
+  // right away, the tile filters bind to the next page's grid the moment it
+  // renders, and the tick runs now instead of up to 5s from now.
+  function onNavigate() {
+    Overlay.render();
+    TileFilters.onNavigate();
+    scheduleTick(0);
   }
 
   function scheduleTick(delay) {

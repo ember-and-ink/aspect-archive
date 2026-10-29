@@ -152,8 +152,19 @@ def test_post_keeps_the_original_stamp_across_requests(client, archive_dirs) -> 
     assert again["first_seen"]["a"] == first["first_seen"]["a"]
 
 
+def test_the_janitor_bucket_is_accepted_and_kept_apart(client, archive_dirs) -> None:
+    # The JanitorAI userscript stamps the tiles it renders into its own bucket;
+    # a JAI uuid must never read as a Chub or DataCat sighting.
+    uuid = "1a2b3c4d-1234-5678-9abc-1234567890ab"
+    resp = client.post("/api/v1/discover/seen", json={"provider": "janitor", "ids": [uuid]})
+    assert resp.status_code == 200
+    assert resp.json()["added"] == 1
+    other = client.post("/api/v1/discover/seen", json={"provider": "datacat", "ids": [uuid]})
+    assert other.json()["added"] == 1
+
+
 def test_an_unknown_provider_is_refused(client, archive_dirs) -> None:
-    resp = client.post("/api/v1/discover/seen", json={"provider": "janitor", "ids": ["a"]})
+    resp = client.post("/api/v1/discover/seen", json={"provider": "saucepan", "ids": ["a"]})
     assert resp.status_code == 422
     assert not archive_dirs["seen"].exists()
 

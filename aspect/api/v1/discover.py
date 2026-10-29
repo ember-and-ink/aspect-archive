@@ -20,7 +20,9 @@ acquiring a card is a separate, deliberate action.
 
 The one write below is `/discover/seen`: when each Following card first came
 back, which is what "Recent only" filters on and the only part of browsing
-that has nowhere else to live. See `aspect.state.seen`.
+that has nowhere else to live. The JanitorAI userscript writes its own
+`janitor` bucket through the same route, from every tile it renders. See
+`aspect.state.seen`.
 """
 
 from __future__ import annotations
@@ -45,10 +47,12 @@ router = APIRouter()
 
 SAUCEPAN_ORIGIN = "https://saucepan.ai"
 
-# The providers Discover browses, and so the only buckets these routes will
-# write. The store itself is bucket-agnostic (a third provider's rows survive a
-# read), but a typo reaching it would silently create a bucket nothing reads.
-Provider = Literal["chub", "datacat"]
+# The buckets `/discover/seen` will write: the two providers Discover browses,
+# plus `janitor`, stamped by the JanitorAI userscript from the tiles it renders
+# (its own "Recent only"). The store itself is bucket-agnostic (a fourth
+# provider's rows survive a read), but a typo reaching it would silently create
+# a bucket nothing reads.
+Provider = Literal["chub", "datacat", "janitor"]
 
 # Ids accepted in one request. A request is one whole Following feed -- Chub's
 # timeline plus 24 per followed author, DataCat's 50 per followed creator -- so

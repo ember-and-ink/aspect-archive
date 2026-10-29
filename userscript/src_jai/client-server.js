@@ -74,6 +74,19 @@
       return JSON.parse(text).existing || [];
     },
 
+    // Stamp these card ids as seen -- an id already recorded keeps its first
+    // stamp -- and read back when each was first seen, epoch ms on the
+    // server's clock. What "Recent only" filters on. The `janitor` bucket of
+    // the same store Discover's Following feed writes (aspect.state.seen).
+    async seen(ids) {
+      const { text } = await this._request({
+        method: "POST",
+        path: "/api/v1/discover/seen",
+        body: { provider: "janitor", ids },
+      });
+      return JSON.parse(text).first_seen || {};
+    },
+
     async captureStatus(name) {
       const { text } = await this._request({
         path: "/capture-status?name=" + encodeURIComponent(name),
