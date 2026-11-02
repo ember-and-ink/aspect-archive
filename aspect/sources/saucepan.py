@@ -30,7 +30,9 @@ Field mapping (decided against real captures):
                       appended under a "--- <Title> ---" label. Scenario is the most
                       visible field in SillyTavern, so response-formatting / extra
                       authored sections land there rather than buried in notes.
-    creator_notes  <- companion.short_description, then one markdown image per
+    creator_notes  <- the "Profile" prose (companion.full_description_fragments,
+                      falling back to the one-line short_description tagline),
+                      then one markdown image per
                       companion.portraits[] entry (avatar md is prepended
                       downstream, so notes end up: avatar, blurb, gallery).
                       Portraits are saucepan's own image gallery; surfacing them
@@ -118,14 +120,17 @@ def to_profile_fields(raw: dict[str, Any]) -> ProfileFields:
     sections = _deob_sections(raw)
     by_title = {title: value for title, value in sections}
 
+    full_description = _deob(comp.get("full_description_fragments")).strip()
     description = by_title.get(_CORE, "").strip()
     if not description:
         # Hidden/locked definitions return a decoy "card" error instead of real
         # sections; the v2 public blurb is the only prose left to fall back on.
-        description = _deob(comp.get("full_description_fragments")).strip()
+        description = full_description
 
     name = (comp.get("name") or "").strip()
-    creator_notes = (comp.get("short_description") or "").strip()
+    # The page's "Profile" tab is full_description; short_description is only
+    # the one-line listing tagline. Matches the DataCat saucepan path.
+    creator_notes = full_description or (comp.get("short_description") or "").strip()
     gallery = portrait_urls(raw)
     if gallery:
         images_md = "\n\n".join(f"![{caption or name}]({url})" for caption, url in gallery)

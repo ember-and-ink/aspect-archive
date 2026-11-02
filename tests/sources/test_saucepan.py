@@ -48,7 +48,9 @@ def test_eve_profile_fields():
     assert "--- " not in pf.scenario
     assert pf.mes_example.startswith("<START> {{char}}:")
     # blurb leads, then one markdown image per portrait (11 for Eve)
-    assert pf.creator_notes.startswith("What if the machine is more humane than the human?")
+    # the page's "Profile" prose (full_description), not the one-line tagline
+    assert pf.creator_notes.startswith("It was Sunday night in the living room of one Doctor Charles Ackerman")
+    assert "What if the machine is more humane than the human?" not in pf.creator_notes
     assert pf.creator_notes.count("![") == 11
     assert "![The Three Bullies](https://saucepan.ai/cdn/370f5b18-a180-4259-b9f8-17e46113cd00/highres)" in pf.creator_notes
 
@@ -102,6 +104,15 @@ def test_portrait_gallery_empty_when_locked():
     raw = load(EVE)
     raw["companion"]["companion"]["unlocked_portraits"] = False
     assert m.portrait_urls(raw) == []
+    pf = m.to_profile_fields(raw)
+    assert pf.creator_notes.startswith("It was Sunday night")
+    assert "![" not in pf.creator_notes
+
+
+def test_creator_notes_fall_back_to_tagline_without_full_description():
+    raw = load(EVE)
+    raw["companion"]["companion"]["full_description_fragments"] = None
+    raw["companion"]["companion"]["unlocked_portraits"] = False
     pf = m.to_profile_fields(raw)
     assert pf.creator_notes == "What if the machine is more humane than the human?"
 
