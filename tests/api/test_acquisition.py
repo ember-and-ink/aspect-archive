@@ -238,6 +238,14 @@ def test_build_exports_open_card_png(tmp_path):
     assert jai["source_url"] == "https://janitorai.com/characters/abc123"
     assert jai["sourceKind"] == "janitor_core"
     assert jai["creatorName"] == "dezea"
+    # Every attached script, the code one included, with no content.
+    assert [(x["id"][:8], x["type"], x["is_public"]) for x in jai["scripts"]] == [
+        ("9e345de7", "lorebook", True),
+        ("778a0994", "lorebook", True),
+        ("a2623eda", "advanced", True),
+    ]
+    assert jai["scripts"][0]["creator_name"] == "dezea"
+    assert "script" not in jai["scripts"][0] and "message_count" not in jai["scripts"][0]
     # The JSON `name` field (the card-title blurb) is kept as metadata, not
     # embedded as data.name.
     assert jai["pageName"] == "The Girl in Every Yearbook | Akane Kujo"
@@ -514,6 +522,28 @@ def test_build_datacat_records_the_listing_title_not_the_character_name(tmp_path
     # CharacterLibrary reads, and a card that disagreed with itself would show
     # one title in the archive and another there.
     assert data["extensions"]["datacat"]["pageName"] == jai["pageName"]
+
+
+def test_build_datacat_records_the_script_manifest(tmp_path):
+    """No captured DataCat row carries a populated `scripts[]` (Abbie's is
+    null), so this grafts Akane's real JanitorAI script rows onto the real
+    Abbie row -- DataCat mirrors JanitorAI's array, but the graft is an
+    assumption about its shape, not a capture of it."""
+    client = make_client(FakeResponder(), tmp_path)
+    character = _datacat_character("raw_api_character_abbie")
+    akane = json.loads((FIXTURES / "hampter" / "open_akane_kujo.json").read_text(encoding="utf-8"))
+    character["scripts"] = akane.get("character", akane)["scripts"]
+
+    resp = client.post("/build-datacat", json={"character": character})
+
+    assert resp.status_code == 200 and resp.json()["ok"] is True
+    scripts = _decode(resp.json()["path"])["extensions"]["jai"]["scripts"]
+    assert [s["id"] for s in scripts] == [
+        "9e345de7-1e25-4f1b-8aec-6ea0b10b8b6b",
+        "778a0994-9b95-41be-ad97-f48bfa477926",
+        "a2623eda-3f2e-41d1-b2ff-1d296a590f40",
+    ]
+    assert scripts[1]["creator_name"] == "dezea"
 
 
 # ---------------------------------------------------------------------------
