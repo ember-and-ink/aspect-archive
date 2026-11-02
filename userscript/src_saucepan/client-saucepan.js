@@ -4,6 +4,7 @@
   //
   //   GET /api/v1/companion/definition?companion_id=<id>  -> {sections, card}
   //   GET /api/v2/companions/<id>                          -> {companion, ...}
+  //   GET /api/v2/companions/<id>/lorebooks                -> {lorebooks:[{id, name, owner_handle, ...}]}
   //   GET /api/v2/lorebooks/<lid>/chapters                 -> {chapters:[{index,title}]}
   //   GET /api/v2/lorebooks/<lid>/chapters/<index>         -> {title, text_fragments}
   // Lorebook ids aren't in the companion payload, so they're read from the
@@ -100,8 +101,23 @@
       return !!inner && inner.open_definition === false;
     },
 
-    // The raw export for a companion id: {id, definition, companion, lorebooks,
-    // cached_lorebook_ids}. Exactly the shape POST /build-saucepan expects.
+    // The companion's attached lorebooks as saucepan lists them -- names,
+    // owners, protection level -- with no content. The card keeps this as its
+    // record of which lorebooks it uses, so a failure costs only that record:
+    // it resolves to [] rather than failing the export.
+    async fetchLorebookList(id) {
+      try {
+        const res = await apiGet(`/api/v2/companions/${id}/lorebooks`);
+        return Array.isArray(res && res.lorebooks) ? res.lorebooks : [];
+      } catch (err) {
+        warn("lorebook list fetch failed; exporting without it", err);
+        return [];
+      }
+    },
+
+    // The raw export for a companion id: {id, definition, companion,
+    // lorebook_list, lorebooks, cached_lorebook_ids}. Exactly the shape POST
+    // /build-saucepan expects.
     //
     // opts.lorebookIds — the lorebook ids to actually fetch (the cache MISSES;
     //   defaults to every lorebook on the page when omitted). Fetching a
@@ -126,6 +142,7 @@
 
       report({ phase: "companion" });
       out.companion = await this.fetchCompanion(id);
+      out.lorebook_list = await this.fetchLorebookList(id);
 
       // Read each MISSING lorebook's chapter LIST first (one cheap call each).
       // These carry the chapter counts, so summing them gives a real denominator

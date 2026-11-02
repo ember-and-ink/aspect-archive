@@ -238,6 +238,14 @@ def test_build_exports_open_card_png(tmp_path):
     assert jai["source_url"] == "https://janitorai.com/characters/abc123"
     assert jai["sourceKind"] == "janitor_core"
     assert jai["creatorName"] == "dezea"
+    # Every attached script, the code one included, with no content.
+    assert [(x["id"][:8], x["type"], x["is_public"]) for x in jai["scripts"]] == [
+        ("9e345de7", "lorebook", True),
+        ("778a0994", "lorebook", True),
+        ("a2623eda", "advanced", True),
+    ]
+    assert jai["scripts"][0]["creator_name"] == "dezea"
+    assert "script" not in jai["scripts"][0] and "message_count" not in jai["scripts"][0]
     # The JSON `name` field (the card-title blurb) is kept as metadata, not
     # embedded as data.name.
     assert jai["pageName"] == "The Girl in Every Yearbook | Akane Kujo"
@@ -516,10 +524,57 @@ def test_build_datacat_records_the_listing_title_not_the_character_name(tmp_path
     assert data["extensions"]["datacat"]["pageName"] == jai["pageName"]
 
 
+def test_build_datacat_records_the_script_manifest(tmp_path):
+    """No captured DataCat row carries a populated `scripts[]` (Abbie's is
+    null), so this grafts Akane's real JanitorAI script rows onto the real
+    Abbie row -- DataCat mirrors JanitorAI's array, but the graft is an
+    assumption about its shape, not a capture of it."""
+    client = make_client(FakeResponder(), tmp_path)
+    character = _datacat_character("raw_api_character_abbie")
+    akane = json.loads((FIXTURES / "hampter" / "open_akane_kujo.json").read_text(encoding="utf-8"))
+    character["scripts"] = akane.get("character", akane)["scripts"]
+
+    resp = client.post("/build-datacat", json={"character": character})
+
+    assert resp.status_code == 200 and resp.json()["ok"] is True
+    scripts = _decode(resp.json()["path"])["extensions"]["jai"]["scripts"]
+    assert [s["id"] for s in scripts] == [
+        "9e345de7-1e25-4f1b-8aec-6ea0b10b8b6b",
+        "778a0994-9b95-41be-ad97-f48bfa477926",
+        "a2623eda-3f2e-41d1-b2ff-1d296a590f40",
+    ]
+    assert scripts[1]["creator_name"] == "dezea"
+
+
 # ---------------------------------------------------------------------------
 # Lorebook cache -- /lorebooks/existing + /clear-lorebooks + the cache-aware
 # /build-saucepan path (fetch only the misses, reference cached lorebooks by id).
 # ---------------------------------------------------------------------------
+
+
+def test_build_saucepan_records_which_lorebooks_the_card_uses(tmp_path):
+    """Taryn and Eve are real exports that share one lorebook. The listing is
+    the synthetic `companion_lorebooks_example.json` (real shape, fake values),
+    its first row re-keyed to the shared book's id."""
+    client = make_client(FakeResponder(), tmp_path)
+    listing = json.loads((FIXTURES / "saucepan" / "companion_lorebooks_example.json").read_text(encoding="utf-8"))
+    shared = "123f0c96-3319-4dc8-aac2-c448da939be6"
+    taryn = {**_saucepan("1155a61e"), "lorebook_list": [{**listing["lorebooks"][0], "id": shared}]}
+
+    taryn_card = _decode(client.post("/build-saucepan", json={"character": taryn}).json()["path"])
+    eve_card = _decode(client.post("/build-saucepan", json={"character": _saucepan("04a0c1ac")}).json()["path"])
+
+    taryn_books = taryn_card["extensions"]["jai"]["lorebooks"]
+    assert [(b["id"], b["name"], b["owner_handle"]) for b in taryn_books] == [
+        (shared, "Pacing Primer", "fixture_author_a")
+    ]
+    # Eve's export carried no listing: her two books are recorded by id alone,
+    # which is still enough to see she shares one with Taryn.
+    assert [b["id"] for b in eve_card["extensions"]["jai"]["lorebooks"]] == [
+        "af12bbec-33db-4c41-aa2d-c350864e207d",
+        shared,
+    ]
+    assert taryn_card["character_book"]["extensions"]["jai_sources"][0]["id"] == shared
 
 
 def test_lorebooks_existing_splits_cached_and_missing(tmp_path):

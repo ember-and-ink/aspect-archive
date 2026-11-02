@@ -258,3 +258,61 @@ def test_tags_normalized_through_the_shared_intake_pipeline():
     pf = m.to_profile_fields(raw)
     card, _ = CardBuilder().build(pf, greetings=[], capture=None, book=None)
     assert card.tags == ["wildwest", "outlaw", "slow burn", "Femdom"]
+
+
+# ---------------------------------------------------------------------------
+# lorebook_manifest -- which lorebooks a companion uses, from the
+# `/api/v2/companions/<id>/lorebooks` listing. The fixture is SYNTHETIC: a real
+# response's exact shape (every key, the nulls, saucepan's `+00:00:00`
+# timestamps) with every id, name, owner and description replaced, so it points
+# at nothing real. Tests that need a listing row to match a real export's book
+# re-key the row to that book's id.
+# ---------------------------------------------------------------------------
+
+SHARED = "123f0c96-3319-4dc8-aac2-c448da939be6"  # Eve's second book; Taryn and JJ carry it too
+
+
+def lorebook_list() -> list[dict]:
+    raw = json.loads((FIX / "companion_lorebooks_example.json").read_text(encoding="utf-8"))
+    return raw["lorebooks"]
+
+
+def test_lorebook_manifest_keeps_the_listing_without_its_volatile_fields():
+    rows = m.lorebook_manifest({"lorebook_list": lorebook_list()})
+    assert [(r["name"], r["owner_handle"], r["definition_protection"]) for r in rows] == [
+        ("Pacing Primer", "fixture_author_a", "open"),
+        ("Rules for Ghosts", "fixture_author_b", "open"),
+        ("The Placeholder Compendium", "fixture_author_c", "copy_protection"),
+    ]
+    first = rows[0]
+    assert first["id"] == "00000000-0000-4000-8000-0000000000a1"
+    assert first["chapter_count"] == 13 and first["tags"] == ["utility"]
+    assert first["posted_at"] == "2026-01-05 10:00:00.000001 +00:00:00"
+    assert first["nsfw"] is False and rows[2]["very_nsfw"] is True
+    for gone in ("favorite_count", "is_favorited", "folder", "image_crop_zoom"):
+        assert gone not in first
+
+
+def test_lorebook_manifest_falls_back_to_ids_without_a_listing():
+    # An older userscript sends no listing: the attachments still get recorded,
+    # from the books it fetched and the ones it pulled from the cache.
+    eve = load(EVE)
+    raw = {**eve, "cached_lorebook_ids": ["cached-only"]}
+    assert m.lorebook_manifest(raw) == [{"id": b["id"]} for b in eve["lorebooks"]] + [{"id": "cached-only"}]
+
+
+def test_lorebook_manifest_tops_up_books_the_listing_missed():
+    eve = {**load(EVE), "lorebook_list": [{**lorebook_list()[0], "id": SHARED}]}
+    rows = m.lorebook_manifest(eve)
+    assert [r["id"] for r in rows] == [SHARED, "af12bbec-33db-4c41-aa2d-c350864e207d"]
+    assert rows[0]["name"] == "Pacing Primer" and rows[1] == {"id": "af12bbec-33db-4c41-aa2d-c350864e207d"}
+
+
+def test_character_book_records_each_lorebooks_run():
+    eve = {**load(EVE), "lorebook_list": [{**lorebook_list()[0], "id": SHARED}]}
+    book = m.character_book(eve, character_name="Eve")
+    assert book.extensions["jai_sources"] == [
+        {"id": "af12bbec-33db-4c41-aa2d-c350864e207d", "title": "", "entry_count": 6},
+        {"id": SHARED, "title": "Pacing Primer", "entry_count": 13},
+    ]
+    assert sum(s["entry_count"] for s in book.extensions["jai_sources"]) == len(book.entries)
