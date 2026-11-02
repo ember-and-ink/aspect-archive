@@ -406,6 +406,9 @@ async def build_saucepan(req: SaucepanBuildRequest) -> BuildResponse:
             linked_at=linked_at,
         ),
     }
+    lorebooks = saucepan.lorebook_manifest(raw)
+    if lorebooks:
+        extensions["jai"]["lorebooks"] = lorebooks
 
     return await _assemble_and_write(
         profile=profile,

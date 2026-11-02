@@ -552,6 +552,31 @@ def test_build_datacat_records_the_script_manifest(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def test_build_saucepan_records_which_lorebooks_the_card_uses(tmp_path):
+    """Taryn and Eve are real exports that share one lorebook. The listing is
+    the synthetic `companion_lorebooks_example.json` (real shape, fake values),
+    its first row re-keyed to the shared book's id."""
+    client = make_client(FakeResponder(), tmp_path)
+    listing = json.loads((FIXTURES / "saucepan" / "companion_lorebooks_example.json").read_text(encoding="utf-8"))
+    shared = "123f0c96-3319-4dc8-aac2-c448da939be6"
+    taryn = {**_saucepan("1155a61e"), "lorebook_list": [{**listing["lorebooks"][0], "id": shared}]}
+
+    taryn_card = _decode(client.post("/build-saucepan", json={"character": taryn}).json()["path"])
+    eve_card = _decode(client.post("/build-saucepan", json={"character": _saucepan("04a0c1ac")}).json()["path"])
+
+    taryn_books = taryn_card["extensions"]["jai"]["lorebooks"]
+    assert [(b["id"], b["name"], b["owner_handle"]) for b in taryn_books] == [
+        (shared, "Pacing Primer", "fixture_author_a")
+    ]
+    # Eve's export carried no listing: her two books are recorded by id alone,
+    # which is still enough to see she shares one with Taryn.
+    assert [b["id"] for b in eve_card["extensions"]["jai"]["lorebooks"]] == [
+        "af12bbec-33db-4c41-aa2d-c350864e207d",
+        shared,
+    ]
+    assert taryn_card["character_book"]["extensions"]["jai_sources"][0]["id"] == shared
+
+
 def test_lorebooks_existing_splits_cached_and_missing(tmp_path):
     client = make_client(FakeResponder(), tmp_path)
     eve = _saucepan("04a0c1ac")

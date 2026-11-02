@@ -8,7 +8,8 @@ from saucepan's API and posts to `/build-saucepan`, one object per character:
       "id": "<companion uuid>",
       "definition": { "sections": [{title, content:<fragments>}, ...], "card": ... },
       "companion":  <GET /api/v2/companions/<id> response>,
-      "lorebooks":  [ {id, list, chapters:[{index, title, text_fragments}, ...]}, ... ]
+      "lorebooks":  [ {id, list, chapters:[{index, title, text_fragments}, ...]}, ... ],
+      "lorebook_list": <GET /api/v2/companions/<id>/lorebooks response>.lorebooks
     }
 
 Every long text field arrives obfuscated (see `saucepan_fragments`); this module
@@ -19,6 +20,7 @@ the same CardBuilder -> PngWriter tail:
     greetings(raw)         -> list[str]      (starting scenarios, blanks dropped)
     character_book(raw)    -> CharacterBook | None
     avatar_url(raw)        -> str
+    lorebook_manifest(raw) -> list[dict]     (every attached lorebook, content-free)
 
 Field mapping (decided against real captures):
     name           <- companion.name          (display_name kept as page-name meta)
@@ -166,8 +168,14 @@ def character_book(raw: dict[str, Any], character_name: str = "") -> CharacterBo
     saucepan chapters carry no trigger keywords, so the title is the only key we
     have. Returns None when nothing has content."""
     entries: list[LoreEntry] = []
+    # Per lorebook, the run of entries it contributed -- the same record
+    # LorebookMapper writes for a /build-jai card, so the folded book can later
+    # be taken apart by lorebook id.
+    sources: list[dict[str, Any]] = []
+    names = {row["id"]: row.get("name", "") for row in _listed_lorebooks(raw)}
     order = 0
     for lorebook in raw.get("lorebooks") or []:
+        start = len(entries)
         for chapter in lorebook.get("chapters") or []:
             content = _deob(chapter.get("text_fragments")).strip()
             if not content:
@@ -185,10 +193,83 @@ def character_book(raw: dict[str, Any], character_name: str = "") -> CharacterBo
                     enabled=True,
                 )
             )
+        if len(entries) > start:
+            lid = _str(lorebook.get("id"))
+            sources.append({"id": lid, "title": names.get(lid, ""), "entry_count": len(entries) - start})
     if not entries:
         return None
     name = f"{character_name} Lorebook".strip() if character_name.strip() else ""
-    return CharacterBook(name=name, entries=entries)
+    return CharacterBook(name=name, entries=entries, extensions={"jai_sources": sources})
+
+
+def _str(value: Any) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+# What a card keeps of each attached lorebook. Left out on purpose: the
+# favourite count (it moves every day, so it would date the card rather than
+# describe the book), and `is_favorited` / `folder*` / image crop, which
+# describe the viewing account rather than the book.
+_LOREBOOK_STR_FIELDS = (
+    "id",
+    "name",
+    "owner_id",
+    "owner_handle",
+    "access_level",
+    "definition_protection",
+    "short_description",
+    "image_id",
+    "posted_at",
+    "updated_at",
+)
+_LOREBOOK_INT_FIELDS = ("chapter_count", "total_word_count")
+_LOREBOOK_BOOL_FIELDS = ("nsfw", "very_nsfw")
+
+
+def _listed_lorebooks(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    """`lorebook_list` -- the companion's `/lorebooks` listing -- trimmed to
+    the fields a card keeps, rows without an id dropped."""
+    listed = raw.get("lorebook_list")
+    out: list[dict[str, Any]] = []
+    for book in listed if isinstance(listed, list) else []:
+        if not isinstance(book, dict) or not _str(book.get("id")):
+            continue
+        row: dict[str, Any] = {}
+        for key in _LOREBOOK_STR_FIELDS:
+            if _str(book.get(key)):
+                row[key] = _str(book.get(key))
+        for key in _LOREBOOK_INT_FIELDS:
+            value = book.get(key)
+            if isinstance(value, int) and not isinstance(value, bool):
+                row[key] = value
+        for key in _LOREBOOK_BOOL_FIELDS:
+            row[key] = book.get(key) is True
+        tags = book.get("tags")
+        if isinstance(tags, list):
+            row["tags"] = [t for t in tags if isinstance(t, str) and t]
+        out.append(row)
+    return out
+
+
+def lorebook_manifest(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every lorebook the companion has attached, as `extensions.jai.lorebooks`
+    records it -- the saucepan peer of `janitor.script_manifest`.
+
+    The companion's `/lorebooks` listing names each one, copy-protected books
+    included. A book the export fetched or pulled from the cache but the
+    listing did not cover (an older userscript sends no listing, or the
+    request failed) still gets an id-only row: the attachment is the part
+    that matters for spotting the same book on another card."""
+    rows = _listed_lorebooks(raw)
+    seen = {row["id"] for row in rows}
+    fetched = [b.get("id") for b in raw.get("lorebooks") or [] if isinstance(b, dict)]
+    cached = raw.get("cached_lorebook_ids")
+    for lid in fetched + (cached if isinstance(cached, list) else []):
+        lid = _str(lid)
+        if lid and lid not in seen:
+            rows.append({"id": lid})
+            seen.add(lid)
+    return rows
 
 
 def avatar_url(raw: dict[str, Any]) -> str:
