@@ -203,6 +203,29 @@ export function datacatSourceKind(hit: DatacatCharacter): string | null {
   return typeof kind === 'string' && kind ? kind : null
 }
 
+/**
+ * DataCat's own "this card is incomplete" flag.
+ *
+ * A `DEGRADED` card is one DataCat could only partly recover: in practice the
+ * greeting and creator notes are there, but description / personality /
+ * scenario / example dialogue are empty, even though `token_counts` still
+ * reports their size. Importing one writes a card with no definition, and
+ * because an archived card is never overwritten, a better copy can only come
+ * in after the thin one is deleted. The JanitorAI userscript can still capture
+ * these cards in full.
+ *
+ * The rule is DataCat's own, read from its UI bundle: `recoveryBadgeText`
+ * upper-cased `=== "DEGRADED"` gets the badge "Recovered character data is
+ * incomplete." The field is present on all three row shapes: browse rows
+ * (`recoveryBadgeText`), creator rows (camelCase) and detail
+ * (`recovery_badge_text`). Measured 2026-11-03: a degraded detail had a
+ * 0-char personality, and an unflagged one 7,278 chars.
+ */
+export function isDatacatDegraded(hit: DatacatCharacter | null | undefined) {
+  const badge = hit?.recovery_badge_text ?? hit?.recoveryBadgeText
+  return typeof badge === 'string' && badge.trim().toUpperCase() === 'DEGRADED'
+}
+
 export function resolveDatacatTagNames(
   tags: DatacatCharacter['tags'],
 ): string[] {

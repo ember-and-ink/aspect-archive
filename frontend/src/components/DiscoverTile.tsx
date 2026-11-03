@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
+import { TriangleAlert } from 'lucide-react'
 import type { DiscoverItem } from '@/hooks/use-discover'
 import { cn } from '@/lib/utils'
 
@@ -60,6 +61,18 @@ export function DiscoverTile({
             </span>
           )
         )}
+        {item.degraded && (
+          // Left corner, so it never competes with Have/New on the right: a
+          // card can be both owned and incomplete, and both facts matter.
+          <span
+            title="Incomplete on DataCat: no definition, only the greeting. Capture it from JanitorAI with the userscript instead."
+            aria-label="Incomplete card"
+            className="absolute top-[7px] left-[7px] z-2 flex items-center gap-1 rounded-[6px] border border-warn/60 bg-ground/85 px-1.5 py-px text-[10px] font-bold tracking-[0.05em] text-warn uppercase"
+          >
+            <TriangleAlert className="size-3" />
+            Partial
+          </span>
+        )}
         {item.avatarUrl ? (
           <img
             src={item.avatarUrl}
@@ -83,9 +96,20 @@ export function DiscoverTile({
             onAdd()
           }}
           disabled={adding}
-          className="absolute inset-x-[7px] bottom-[7px] z-3 hidden h-7 items-center justify-center rounded-lg bg-sage text-[12px] font-semibold text-on-sage group-hover:flex disabled:opacity-60"
+          className={cn(
+            'absolute inset-x-[7px] bottom-[7px] z-3 hidden h-7 items-center justify-center rounded-lg text-[12px] font-semibold group-hover:flex disabled:opacity-60',
+            item.degraded
+              ? 'border border-warn/60 bg-ground/90 text-warn'
+              : 'bg-sage text-on-sage',
+          )}
         >
-          {adding ? 'Adding…' : have ? 'Add again' : 'Get'}
+          {adding
+            ? 'Adding…'
+            : item.degraded
+              ? 'Get anyway'
+              : have
+                ? 'Add again'
+                : 'Get'}
         </button>
       </div>
       <h3 className="mt-2 line-clamp-2 text-[13.5px] leading-[1.3] font-medium">

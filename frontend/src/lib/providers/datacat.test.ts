@@ -3,6 +3,7 @@ import {
   datacatAvatarUrl,
   fetchDatacatCreator,
   hydrateDatacatScripts,
+  isDatacatDegraded,
 } from './datacat'
 
 /** The creator endpoint answers through `dc-proxy`, and the module bootstraps a
@@ -149,5 +150,50 @@ describe('hydrateDatacatScripts — fetches every script in parallel', () => {
     expect(await done).toBe(true)
     expect(scripts[0].script).toBe('entries')
     expect(scripts[1].script).toBe('entries')
+  })
+})
+
+describe('isDatacatDegraded — DataCat\'s own "incomplete" badge', () => {
+  // Field values copied from live dc-proxy responses, 2026-11-03: Meraxus's
+  // "Vess" (9cd08cce, creator row + detail, empty definition) and an unflagged
+  // browse card (1c02233e, 7,278-char personality). Every shape sends both
+  // spellings, and an unflagged card has null, not a missing key.
+  it('flags a degraded creator row (camelCase)', () => {
+    expect(
+      isDatacatDegraded({
+        characterId: '9cd08cce-385e-47eb-bbda-2fc502f746a0',
+        recoveryBadgeText: 'DEGRADED',
+        recovery_badge_text: 'DEGRADED',
+      }),
+    ).toBe(true)
+  })
+
+  it('flags a degraded detail payload (snake_case only)', () => {
+    expect(
+      isDatacatDegraded({
+        character_id: '9cd08cce-385e-47eb-bbda-2fc502f746a0',
+        recovery_badge_text: 'DEGRADED',
+      }),
+    ).toBe(true)
+  })
+
+  it('matches case-insensitively, as DataCat does', () => {
+    expect(isDatacatDegraded({ recoveryBadgeText: ' degraded ' })).toBe(true)
+  })
+
+  it('leaves an unflagged card alone', () => {
+    expect(
+      isDatacatDegraded({
+        character_id: '1c02233e-b032-4f2e-98a7-2356d7898e61',
+        recoveryBadgeText: null,
+        recovery_badge_text: null,
+      }),
+    ).toBe(false)
+    expect(isDatacatDegraded({})).toBe(false)
+    expect(isDatacatDegraded(undefined)).toBe(false)
+  })
+
+  it('does not treat RECOVERED as incomplete', () => {
+    expect(isDatacatDegraded({ recoveryBadgeText: 'RECOVERED' })).toBe(false)
   })
 })

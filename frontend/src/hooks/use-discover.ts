@@ -26,6 +26,7 @@ import {
   fetchDatacatCreatorCharacters,
   fetchDatacatFresh,
   fetchDatacatTags,
+  isDatacatDegraded,
   resolveDatacatTagNames,
   searchDatacat,
   type DatacatCharacter,
@@ -75,6 +76,10 @@ export interface DiscoverItem {
    *  clock (`aspect/state/seen.py`). Absent outside Following, and when the
    *  stamps could not be recorded. */
   firstSeen?: number
+  /** The provider says it holds only part of this card (DataCat's `DEGRADED`),
+   *  so adding it would archive a card with no definition. Chub has no
+   *  equivalent and is always false. */
+  degraded: boolean
   raw: ChubNode | DatacatCharacter
 }
 
@@ -114,6 +119,7 @@ function fromChub(node: ChubNode): DiscoverItem {
     tags: node.topics ?? [],
     created: epoch(node.createdAt ?? node.created_at),
     chats: Number(node.n_favorites ?? node.starCount ?? 0) || 0,
+    degraded: false,
     raw: node,
   }
 }
@@ -136,6 +142,7 @@ function fromDatacat(hit: DatacatCharacter): DiscoverItem {
     tags: resolveDatacatTagNames(hit.tags),
     created: epoch(hit.createdAt ?? hit.created_at),
     chats: Number(hit.chatCount ?? hit.chat_count ?? 0) || 0,
+    degraded: isDatacatDegraded(hit),
     raw: hit,
   }
 }
