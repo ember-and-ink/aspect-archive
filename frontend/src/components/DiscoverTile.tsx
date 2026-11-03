@@ -65,7 +65,7 @@ export function DiscoverTile({
           // Left corner, so it never competes with Have/New on the right: a
           // card can be both owned and incomplete, and both facts matter.
           <span
-            title="Incomplete on DataCat: no definition, only the greeting. Capture it from JanitorAI with the userscript instead."
+            title="Incomplete on DataCat: no definition, only the greeting. The creator usually blocks proxies on these, so it can't be captured in full."
             aria-label="Incomplete card"
             className="absolute top-[7px] left-[7px] z-2 flex items-center gap-1 rounded-[6px] border border-warn/60 bg-ground/85 px-1.5 py-px text-[10px] font-bold tracking-[0.05em] text-warn uppercase"
           >

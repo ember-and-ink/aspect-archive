@@ -247,10 +247,10 @@ export function DiscoverPreviewPage() {
               </b>
               <p className="mt-1">
                 DataCat marks this card degraded: it has the greeting but no
-                definition (description, personality, scenario, examples).
-                Adding it archives that empty card, and an archived card is
-                never overwritten. Capture it from JanitorAI with the userscript
-                instead.
+                definition (description, personality, scenario, examples). The
+                creator usually blocks proxies on these, so the definition can't
+                be captured anywhere. Adding it archives the empty card, and an
+                archived card is never overwritten.
               </p>
             </div>
           )}

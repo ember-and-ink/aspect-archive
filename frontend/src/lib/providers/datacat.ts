@@ -211,8 +211,12 @@ export function datacatSourceKind(hit: DatacatCharacter): string | null {
  * scenario / example dialogue are empty, even though `token_counts` still
  * reports their size. Importing one writes a card with no definition, and
  * because an archived card is never overwritten, a better copy can only come
- * in after the thin one is deleted. The JanitorAI userscript can still capture
- * these cards in full.
+ * in after the thin one is deleted.
+ *
+ * Why they are thin: in every sample so far (10/10, 2026-11-03) a degraded card
+ * also has `allowProxy: false`. The creator blocked proxies, so neither
+ * DataCat nor our own userscript's hidden-definition capture (which runs
+ * through the proxy) can get the definition. Only the public parts exist.
  *
  * The rule is DataCat's own, read from its UI bundle: `recoveryBadgeText`
  * upper-cased `=== "DEGRADED"` gets the badge "Recovered character data is
