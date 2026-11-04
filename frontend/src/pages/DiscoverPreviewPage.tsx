@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
-import { ExternalLink, Plus } from 'lucide-react'
+import { ExternalLink, Plus, TriangleAlert } from 'lucide-react'
 import {
   CardDetailLayout,
   DetailPager,
@@ -29,6 +29,7 @@ import {
 } from '@/hooks/use-discover-preview'
 import {
   datacatAvatarUrl,
+  isDatacatDegraded,
   type DatacatCharacter,
 } from '@/lib/providers/datacat'
 import { useProviderSettings } from '@/hooks/use-settings'
@@ -200,6 +201,11 @@ export function DiscoverPreviewPage() {
     provider === 'datacat'
       ? datacatAvatarUrl(item.raw as DatacatCharacter, { width: 600 })
       : item.avatarUrl
+  // The feed row says so up front; the detail read is a backstop in case a
+  // feed shape ever stops carrying the badge.
+  const degraded =
+    item.degraded ||
+    (capture?.provider === 'datacat' && isDatacatDegraded(capture.character))
   const hero = card?.avatar_url || previewAvatar || item.avatarUrl
   const name = card?.name ?? item.name
   const tags = card?.tags ?? item.tags
@@ -234,6 +240,20 @@ export function DiscoverPreviewPage() {
           ) : (
             <div className="aspect-[2/3] w-full rounded-[15px] border border-line bg-raised" />
           )}
+          {degraded && (
+            <div className="rounded-[10px] border border-warn/60 bg-surface px-3 py-2.5 text-[12px] leading-[1.5] text-faint">
+              <b className="flex items-center gap-1.5 font-semibold text-warn">
+                <TriangleAlert className="size-3.5" /> Incomplete on DataCat
+              </b>
+              <p className="mt-1">
+                DataCat marks this card degraded: it has the greeting but no
+                definition (description, personality, scenario, examples). The
+                creator usually blocks proxies on these, so the definition can't
+                be captured anywhere. Adding it archives the empty card, and an
+                archived card is never overwritten.
+              </p>
+            </div>
+          )}
           <button
             type="button"
             disabled={add.isPending}
@@ -253,17 +273,21 @@ export function DiscoverPreviewPage() {
             }
             className={cn(
               'flex h-[38px] items-center justify-center gap-2 rounded-[10px] border text-[13.5px] font-semibold disabled:opacity-60',
-              inArchive
-                ? 'border-line text-muted-foreground hover:bg-raised'
-                : 'border-sage bg-sage text-on-sage hover:bg-[#68d0b1]',
+              degraded
+                ? 'border-warn/60 text-warn hover:bg-raised'
+                : inArchive
+                  ? 'border-line text-muted-foreground hover:bg-raised'
+                  : 'border-sage bg-sage text-on-sage hover:bg-[#68d0b1]',
             )}
           >
             <Plus className="size-4" />
             {add.isPending
               ? 'Adding…'
-              : inArchive
-                ? 'Add again'
-                : 'Add to archive'}
+              : degraded
+                ? 'Add anyway'
+                : inArchive
+                  ? 'Add again'
+                  : 'Add to archive'}
           </button>
           {card?.source_url && (
             <a
