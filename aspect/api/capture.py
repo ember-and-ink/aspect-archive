@@ -15,16 +15,15 @@ from typing import Any
 from fastapi import APIRouter
 
 from aspect import deps
-from aspect.api.build_schemas import (
-    ExistingRequest,
-    ExistingResponse,
-    LorebookExistingRequest,
-    LorebookExistingResponse,
-)
+from aspect.api.build_schemas import ExistingRequest
+from aspect.api.build_schemas import ExistingResponse
+from aspect.api.build_schemas import LorebookExistingRequest
+from aspect.api.build_schemas import LorebookExistingResponse
 
 logger = logging.getLogger("aspect.api.capture")
 
 router = APIRouter()
+
 
 @router.get("/capture-status")
 async def capture_status(name: str) -> dict[str, Any]:

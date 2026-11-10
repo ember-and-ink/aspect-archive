@@ -44,8 +44,8 @@ import json
 import sys
 from pathlib import Path
 
-from aspect.state import ui_settings
 from aspect.config import settings
+from aspect.state import ui_settings
 
 # The key the Character Library frontend stores itself under, inside
 # SillyTavern's `extension_settings`. Matches SETTINGS_KEY in web/library.js.
@@ -81,9 +81,7 @@ def describe(value: object) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--from",
         dest="source",
@@ -125,8 +123,7 @@ def main() -> int:
     blob = extension_settings.get(CL_SETTINGS_KEY)
     if not isinstance(blob, dict):
         print(
-            f"{args.source} has no {CL_SETTINGS_KEY!r} settings -- "
-            "was Character Library ever run in this SillyTavern?",
+            f"{args.source} has no {CL_SETTINGS_KEY!r} settings -- was Character Library ever run in this SillyTavern?",
             file=sys.stderr,
         )
         return 1

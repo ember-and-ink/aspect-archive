@@ -45,13 +45,21 @@ import re
 import sys
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 
 from aspect.cards import pngtools
-from aspect.cards.naming import id_fragment, safe_filename
+from aspect.cards.naming import id_fragment
+from aspect.cards.naming import safe_filename
 from aspect.config import settings
-from aspect.text.name_repair import GENERIC, JUNK, OK, TITLE, Candidate, Diagnosis, diagnose
+from aspect.text.name_repair import GENERIC
+from aspect.text.name_repair import JUNK
+from aspect.text.name_repair import OK
+from aspect.text.name_repair import TITLE
+from aspect.text.name_repair import Candidate
+from aspect.text.name_repair import Diagnosis
+from aspect.text.name_repair import diagnose
 
 _VERDICT_ORDER = (GENERIC, TITLE, JUNK)
 _ID_FRAGMENT = re.compile(r"_([A-Za-z0-9]{6,8})$")
@@ -106,7 +114,7 @@ def _card_id(path: Path, data: dict) -> str:
 def _already_imported(cards_dir: Path, findings: list) -> list:
     """Findings whose card already lives in the archive.
 
-    `make import` skips a card whose id is already there and leaves the staged
+    `task import` skips a card whose id is already there and leaves the staged
     PNG in place, so ./import keeps accumulating copies of cards that were
     imported long ago. Renaming those copies edits a dead file -- the archive,
     which is what SillyTavern actually reads, is untouched. This has already
@@ -296,7 +304,7 @@ def _log(
     error: str | None = None,
 ) -> None:
     record = {
-        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ts": datetime.now(UTC).isoformat(timespec="seconds"),
         "session": session,
         "card_id": _card_id(path, data),
         "dir": str(path.parent),
@@ -343,8 +351,7 @@ def _undo(log_path: Path, count: int) -> int:
     applied = [
         r
         for r in rows
-        if r.get("chosen") and not r.get("error") and r["action"] in (_ACCEPT, _PICK, _TYPED)
-        and ref(r) not in spent
+        if r.get("chosen") and not r.get("error") and r["action"] in (_ACCEPT, _PICK, _TYPED) and ref(r) not in spent
     ]
     targets = applied[-count:]
     if not targets:
@@ -386,24 +393,30 @@ def _undo(log_path: Path, count: int) -> int:
         reverted += 1
         print(f"  {path.name} -> {r['name']!r}")
         with log_path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps({
-                "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "session": session,
-                "card_id": r.get("card_id"),
-                "dir": r["dir"],
-                "file": path.name,
-                "new_file": _new_path(path, r["name"], data).name,
-                "verdict": r["verdict"],
-                "action": _UNDO,
-                "undid": ref(r),
-                "name": r["chosen"],
-                "chosen": r["name"],
-                "suggestion": r["suggestion"],
-                "top1_hit": False,
-                "chosen_rank": None,
-                "candidates": [],
-                "error": None,
-            }, ensure_ascii=False) + "\n")
+            fh.write(
+                json.dumps(
+                    {
+                        "ts": datetime.now(UTC).isoformat(timespec="seconds"),
+                        "session": session,
+                        "card_id": r.get("card_id"),
+                        "dir": r["dir"],
+                        "file": path.name,
+                        "new_file": _new_path(path, r["name"], data).name,
+                        "verdict": r["verdict"],
+                        "action": _UNDO,
+                        "undid": ref(r),
+                        "name": r["chosen"],
+                        "chosen": r["name"],
+                        "suggestion": r["suggestion"],
+                        "top1_hit": False,
+                        "chosen_rank": None,
+                        "candidates": [],
+                        "error": None,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
     print(f"\n>>> reverted {reverted} rename(s).")
     return 0
 
@@ -440,9 +453,11 @@ def _prune(log_path: Path, cards_dir: Path) -> int:
 
     by_card: dict[str, list[dict]] = {}
     for _, r in drop:
-        by_card.setdefault(_ID_FRAGMENT.search(Path(r["file"]).stem).group(1), []).append(r)
+        m = _ID_FRAGMENT.search(Path(r["file"]).stem)
+        assert m is not None  # `drop` only holds records whose fragment matched
+        by_card.setdefault(m.group(1), []).append(r)
     print(f"{len(drop)} record(s) across {len(by_card)} deleted card(s):")
-    for cid, group in by_card.items():
+    for group in by_card.values():
         r = group[-1]
         print(f"   [{r['verdict']:7s}] {r['name']!r}  (last action: {r['action']})")
     try:
@@ -517,10 +532,12 @@ def _stats(log_path: Path) -> int:
         missed = [r for r in judged if r["action"] == _TYPED and not r["chosen_rank"]]
         print(f"{label:8s} n={len(subset):4d}  " + "  ".join(f"{k}={v}" for k, v in sorted(actions.items())))
         if judged:
-            print(f"         top-1 {hits}/{len(judged)} ({hits / len(judged):.1%})"
-                  f"   in top-5 {top5}/{len(judged)} ({top5 / len(judged):.1%})"
-                  f"   rules missed entirely: {len(missed)}"
-                  f"   false positives: {actions.get(_FINE, 0)}")
+            print(
+                f"         top-1 {hits}/{len(judged)} ({hits / len(judged):.1%})"
+                f"   in top-5 {top5}/{len(judged)} ({top5 / len(judged):.1%})"
+                f"   rules missed entirely: {len(missed)}"
+                f"   false positives: {actions.get(_FINE, 0)}"
+            )
         print()
 
     worst = [r for r in rows if r["action"] in (_TYPED, _FINE)]
@@ -571,7 +588,7 @@ def _rejudge(log_path: Path, cards_dir: Path) -> int:
     for r in rows:
         m = _ID_FRAGMENT.search(Path(r.get("new_file") or r["file"]).stem)
         data = live.get(m.group(1)) if m else None
-        if data is None:
+        if m is None or data is None:
             gone += 1
             continue
         if (m.group(1), r["name"]) in seen:
@@ -579,8 +596,10 @@ def _rejudge(log_path: Path, cards_dir: Path) -> int:
         seen.add((m.group(1), r["name"]))
         judged.append((r, diagnose(dict(data, name=r["name"]))))
 
-    print(f"re-judged {len(judged)} logged decision(s) against {cards_dir}"
-          f"{f' ({gone} skipped -- card deleted)' if gone else ''}\n")
+    print(
+        f"re-judged {len(judged)} logged decision(s) against {cards_dir}"
+        f"{f' ({gone} skipped -- card deleted)' if gone else ''}\n"
+    )
 
     for verdict in (None, *_VERDICT_ORDER):
         subset = judged if verdict is None else [x for x in judged if x[0]["verdict"] == verdict]
@@ -592,30 +611,28 @@ def _rejudge(log_path: Path, cards_dir: Path) -> int:
         clean = sum(1 for _r, dg in fine if dg.verdict == OK)
         lost = [(r, dg) for r, dg in subset if r["action"] != _FINE and dg.verdict == OK]
         label = "ALL" if verdict is None else verdict.upper()
-        print(f"{label:8s} n={len(subset):4d}  top-1 {hits}/{len(repairs)}"
-              f" ({hits / max(len(repairs), 1):.1%})"
-              f"   false positives now clean {clean}/{len(fine)}"
-              f"   TRUE FINDINGS LOST {len(lost)}")
-        for r, dg in lost:
+        print(
+            f"{label:8s} n={len(subset):4d}  top-1 {hits}/{len(repairs)}"
+            f" ({hits / max(len(repairs), 1):.1%})"
+            f"   false positives now clean {clean}/{len(fine)}"
+            f"   TRUE FINDINGS LOST {len(lost)}"
+        )
+        for r, _dg in lost:
             print(f"           lost: {r['name']!r} -- wanted {r['chosen']!r}")
     print()
 
-    misses = [(r, dg) for r, dg in judged
-              if r["action"] in (_ACCEPT, _PICK, _TYPED) and dg.suggestion != r["chosen"]]
+    misses = [(r, dg) for r, dg in judged if r["action"] in (_ACCEPT, _PICK, _TYPED) and dg.suggestion != r["chosen"]]
     if misses:
         print(f"--- {len(misses)} case(s) the current rules still get wrong ---")
         for r, dg in misses[:30]:
-            print(f"  [{r['verdict']:7s}] {r['name']!r}\n"
-                  f"      rules: {dg.suggestion!r}  ->  you: {r['chosen']!r}")
+            print(f"  [{r['verdict']:7s}] {r['name']!r}\n      rules: {dg.suggestion!r}  ->  you: {r['chosen']!r}")
         if len(misses) > 30:
             print(f"  ... and {len(misses) - 30} more")
     return 0
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dir", type=Path, default=settings.archive_dir, help="folder to scan")
     parser.add_argument(
         "--verdict",
@@ -708,16 +725,18 @@ def main() -> int:
     print(f"\n{len(findings)} card(s) to review")
     if hidden:
         detail = ", ".join(f"{n} {v.upper()}" for v, n in sorted(hidden.items()))
-        print(f"({sum(hidden.values())} hidden -- {detail}: genuine narrator/ensemble cards "
-              "whose name is fine as it is; --include-ensemble to show)")
+        print(
+            f"({sum(hidden.values())} hidden -- {detail}: genuine narrator/ensemble cards "
+            "whose name is fine as it is; --include-ensemble to show)"
+        )
 
     stale = _already_imported(args.dir, findings)
     if stale:
         print(f"\n!! {len(stale)} of these {len(findings)} card(s) are ALREADY in the archive")
         print(f"!! ({settings.archive_dir}).")
-        print("!! `make import` skips cards it has already taken and leaves the staged PNG")
+        print("!! `task import` skips cards it has already taken and leaves the staged PNG")
         print("!! behind, so renaming here edits a dead copy -- SillyTavern reads the archive.")
-        print("!! Scan the archive instead:  make names ARGS=--interactive")
+        print("!! Scan the archive instead:  task names -- --interactive")
         if args.interactive:
             try:
                 if input("\ncontinue anyway? [y/N] > ").strip().lower() != "y":
@@ -748,7 +767,7 @@ def main() -> int:
                     print(f"    !! {err}")
                     action = _FAILED
                 else:
-                    new_path = _new_path(path, chosen)
+                    new_path = _new_path(path, chosen, data)
                     print(f"    renamed -> {chosen!r}")
                     renamed += 1
 
@@ -761,7 +780,7 @@ def main() -> int:
         print(f"\n>>> renamed {renamed} card(s) (pixels preserved).")
         if logging:
             print(f">>> decisions logged to {args.log} (session {session})")
-            print(">>> review rule accuracy with: make names ARGS=--stats")
+            print(">>> review rule accuracy with: task names -- --stats")
 
     if args.json:
         args.json.write_text(

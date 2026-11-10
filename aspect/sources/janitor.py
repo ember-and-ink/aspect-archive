@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from typing import TypeIs
 
-from aspect.text.tags import clean_tag
-from aspect.text.notes_html import clean_creator_notes
 from aspect.cards.models import ProfileFields
+from aspect.text.notes_html import clean_creator_notes
+from aspect.text.tags import clean_tag
 
 # JanitorAI avatars are served from this CDN prefix; the JSON carries only the
 # bare filename in `avatar`.
@@ -35,7 +36,7 @@ def _has_visible_content(s: str) -> bool:
     return bool(_INVISIBLE_RE.sub("", s or ""))
 
 
-def _is_real_greeting(g: object) -> bool:
+def _is_real_greeting(g: object) -> TypeIs[str]:
     return isinstance(g, str) and len(g) >= _MIN_GREETING_CHARS and _has_visible_content(g)
 
 

@@ -36,8 +36,10 @@ import asyncio
 import logging
 
 import httpx
-from fastapi import APIRouter, Request
-from fastapi.responses import PlainTextResponse, Response
+from fastapi import APIRouter
+from fastapi import Request
+from fastapi.responses import PlainTextResponse
+from fastapi.responses import Response
 
 from aspect.media import guard as media_guard
 from aspect.runtime import net
@@ -101,9 +103,7 @@ def _forwarded_request_headers(request: Request) -> dict[str, str]:
 
 
 def _forwarded_response_headers(response: httpx.Response) -> dict[str, str]:
-    return {
-        k: v for k, v in response.headers.items() if k.lower() not in _DROP_RESPONSE_HEADERS
-    }
+    return {k: v for k, v in response.headers.items() if k.lower() not in _DROP_RESPONSE_HEADERS}
 
 
 # Two routes rather than one `api_route(methods=["GET", "POST"])`, and the
@@ -111,7 +111,7 @@ def _forwarded_response_headers(response: httpx.Response) -> dict[str, str]:
 # a two-method route emits the same id under both `get:` and `post:` in the
 # OpenAPI document. That is not cosmetic -- openapi-typescript turns each into
 # a TypeScript declaration of the same name and the frontend's `tsc -b` fails
-# on the duplicate (see `make api-schema`). One function per method is what
+# on the duplicate (see `task api-schema`). One function per method is what
 # keeps the generated client compilable; both delegate to `_forward` below, so
 # there is still one implementation.
 @router.get("/proxy/{url:path}")

@@ -69,4 +69,4 @@ class AvatarFetcher:
         return data if _valid_image(data) else None
 
     async def aclose(self) -> None:
-        await self._client.aclose()
+        await self._clients.aclose()

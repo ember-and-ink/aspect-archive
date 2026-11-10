@@ -36,15 +36,20 @@ import logging
 import threading
 import time
 import unicodedata
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from collections.abc import Iterator
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
-from typing import Any, Iterable, Iterator
+from typing import Any
 
-from aspect.cards import dates, pngtools
+from aspect.cards import dates
+from aspect.cards import pngtools
 from aspect.cards.naming import id_fragment
 from aspect.config import settings
 
 logger = logging.getLogger("aspect.archive")
+
 
 def _text(value: Any) -> str:
     """A string field off a card, defensively: cards come from five importers and
@@ -251,7 +256,7 @@ def summarize(path: Path, stat_result: Any | None = None) -> CardSummary:
     parsed comes back as a summary carrying the reason in `error`, because the
     caller is a scan of thousands and one bad file must not end it."""
     st = stat_result or path.stat()
-    base = {"filename": path.name, "size": st.st_size, "mtime": st.st_mtime}
+    base: dict[str, Any] = {"filename": path.name, "size": st.st_size, "mtime": st.st_mtime}
     try:
         raw = path.read_bytes()
         envelope = pngtools.read_envelope(raw)

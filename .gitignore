@@ -20,7 +20,7 @@ wheels/
 # Server working state: definition captures + lorebook cache
 /state/
 
-# datacat PNGs staged for `make import`
+# datacat PNGs staged for `task import`
 /import/
 
 # Editors

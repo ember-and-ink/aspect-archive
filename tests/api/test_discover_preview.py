@@ -15,9 +15,11 @@ import json
 from pathlib import Path
 
 from PIL import Image
+from PIL import PngImagePlugin
 
 from aspect.archive import catalog
-from tests.api.test_acquisition import FakeResponder, make_client
+from tests.api.test_acquisition import FakeResponder
+from tests.api.test_acquisition import make_client
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -32,7 +34,9 @@ def _datacat_character(name: str) -> dict:
 
 
 def _decode(path) -> dict:
-    return json.loads(base64.b64decode(Image.open(Path(path)).text["ccv3"]))["data"]
+    image = Image.open(Path(path))
+    assert isinstance(image, PngImagePlugin.PngImageFile)
+    return json.loads(base64.b64decode(image.text["ccv3"]))["data"]
 
 
 # The fields a preview and a written card must agree on. `extensions` is left
@@ -60,9 +64,7 @@ def test_chub_preview_matches_the_card_build_chub_writes(tmp_path):
     linked = _chub_node("raw_linked_lorebook_your_bully")
     body = {"node": node, "linked_lorebook": linked}
 
-    preview = client.post(
-        "/api/v1/discover/preview", json={"provider": "chub", **body}
-    )
+    preview = client.post("/api/v1/discover/preview", json={"provider": "chub", **body})
     assert preview.status_code == 200
     seen = preview.json()
 
@@ -95,9 +97,7 @@ def test_chub_preview_counts_agree_with_the_archive(tmp_path):
         json={"provider": "chub", "node": node, "linked_lorebook": linked},
     ).json()
 
-    built = client.post(
-        "/build-chub", json={"node": node, "linked_lorebook": linked}
-    ).json()
+    built = client.post("/build-chub", json={"node": node, "linked_lorebook": linked}).json()
     archived = catalog.summarize(Path(built["path"]))
 
     assert seen["name"] == archived.name
@@ -133,12 +133,8 @@ def test_datacat_preview_matches_the_card_build_datacat_writes(tmp_path):
     client = make_client(FakeResponder(), tmp_path)
     character = _datacat_character("raw_api_character_abbie")
 
-    seen = client.post(
-        "/api/v1/discover/preview", json={"provider": "datacat", "character": character}
-    ).json()
-    written = _decode(
-        client.post("/build-datacat", json={"character": character}).json()["path"]
-    )
+    seen = client.post("/api/v1/discover/preview", json={"provider": "datacat", "character": character}).json()
+    written = _decode(client.post("/build-datacat", json={"character": character}).json()["path"])
 
     for field in _PROSE_FIELDS:
         assert seen["card"].get(field) == written.get(field), field
@@ -177,6 +173,4 @@ def test_preview_requires_the_provider_s_payload(tmp_path):
     client = make_client(FakeResponder(), tmp_path)
 
     assert client.post("/api/v1/discover/preview", json={"provider": "chub"}).status_code == 422
-    assert (
-        client.post("/api/v1/discover/preview", json={"provider": "datacat"}).status_code == 422
-    )
+    assert client.post("/api/v1/discover/preview", json={"provider": "datacat"}).status_code == 422

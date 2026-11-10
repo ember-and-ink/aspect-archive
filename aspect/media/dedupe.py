@@ -27,7 +27,8 @@ added image the manifest never knew about rather than a stale re-download.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 
 from aspect.archive import thumbs
@@ -53,9 +54,7 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def dedupe_galleries(
-    root: Path, *, apply: bool, thumb_store: thumbs.ThumbnailStore | None = None
-) -> DedupeResult:
+def dedupe_galleries(root: Path, *, apply: bool, thumb_store: thumbs.ThumbnailStore | None = None) -> DedupeResult:
     """Scan every gallery folder under `root` and trash (when `apply`) exact
     duplicates per the rule above. Always safe to call with `apply=False` --
     nothing is read but the manifests and file bytes."""

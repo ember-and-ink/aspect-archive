@@ -24,10 +24,29 @@ from urllib.parse import urlsplit
 # 30-media-localization-feature.js:6-8 — keep the two lists identical.
 CDN_VARIANT_NAMES = frozenset(
     {
-        "public", "original", "raw", "full", "thumbnail", "thumb",
-        "medium", "small", "large", "xl", "default", "image", "photo",
-        "download", "view", "highres", "hires", "high", "lowres", "lores",
-        "low", "preview", "avatar",
+        "public",
+        "original",
+        "raw",
+        "full",
+        "thumbnail",
+        "thumb",
+        "medium",
+        "small",
+        "large",
+        "xl",
+        "default",
+        "image",
+        "photo",
+        "download",
+        "view",
+        "highres",
+        "hires",
+        "high",
+        "lowres",
+        "lores",
+        "low",
+        "preview",
+        "avatar",
     }
 )
 
@@ -44,9 +63,13 @@ _NON_NAME_CHARS = re.compile(r"[^a-zA-Z0-9_-]")
 # differently. Reproduced here so the two stay byte-for-byte identical
 # (verified against `new URL()` under node for the control-char/space/quote/
 # angle-bracket/backtick/brace set and the full non-ASCII range).
-_JS_PATH_PERCENT_ENCODE = frozenset(
-    {0x22, 0x23, 0x3C, 0x3E, 0x60, 0x7B, 0x7D}  # " # < > ` { }
-) | {c for c in range(0x00, 0x20) if c not in (0x09, 0x0A, 0x0D)} | {0x20, 0x7F}
+_JS_PATH_PERCENT_ENCODE = (
+    frozenset(
+        {0x22, 0x23, 0x3C, 0x3E, 0x60, 0x7B, 0x7D}  # " # < > ` { }
+    )
+    | {c for c in range(0x00, 0x20) if c not in (0x09, 0x0A, 0x0D)}
+    | {0x20, 0x7F}
+)
 # Tab/newline/CR are stripped from the whole URL by the parser, not encoded.
 _JS_STRIPPED_CHARS = "\t\n\r"
 
@@ -60,6 +83,7 @@ def _whatwg_percent_encode_path(path: str) -> str:
         else:
             out.append(ch)
     return "".join(out)
+
 
 # Filenames the pipeline writes: {prefix}_{index}_{name}.{ext}
 # Verbatim copy of PREFIXED_NAME_RE in media-dedup.js:83.

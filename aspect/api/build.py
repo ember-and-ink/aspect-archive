@@ -16,24 +16,29 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter
 
 from aspect import deps
-from aspect.api.build_schemas import (
-    BuildRequest,
-    BuildResponse,
-    ChubBuildRequest,
-    DatacatBuildRequest,
-    SaucepanBuildRequest,
-)
+from aspect.api.build_schemas import BuildRequest
+from aspect.api.build_schemas import BuildResponse
+from aspect.api.build_schemas import ChubBuildRequest
+from aspect.api.build_schemas import DatacatBuildRequest
+from aspect.api.build_schemas import SaucepanBuildRequest
 from aspect.archive import catalog
-from aspect.cards.models import CaptureRecord, CharacterBook, CharacterCardV3, ProfileFields
+from aspect.cards.models import CaptureRecord
+from aspect.cards.models import CharacterBook
+from aspect.cards.models import CharacterCardV3
+from aspect.cards.models import ProfileFields
 from aspect.runtime import dashboard
-from aspect.sources import chub, datacat, janitor, saucepan
+from aspect.sources import chub
+from aspect.sources import datacat
+from aspect.sources import janitor
+from aspect.sources import saucepan
 from aspect.sources.saucepan import SAUCEPAN_ORIGIN
 
 logger = logging.getLogger("aspect.api.build")
@@ -42,7 +47,7 @@ router = APIRouter()
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 def _datacat_block(
@@ -109,20 +114,16 @@ def _record_download(
         )
 
 
-def _check_duplicate(
-    card_id: str | None, *, source: str, name: str, creator: str
-) -> BuildResponse | None:
+def _check_duplicate(card_id: str | None, *, source: str, name: str, creator: str) -> BuildResponse | None:
     """A card whose id is already on disk is left alone: the caller stops here,
     before the avatar fetch, and reports the file found. Re-acquiring one means
-    deleting it first -- the same rule `make import` and the bulk sweep follow,
+    deleting it first -- the same rule `task import` and the bulk sweep follow,
     so a card edited in SillyTavern is never silently replaced. Returns None
     when there's no on-disk match (the caller should proceed to build/write)."""
     already = deps.png_writer.find_by_id(card_id)
     if not already:
         return None
-    _record_download(
-        source=source, name=name, creator=creator, duplicate=True, filename=already[0].name
-    )
+    _record_download(source=source, name=name, creator=creator, duplicate=True, filename=already[0].name)
     return BuildResponse(ok=True, path=str(already[0]), duplicate=True)
 
 
@@ -215,9 +216,7 @@ async def _assemble_and_write(
     """The CardBuilder path: dedupe-check, build_card, fetch_avatar_and_write.
     Used as-is by /build-jai and /build-saucepan; /build-chub uses the two
     halves directly since it never goes through CardBuilder."""
-    duplicate = _check_duplicate(
-        card_id, source=source, name=profile.name, creator=profile.creator or ""
-    )
+    duplicate = _check_duplicate(card_id, source=source, name=profile.name, creator=profile.creator or "")
     if duplicate is not None:
         return duplicate
 
@@ -259,9 +258,7 @@ async def build_jai(req: BuildRequest) -> BuildResponse:
         # A hidden card's definition and its primary greeting both ride in on
         # the chat relay capture; the JSON supplies only the alternates.
         captured = capture.greetings if capture else []
-        has_system = capture is not None and bool(
-            capture.personality or capture.scenario or capture.mes_example
-        )
+        has_system = capture is not None and bool(capture.personality or capture.scenario or capture.mes_example)
         has_primary = bool(captured)
         if not (has_system and has_primary):
             _record_download(
@@ -297,7 +294,7 @@ async def build_jai(req: BuildRequest) -> BuildResponse:
     page_name = (character.get("name") or "").strip()
     card_id = req.character.id or character.get("id")
     linked_at = _utc_now_iso()
-    extensions = {
+    extensions: dict[str, Any] = {
         "jai": {
             "source_url": req.character.url,
             "id": card_id,
@@ -317,7 +314,8 @@ async def build_jai(req: BuildRequest) -> BuildResponse:
     }
     scripts = janitor.script_manifest(character)
     if scripts:
-        extensions["jai"]["scripts"] = scripts
+        jai: dict[str, Any] = extensions["jai"]
+        jai["scripts"] = scripts
 
     return await _assemble_and_write(
         profile=profile,
@@ -388,7 +386,7 @@ async def build_saucepan(req: SaucepanBuildRequest) -> BuildResponse:
     source_url = f"{SAUCEPAN_ORIGIN}/companion/{card_id}" if card_id else None
     page_name = saucepan.page_name(raw)
     linked_at = _utc_now_iso()
-    extensions = {
+    extensions: dict[str, Any] = {
         "jai": {
             "source_url": source_url,
             "id": card_id or None,
@@ -408,7 +406,8 @@ async def build_saucepan(req: SaucepanBuildRequest) -> BuildResponse:
     }
     lorebooks = saucepan.lorebook_manifest(raw)
     if lorebooks:
-        extensions["jai"]["lorebooks"] = lorebooks
+        jai: dict[str, Any] = extensions["jai"]
+        jai["lorebooks"] = lorebooks
 
     return await _assemble_and_write(
         profile=profile,
@@ -558,7 +557,8 @@ async def build_datacat(req: DatacatBuildRequest) -> BuildResponse:
     # lorebooks are not JanitorAI scripts and have no ids to keep here.
     scripts = janitor.script_manifest(character) if source_kind == "janitor" else []
     if scripts:
-        extensions["jai"]["scripts"] = scripts
+        jai: dict[str, Any] = extensions["jai"]
+        jai["scripts"] = scripts
 
     avatar_url = req.avatar_url or datacat.resolve_avatar_url(character)
 

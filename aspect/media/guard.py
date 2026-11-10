@@ -194,8 +194,8 @@ def resolve_safe_addresses(host: str, port: int) -> list[str]:
     infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     safe: list[str] = []
     seen: set[str] = set()
-    for family, _type, _proto, _canon, sockaddr in infos:
-        addr = sockaddr[0]
+    for _family, _type, _proto, _canon, sockaddr in infos:
+        addr = str(sockaddr[0])
         if addr in seen:
             continue
         seen.add(addr)

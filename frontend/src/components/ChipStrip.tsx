@@ -98,7 +98,7 @@ export function ChipStrip({
 
 /** A flag chip: on or off. The three-way include/exclude paint went with the
  *  tag chips to the Tags pill, which is the only place a filter is negatable. */
-function Chip({
+export function Chip({
   on,
   className,
   ...props

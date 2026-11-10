@@ -17,14 +17,17 @@ from __future__ import annotations
 
 import io
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any
+from typing import Literal
 
 import httpx
 from PIL import Image
 
-from aspect.cards import edit, pngtools
+from aspect.cards import edit
+from aspect.cards import pngtools
 from aspect.config import settings
 from aspect.runtime import net
 from aspect.sources.chub import CHUB_AVATAR_BASE

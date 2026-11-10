@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import re
 
-from aspect.text.macros import reverse_persona_names
 from aspect.cards.models import ParsedDefinition
+from aspect.text.macros import reverse_persona_names
 
 # A section header on its own line: "[ Background ]", "[ Critical Instructions ]",
 # "[ User Description ]". Line-anchored so it can't match a header mentioned

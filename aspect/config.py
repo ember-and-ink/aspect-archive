@@ -1,7 +1,8 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
+from pydantic_settings import SettingsConfigDict
 
 # The repo root, so `.env` is found no matter which directory the server or a
 # script was launched from -- pydantic-settings would otherwise resolve a
@@ -67,7 +68,7 @@ class Settings(BaseSettings):
     # display preferences. Under `data/` with the cards rather than in `state/`
     # because it is user data, not a cache: it is the only copy of the Chub and
     # DataCat tokens, and it belongs in whatever gets mounted and backed up.
-    # Seed it from an existing SillyTavern install with `make settings-import`.
+    # Seed it from an existing SillyTavern install with `task settings-import`.
     settings_file: Path = ROOT / "data" / "settings.json"
     # When Discover first saw each Following card, per provider -- what "Recent
     # only" filters on. User data like the settings blob, and beside it for the
@@ -165,6 +166,7 @@ REQUIRED_DIRS: tuple[Path, ...] = (
     settings.captures_dir,
     settings.lorebook_cache_dir,
 )
+
 
 def ensure_dir(path: Path) -> Path:
     """mkdir -p that records the failure instead of raising it.

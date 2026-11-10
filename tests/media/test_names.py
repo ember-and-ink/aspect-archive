@@ -15,14 +15,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from aspect.media.names import (
-    PREFIX_PRIORITY,
-    extract_sanitized_url_name,
-    keys_for_item,
-    local_filename,
-    media_key,
-    prefix_priority,
-)
+from aspect.media.names import PREFIX_PRIORITY
+from aspect.media.names import extract_sanitized_url_name
+from aspect.media.names import keys_for_item
+from aspect.media.names import local_filename
+from aspect.media.names import media_key
+from aspect.media.names import prefix_priority
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "media_3c" / "real_url_names.json"
 
@@ -63,7 +61,9 @@ def test_unicode_is_percent_encoded_then_sanitized():
     # Matches new URL(): each non-ASCII char becomes multi-byte UTF-8 %XX
     # triples before the [^a-zA-Z0-9_-] sanitizer runs, so this is NOT the
     # same as sanitizing the raw unicode string directly.
-    assert extract_sanitized_url_name("https://example.com/Ünïcödé Name!!.png") == "_C3_9Cn_C3_AFc_C3_B6d_C3_A9_20Name__"
+    assert (
+        extract_sanitized_url_name("https://example.com/Ünïcödé Name!!.png") == "_C3_9Cn_C3_AFc_C3_B6d_C3_A9_20Name__"
+    )
 
 
 def test_backslash_is_a_path_separator():

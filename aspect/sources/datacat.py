@@ -31,8 +31,8 @@ import re
 from typing import Any
 
 from aspect.cards import pngtools
-from aspect.text.notes_html import clean_creator_notes
 from aspect.cards.models import ProfileFields
+from aspect.sources import exported_card
 
 # A datacat card originates from JanitorAI; reconstruct the canonical character
 # URL from the id so imported cards match the source_url/character_version
@@ -112,30 +112,11 @@ def source_url(data: dict[str, Any]) -> str | None:
 
 
 def to_profile_fields(data: dict[str, Any]) -> ProfileFields:
-    """Map a datacat card's `data` object onto ProfileFields. datacat puts the
-    whole definition in `description` (its `personality` field is unused), so
-    that maps straight across; `creator_notes` is de-HTML'd."""
-    return ProfileFields(
-        name=_s(data.get("name")),
-        creator=creator(data),
-        tags=[t for t in (data.get("tags") or []) if isinstance(t, str) and t.strip()],
-        description=_s(data.get("description")),
-        scenario=_s(data.get("scenario")),
-        mes_example=_s(data.get("mes_example")),
-        creator_notes=clean_creator_notes(data.get("creator_notes") or ""),
-    )
+    """Map a datacat card's `data` object onto ProfileFields."""
+    return exported_card.profile_fields(data, creator=creator(data))
 
 
-def greetings(data: dict[str, Any]) -> list[str]:
-    """The card's greetings: the primary `first_mes` first, then any
-    `alternate_greetings`. Blank/dupe entries are dropped; the CardBuilder makes
-    element 0 the first_mes."""
-    out: list[str] = []
-    for g in [data.get("first_mes"), *(data.get("alternate_greetings") or [])]:
-        text = g if isinstance(g, str) else ""
-        if text.strip() and text not in out:
-            out.append(text)
-    return out
+greetings = exported_card.greetings
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +136,7 @@ def greetings(data: dict[str, Any]) -> list[str]:
 # Pictographs, dingbats/misc symbols, regional-indicator flags -- plus the
 # variation selector and ZWJ that glue multi-codepoint emoji together.
 _EMOJI_RANGES = ((0x1F300, 0x1FAFF), (0x2600, 0x27BF), (0x1F1E6, 0x1F1FF))
-_EMOJI_JOINERS = "\uFE0F\u200D"
+_EMOJI_JOINERS = "\ufe0f\u200d"
 _MARKER_BODY_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZ _")
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
@@ -264,7 +245,8 @@ def extract_character_book_from_scripts(character: dict[str, Any]) -> dict[str, 
     if not isinstance(scripts, list) or not scripts:
         return None
     usable = [
-        s for s in scripts
+        s
+        for s in scripts
         if isinstance(s, dict) and s.get("type") == "lorebook" and s.get("is_public") and s.get("script")
     ]
     if not usable:
@@ -296,27 +278,31 @@ def extract_character_book_from_scripts(character: dict[str, Any]) -> dict[str, 
             insertion_order = e.get("insertion_order")
             if not isinstance(insertion_order, (int, float)):
                 insertion_order = e.get("priority") if isinstance(e.get("priority"), (int, float)) else 100
-            all_entries.append({
-                "keys": keys,
-                "secondary_keys": [],
-                "content": e.get("content") or "",
-                "extensions": {},
-                "enabled": e.get("enabled") is not False,
-                "insertion_order": int(insertion_order),
-                "case_sensitive": False,
-                "name": e.get("name") or "",
-                "id": e.get("id") if isinstance(e.get("id"), int) else len(all_entries),
-                "comment": "",
-                "selective": False,
-                "constant": e.get("constant") is True,
-                "position": "before_char",
-            })
+            all_entries.append(
+                {
+                    "keys": keys,
+                    "secondary_keys": [],
+                    "content": e.get("content") or "",
+                    "extensions": {},
+                    "enabled": e.get("enabled") is not False,
+                    "insertion_order": int(insertion_order),
+                    "case_sensitive": False,
+                    "name": e.get("name") or "",
+                    "id": e.get("id") if isinstance(e.get("id"), int) else len(all_entries),
+                    "comment": "",
+                    "selective": False,
+                    "constant": e.get("constant") is True,
+                    "position": "before_char",
+                }
+            )
         if len(all_entries) > start:
-            sources.append({
-                "id": s.get("id") if isinstance(s.get("id"), str) else "",
-                "title": s.get("title") or "",
-                "entry_count": len(all_entries) - start,
-            })
+            sources.append(
+                {
+                    "id": s.get("id") if isinstance(s.get("id"), str) else "",
+                    "title": s.get("title") or "",
+                    "entry_count": len(all_entries) - start,
+                }
+            )
     if not all_entries:
         return None
 
@@ -365,10 +351,9 @@ def resolve_avatar_url(character: dict[str, Any] | None, *, prefer_original: boo
             variant0 = (variants[0] or {}).get("content") or {}
             variant0_v2 = (variant0.get("chara_card_v2_json") or {}).get("data") or {}
             variant0_avatar = variant0_v2.get("avatar")
-        hero = (
-            (character.get("avatar_variant_urls") or {}).get("hero")
-            or (character.get("avatarVariantUrls") or {}).get("hero")
-        )
+        hero = (character.get("avatar_variant_urls") or {}).get("hero") or (
+            character.get("avatarVariantUrls") or {}
+        ).get("hero")
         candidates = [abs_only(v2_data.get("avatar")), abs_only(variant0_avatar), hero, character.get("avatar")]
     else:
         candidates = [character.get("avatar")]
@@ -440,23 +425,38 @@ def build_v2_from_character(character: dict[str, Any] | None) -> dict[str, Any] 
 
     if is_saucepan:
         description = (
-            recovered.get("description") or recovered.get("personality")
-            or v2_data.get("description") or character.get("description") or ""
+            recovered.get("description")
+            or recovered.get("personality")
+            or v2_data.get("description")
+            or character.get("description")
+            or ""
         )
         scenario = recovered.get("scenario") or character.get("scenario") or v2_data.get("scenario") or ""
-        first_message = recovered.get("first_message") or character.get("first_message") or v2_data.get("first_mes") or ""
+        first_message = (
+            recovered.get("first_message") or character.get("first_message") or v2_data.get("first_mes") or ""
+        )
         creator_notes = _companion_full_description(character) or v2_data.get("creator_notes") or ""
     else:
         description = (
-            character.get("personality") or recovered.get("personality")
-            or strip_datacat_markers(v2_data.get("description")) or ""
+            character.get("personality")
+            or recovered.get("personality")
+            or strip_datacat_markers(v2_data.get("description"))
+            or ""
         )
         scenario = character.get("scenario") or recovered.get("scenario") or v2_data.get("scenario") or ""
-        first_message = character.get("first_message") or recovered.get("first_message") or v2_data.get("first_mes") or ""
-        creator_notes = character.get("description") or recovered.get("description") or v2_data.get("creator_notes") or ""
+        first_message = (
+            character.get("first_message") or recovered.get("first_message") or v2_data.get("first_mes") or ""
+        )
+        creator_notes = (
+            character.get("description") or recovered.get("description") or v2_data.get("creator_notes") or ""
+        )
 
     alt_greetings: list[Any] = []
-    for candidate in (character.get("alternate_greetings"), recovered.get("alternate_greetings"), v2_data.get("alternate_greetings")):
+    for candidate in (
+        character.get("alternate_greetings"),
+        recovered.get("alternate_greetings"),
+        v2_data.get("alternate_greetings"),
+    ):
         if isinstance(candidate, list) and candidate:
             alt_greetings = candidate
             break

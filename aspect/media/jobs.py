@@ -35,14 +35,16 @@ import logging
 import time
 import uuid
 from collections import deque
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
-from typing import Any, Callable, Literal
-
+from typing import Any
+from typing import Literal
 
 from aspect.archive import thumbs
-from aspect.media import manifest as media_manifest, writer as media_writer
-from aspect.config import settings
+from aspect.media import manifest as media_manifest
+from aspect.media import writer as media_writer
 from aspect.runtime import net
 
 logger = logging.getLogger("aspect.media.jobs")
@@ -178,7 +180,7 @@ class JobStore:
         prefix: str,
         phase: str,
         *,
-        plan: "BatchPlanner",
+        plan: BatchPlanner,
     ) -> MediaJob:
         """Stage 6B -- bulk localize, as one job that walks `card_ids` in order.
 
@@ -304,9 +306,7 @@ class JobStore:
         # Same scheme the synchronous route uses: a millisecond timestamp as
         # the starting file index, unique across runs with no persistent counter.
         start_index = int(time.time() * 1000)
-        async with net.async_client(
-            timeout=30.0, headers={"User-Agent": "Mozilla/5.0"}
-        ) as client:
+        async with net.async_client(timeout=30.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
             batch = media_writer.download_batch(
                 client,
                 gallery_dir,
@@ -377,7 +377,7 @@ class JobStore:
         self,
         job: MediaJob,
         card_ids: list[str],
-        plan: "BatchPlanner",
+        plan: BatchPlanner,
     ) -> None:
         """Stage 6B bulk localize: every card, in order, inside one job.
 
@@ -403,9 +403,7 @@ class JobStore:
                     planned = await asyncio.to_thread(plan, card_id)
                 except Exception as exc:
                     job.errors += 1
-                    job.record_event(
-                        {"url": card_id, "status": "error", "reason": f"could not plan: {exc}"}
-                    )
+                    job.record_event({"url": card_id, "status": "error", "reason": f"could not plan: {exc}"})
                     planned = None
 
                 if planned is None:
@@ -414,9 +412,7 @@ class JobStore:
                     job.cards_skipped += 1
                 else:
                     folder_name, gallery_dir, items, sources = planned
-                    await self._run(
-                        job, gallery_dir, folder_name, items, sources=sources, ledger=ledger
-                    )
+                    await self._run(job, gallery_dir, folder_name, items, sources=sources, ledger=ledger)
                     job.cards_done += 1
 
                 job.done = base_done + position

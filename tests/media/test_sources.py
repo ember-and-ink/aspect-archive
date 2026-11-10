@@ -10,7 +10,8 @@ re-arm exactly the cards it can now handle, with no archive-wide rescan.
 
 from __future__ import annotations
 
-from aspect.media import discovery, manifest as media_manifest
+from aspect.media import discovery
+from aspect.media import manifest as media_manifest
 
 
 def _card(**fields) -> dict:
@@ -101,7 +102,9 @@ def test_a_permanently_dead_image_counts_as_settled():
 def test_an_unrecorded_url_leaves_the_card_unsatisfied():
     manifest = media_manifest.empty_manifest()
 
-    assert not media_manifest.sources_satisfied(manifest, _refs(("https://cdn.example.com/new.png", "embedded", "ready")))
+    assert not media_manifest.sources_satisfied(
+        manifest, _refs(("https://cdn.example.com/new.png", "embedded", "ready"))
+    )
 
 
 def test_a_gallery_root_is_never_derivable_so_a_pre_ledger_card_runs_once():
@@ -143,9 +146,7 @@ def test_a_replaced_handler_re_arms_the_card():
 def test_an_ignored_url_stays_settled():
     manifest = media_manifest.empty_manifest()
     url = "https://cdn.example.com/song.mp3"
-    media_manifest.record_source(
-        manifest, url, None, media_manifest.SOURCE_IGNORED, reason="audio/video not archived"
-    )
+    media_manifest.record_source(manifest, url, None, media_manifest.SOURCE_IGNORED, reason="audio/video not archived")
 
     assert media_manifest.sources_satisfied(manifest, _refs((url, None, discovery.IGNORED)))
 

@@ -3,12 +3,12 @@
 The bridges have exactly two things a user has to set: which server to post to,
 and (JanitorAI only) the include/exclude tag filter the bulk sweep applies. A
 third, the login gate's API token, is filled in from the server's own state. Both
-used to be edited in a checkout and recompiled with `make compile`, which is
+used to be edited in a checkout and recompiled with `task compile`, which is
 fine on the machine that holds the repo and useless everywhere else -- once the
 archive is a container on a NAS, the person installing the userscript has no
 sources, no Python, and no reason to have either.
 
-So the server compiles it: same module concatenation as `make compile`
+So the server compiles it: same module concatenation as `task compile`
 (`aspect/userscripts.py` is the single implementation), with those two constants
 substituted, returned as text the settings UI shows in a copy/paste block.
 
@@ -18,10 +18,13 @@ in the UI's own settings document like every other preference.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
+from fastapi import HTTPException
 
 from aspect import userscripts
-from aspect.api.schemas import UserscriptOut, UserscriptRequest, UserscriptSpecOut
+from aspect.api.schemas import UserscriptOut
+from aspect.api.schemas import UserscriptRequest
+from aspect.api.schemas import UserscriptSpecOut
 from aspect.state import security
 
 router = APIRouter()

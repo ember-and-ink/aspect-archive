@@ -29,7 +29,8 @@ import json
 import logging
 import random
 from dataclasses import dataclass
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs
+from urllib.parse import urlsplit
 
 import httpx
 from Crypto.Cipher import AES
@@ -159,7 +160,7 @@ def _try_decrypt_node_key(node: dict, key_map: dict[str, bytes]) -> bytes | None
 
 
 def _derive_file_key(dec_key: bytes) -> bytes:
-    return bytes(a ^ b for a, b in zip(dec_key[:16], dec_key[16:32]))
+    return bytes(a ^ b for a, b in zip(dec_key[:16], dec_key[16:32], strict=True))
 
 
 def _decrypt_attributes(key: bytes, attr_data: bytes) -> dict | None:
@@ -189,9 +190,12 @@ def _next_seq() -> int:
     return _api_seq
 
 
-def _mega_api_sync(client: httpx.Client, folder_id: str, commands: list[dict]) -> list:
-    url = f"{MEGA_API}?id={_next_seq()}&n={folder_id}"
-    response = client.post(url, content=json.dumps(commands))
+def _mega_url(folder_id: str) -> str:
+    return f"{MEGA_API}?id={_next_seq()}&n={folder_id}"
+
+
+def _mega_result(response: httpx.Response) -> list:
+    """The API answers a bare negative int in place of the result list on error."""
     response.raise_for_status()
     result = response.json()
     if not isinstance(result, list) or not result:
@@ -199,18 +203,14 @@ def _mega_api_sync(client: httpx.Client, folder_id: str, commands: list[dict]) -
     if isinstance(result[0], int):
         raise MegaApiError(f"MEGA API error {result[0]}")
     return result
+
+
+def _mega_api_sync(client: httpx.Client, folder_id: str, commands: list[dict]) -> list:
+    return _mega_result(client.post(_mega_url(folder_id), content=json.dumps(commands)))
 
 
 async def _mega_api_async(client: httpx.AsyncClient, folder_id: str, commands: list[dict]) -> list:
-    url = f"{MEGA_API}?id={_next_seq()}&n={folder_id}"
-    response = await client.post(url, content=json.dumps(commands))
-    response.raise_for_status()
-    result = response.json()
-    if not isinstance(result, list) or not result:
-        raise MegaApiError("MEGA API: empty response")
-    if isinstance(result[0], int):
-        raise MegaApiError(f"MEGA API error {result[0]}")
-    return result
+    return _mega_result(await client.post(_mega_url(folder_id), content=json.dumps(commands)))
 
 
 async def _get_download_url(client: httpx.AsyncClient, folder_id: str, handle: str) -> str | None:

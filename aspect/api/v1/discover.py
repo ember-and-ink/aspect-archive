@@ -28,17 +28,21 @@ that has nowhere else to live. The JanitorAI userscript writes its own
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter
+from fastapi import HTTPException
+from pydantic import BaseModel
+from pydantic import Field
 
 from aspect import deps
 from aspect.api.build import build_card
 from aspect.archive import catalog
 from aspect.cards.models import CharacterBook
 from aspect.config import settings
-from aspect.sources import chub, datacat
+from aspect.sources import chub
+from aspect.sources import datacat
 from aspect.state import seen as seen_state
 
 logger = logging.getLogger("aspect.api.discover")
@@ -77,12 +81,18 @@ class DiscoverPreviewIn(BaseModel):
     )
     linked_lorebook: dict[str, Any] | None = Field(
         default=None,
-        description="The linked-project lorebook, when the node carries `related_lorebooks`. Resolved browser-side through Chub's v4 git API.",
+        description=(
+            "The linked-project lorebook, when the node carries `related_lorebooks`. Resolved browser-side through "
+            "Chub's v4 git API."
+        ),
     )
     # -- datacat
     character: dict[str, Any] | None = Field(
         default=None,
-        description="DataCat's `GET /api/characters/{id}` detail payload, with `scripts[]` already hydrated. Required for provider=datacat.",
+        description=(
+            "DataCat's `GET /api/characters/{id}` detail payload, with `scripts[]` already hydrated. Required for "
+            "provider=datacat."
+        ),
     )
 
 
@@ -118,11 +128,17 @@ class DiscoverPreviewOut(BaseModel):
     card: dict[str, Any] = Field(description="The card's `data` object, exactly as the build route would write it.")
     avatar_url: str | None = Field(
         default=None,
-        description="The provider's image for the card. Served from the provider, not the archive -- nothing has been downloaded.",
+        description=(
+            "The provider's image for the card. Served from the provider, not the archive -- nothing has been "
+            "downloaded."
+        ),
     )
     warnings: list[str] = Field(
         default_factory=list,
-        description="What the same cleaning pass the build route runs would flag -- unresolved macros, mostly. Shown so a card's problems are visible before it is kept.",
+        description=(
+            "What the same cleaning pass the build route runs would flag -- unresolved macros, mostly. Shown so a "
+            "card's problems are visible before it is kept."
+        ),
     )
 
 
@@ -291,7 +307,10 @@ def _seen_store() -> seen_state.SeenStore:
 class SeenIn(BaseModel):
     provider: Provider
     ids: list[str] = Field(
-        description="Every provider id one Following feed load returned -- the provider's own ids, not the archive's `_<id8>` fragments. Blanks and duplicates are dropped.",
+        description=(
+            "Every provider id one Following feed load returned -- the provider's own ids, not the archive's `_<id8>` "
+            "fragments. Blanks and duplicates are dropped."
+        ),
     )
 
 
@@ -299,7 +318,10 @@ class SeenOut(BaseModel):
     provider: str
     added: int = Field(description="How many of the given ids had never been seen before, and were stamped now.")
     first_seen: dict[str, int] = Field(
-        description="Each given id's first-seen stamp, epoch milliseconds on the server's clock. Covers exactly the ids sent, not the whole history.",
+        description=(
+            "Each given id's first-seen stamp, epoch milliseconds on the server's clock. Covers exactly the ids sent, "
+            "not the whole history."
+        ),
     )
 
 

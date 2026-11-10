@@ -35,10 +35,12 @@ otherwise stat-and-parse the blob in a loop.
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
 import httpx
 
@@ -69,11 +71,7 @@ _cache: _CacheEntry | None = None
 
 
 def _socks_available() -> bool:
-    try:
-        import socksio  # noqa: F401
-    except ImportError:
-        return False
-    return True
+    return importlib.util.find_spec("socksio") is not None
 
 
 def validate(url: str, origin: str) -> str | None:
@@ -90,14 +88,11 @@ def validate(url: str, origin: str) -> str | None:
         return None
     scheme = parsed.scheme.lower()
     if not scheme or not parsed.hostname:
-        logger.warning(
-            "ignoring proxy URL from %s: needs a scheme and host, e.g. http://host:port", origin
-        )
+        logger.warning("ignoring proxy URL from %s: needs a scheme and host, e.g. http://host:port", origin)
         return None
     if scheme in _SOCKS_SCHEMES and not _socks_available():
         logger.warning(
-            "ignoring %s:// proxy from %s: SOCKS support needs the httpx[socks] extra "
-            "(socksio is not installed)",
+            "ignoring %s:// proxy from %s: SOCKS support needs the httpx[socks] extra (socksio is not installed)",
             scheme,
             origin,
         )
@@ -254,9 +249,7 @@ class AsyncClientHolder:
             return self._injected
         proxy = resolved_proxy()
         if self._client is None or proxy != self._proxy:
-            stale, self._client = self._client, httpx.AsyncClient(
-                proxy=proxy, trust_env=False, **self._kwargs
-            )
+            stale, self._client = self._client, httpx.AsyncClient(proxy=proxy, trust_env=False, **self._kwargs)
             self._proxy = proxy
             if stale is not None:
                 await stale.aclose()
@@ -288,9 +281,7 @@ class SyncClientHolder:
             return self._injected
         proxy = resolved_proxy()
         if self._client is None or proxy != self._proxy:
-            stale, self._client = self._client, httpx.Client(
-                proxy=proxy, trust_env=False, **self._kwargs
-            )
+            stale, self._client = self._client, httpx.Client(proxy=proxy, trust_env=False, **self._kwargs)
             self._proxy = proxy
             if stale is not None:
                 stale.close()

@@ -45,14 +45,42 @@ from aspect.text.html_md import html_to_md
 # not worth the risk of fighting the reader's theme.
 _STRUCTURE_PROPS = frozenset(
     {
-        "display", "grid-template-columns", "grid-template-rows", "grid-column",
-        "grid-row", "grid-area", "gap", "row-gap", "column-gap", "flex",
-        "flex-direction", "flex-wrap", "justify-content", "align-items",
-        "align-content", "align-self", "order",
-        "margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
-        "padding", "padding-top", "padding-right", "padding-bottom", "padding-left",
-        "text-align", "list-style", "list-style-type", "font-weight", "font-style",
-        "white-space", "word-break", "overflow-wrap", "box-sizing",
+        "display",
+        "grid-template-columns",
+        "grid-template-rows",
+        "grid-column",
+        "grid-row",
+        "grid-area",
+        "gap",
+        "row-gap",
+        "column-gap",
+        "flex",
+        "flex-direction",
+        "flex-wrap",
+        "justify-content",
+        "align-items",
+        "align-content",
+        "align-self",
+        "order",
+        "margin",
+        "margin-top",
+        "margin-right",
+        "margin-bottom",
+        "margin-left",
+        "padding",
+        "padding-top",
+        "padding-right",
+        "padding-bottom",
+        "padding-left",
+        "text-align",
+        "list-style",
+        "list-style-type",
+        "font-weight",
+        "font-style",
+        "white-space",
+        "word-break",
+        "overflow-wrap",
+        "box-sizing",
     }
 )
 
@@ -102,8 +130,7 @@ _BG_AUX_PROPS = ("background-size", "background-position", "background-repeat", 
 _WORD_RE = re.compile(r"\w")
 _LAYOUT_HINT_RE = re.compile(r"display\s*:\s*(grid|flex)|grid-template", re.IGNORECASE)
 
-_DROP_TAGS = ("style", "script", "noscript", "template", "head", "link", "meta",
-              "iframe", "object", "embed")
+_DROP_TAGS = ("style", "script", "noscript", "template", "head", "link", "meta", "iframe", "object", "embed")
 _DROP_ATTRS = ("class", "id", "srcset", "sizes", "loading", "data-src")
 
 
@@ -121,10 +148,7 @@ def has_layout_structure(html: str) -> bool:
         return False
     if _LAYOUT_HINT_RE.search(html):
         return True
-    return any(
-        s.get_text().strip()
-        for s in BeautifulSoup(html, "html.parser").find_all("style")
-    )
+    return any(s.get_text().strip() for s in BeautifulSoup(html, "html.parser").find_all("style"))
 
 
 def clean_creator_notes(html: str) -> str:
@@ -164,9 +188,7 @@ def _collect_rules(css: str) -> list[tuple[tuple[int, int, int], int, str, list[
     At-rules (@keyframes/@media/@font-face/@import) have no inline form and are
     skipped wholesale."""
     rules = []
-    for order, node in enumerate(
-        tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True)
-    ):
+    for order, node in enumerate(tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True)):
         if node.type != "qualified-rule":
             continue
         decls = _declarations(node.content)
@@ -203,7 +225,7 @@ def _inline_stylesheets(soup: BeautifulSoup) -> None:
         if not bucket:
             continue
         merged = dict(bucket)
-        merged.update(_parse_decls(el.get("style") or ""))
+        merged.update(_parse_decls(str(el.get("style") or "")))
         el["style"] = ";".join(f"{k}:{v}" for k, v in merged.items() if not k.startswith("--"))
 
 
@@ -309,7 +331,7 @@ def _is_decorative(tag: Tag, *, out_of_flow: bool = False) -> bool:
         return False
     if tag.find("img") is not None:
         return False
-    if _background_image_url(_parse_decls(tag.get("style") or "")):
+    if _background_image_url(_parse_decls(str(tag.get("style") or ""))):
         return False
     text = tag.get_text(strip=True)
     return not _WORD_RE.search(text) if out_of_flow else not text
@@ -328,7 +350,7 @@ def tame_html(html: str, *, allow_media: bool = True) -> str:
         if tag.parent is None:
             continue  # already removed along with an ancestor
         if style := tag.get("style"):
-            filtered, out_of_flow = _filter_style(style, allow_media=allow_media)
+            filtered, out_of_flow = _filter_style(str(style), allow_media=allow_media)
             if out_of_flow and _is_decorative(tag, out_of_flow=True):
                 tag.decompose()
                 continue
@@ -351,7 +373,7 @@ def tame_html(html: str, *, allow_media: bool = True) -> str:
     # Rebuilt from the parsed declarations rather than appended, so re-taming an
     # already-tamed blurb doesn't stack duplicate bounds.
     for img in soup.find_all("img"):
-        decls = dict(_parse_decls(img.get("style") or ""))
+        decls = dict(_parse_decls(str(img.get("style") or "")))
         decls["max-width"] = "100%"
         decls["height"] = "auto"
         img["style"] = ";".join(f"{k}:{v}" for k, v in decls.items())

@@ -66,3 +66,35 @@ export function AlertDialogFooter({
     />
   )
 }
+
+/** Cancel + a red Delete, the footer of every delete confirm. */
+export function DeleteDialogFooter({
+  onDelete,
+  pending,
+}: {
+  onDelete: () => void
+  pending: boolean
+}) {
+  return (
+    <AlertDialogFooter>
+      <AlertDialogCancel asChild>
+        <button
+          type="button"
+          className="rounded-[10px] border border-line px-3.5 py-2 text-[13px] hover:bg-raised"
+        >
+          Cancel
+        </button>
+      </AlertDialogCancel>
+      <AlertDialogAction asChild>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={pending}
+          className="rounded-[10px] border border-bad bg-bad/90 px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-bad disabled:opacity-60"
+        >
+          {pending ? 'Deleting…' : 'Delete'}
+        </button>
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  )
+}

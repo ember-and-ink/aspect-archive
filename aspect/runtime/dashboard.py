@@ -16,17 +16,16 @@ import io
 import logging
 import sys
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 from rich.align import Align
-from rich.console import (
-    Console,
-    ConsoleOptions,
-    Group,
-    RenderableType,
-    RenderResult,
-)
+from rich.console import Console
+from rich.console import ConsoleOptions
+from rich.console import Group
+from rich.console import RenderableType
+from rich.console import RenderResult
 from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
@@ -42,6 +41,7 @@ FEED_WIDTH_MIN = 26
 
 def _feed_width(total_width: int) -> int:
     return max(min(total_width // 3, FEED_WIDTH_MAX), FEED_WIDTH_MIN)
+
 
 # How much scrollback each deque keeps. Only the last screenful is ever drawn;
 # the rest is headroom so a resize taller doesn't reveal blank rows.
@@ -89,8 +89,10 @@ class LogBuffer(logging.Handler):
             self.append(record.levelname, line, name=record.name)
 
     def format_exception(self, record: logging.LogRecord) -> str:
+        if not record.exc_info:
+            return ""
         formatter = self.formatter or logging.Formatter()
-        return formatter.formatException(record.exc_info)  # type: ignore[arg-type]
+        return formatter.formatException(record.exc_info)
 
     def append(self, level: str, message: str, name: str = "") -> None:
         stamp = datetime.now().strftime("%H:%M:%S")
@@ -233,9 +235,7 @@ class Dashboard:
     def _logs(self, height: int) -> RenderableType:
         # Two rows of the panel go to its border, one to the padding-free title.
         lines = self.log.tail(height - 2)
-        body: RenderableType = (
-            Group(*lines) if lines else Text("waiting for requests…", style="dim")
-        )
+        body: RenderableType = Group(*lines) if lines else Text("waiting for requests…", style="dim")
         return Panel(body, title="server log", title_align="left", border_style="dim")
 
     def _downloads(self, height: int) -> RenderableType:
@@ -247,9 +247,7 @@ class Dashboard:
         # budget is half the space the panel's interior has.
         rows = self.feed.tail(max((height - 2) // 2, 0))
         for row in rows:
-            label, style = _SOURCE_LABELS.get(
-                row["source"], (row["source"][:5].upper(), "white")
-            )
+            label, style = _SOURCE_LABELS.get(row["source"], (row["source"][:5].upper(), "white"))
             if not row["ok"]:
                 name_style = "bold red"
             elif row["duplicate"]:
@@ -274,9 +272,7 @@ class Dashboard:
                 sub.append("by " + (row["creator"] or "unknown"), style="dim")
             table.add_row("", sub)
 
-        body: RenderableType = (
-            table if rows else Text("no characters yet", style="dim")
-        )
+        body: RenderableType = table if rows else Text("no characters yet", style="dim")
         # Terse on purpose: the title has to survive a 26-column feed panel, and
         # Rich ellipsizes what doesn't fit -- so the rightmost counter is the one
         # that would be lost. Only non-zero counters are shown.
@@ -312,15 +308,11 @@ class Dashboard:
         )
         return layout
 
-    def __rich_console__(
-        self, console: Console, options: ConsoleOptions
-    ) -> RenderResult:
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         # Take the height Live hands down (the alt-screen's full height) rather
         # than probing the console: stdout is redirected while the dashboard is
         # up, so a freshly built Console would report the 80x25 fallback.
-        yield self.frame(
-            options.height or console.size.height, options.max_width
-        )
+        yield self.frame(options.height or console.size.height, options.max_width)
 
 
 def install_logging(dashboard: Dashboard, level: int = logging.INFO) -> None:
@@ -376,4 +368,4 @@ def live(dashboard: Dashboard, refresh_per_second: float = 4) -> Live:
 # report into it (`aspect.api.build`) must not import the app module -- the app
 # imports them. Read it through the module, never as a from-import: this name is
 # rebound at startup, and a frozen binding would leave the feed permanently None.
-DASHBOARD: "Dashboard | None" = None
+DASHBOARD: Dashboard | None = None

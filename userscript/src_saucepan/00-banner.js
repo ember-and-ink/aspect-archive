@@ -21,6 +21,6 @@
 // entries above stay for the default case.
 //
 // SOURCE LAYOUT — this file is COMPILED. Do not edit saucepan-proxy-bridge.user.js
-// by hand; edit userscript/src_saucepan/*.js and run `make compile` (see
+// by hand; edit userscript/src_saucepan/*.js and run `task compile` (see
 // scripts/compile_userscript_saucepan.py). The modules are concatenated, in
 // order, inside a single IIFE beneath this banner.

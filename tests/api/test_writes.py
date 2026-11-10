@@ -20,7 +20,8 @@ from PIL import Image
 
 from aspect.cards import pngtools
 from aspect.config import settings
-from tests.conftest import card_png, jai_extensions
+from tests.conftest import card_png
+from tests.conftest import jai_extensions
 
 
 def read_card(path: Path) -> dict:
@@ -69,9 +70,7 @@ def test_edit_keeps_the_v3_envelope_and_the_v2_mirror(client, populated_archive)
     card["scenario"] = "a new scenario"
     client.put("/api/v1/characters/Abbie_0d162f5f.png", json={"card": card})
 
-    chunks = pngtools.read_text_chunks(
-        (populated_archive["characters"] / "Abbie_0d162f5f.png").read_bytes()
-    )
+    chunks = pngtools.read_text_chunks((populated_archive["characters"] / "Abbie_0d162f5f.png").read_bytes())
     # Both spec keys, and both carrying the same payload -- the shape every
     # importer downstream reads.
     assert chunks["chara"] == chunks["ccv3"]
@@ -449,7 +448,9 @@ def test_bulk_add_and_remove(client, populated_archive):
     assert resp.json()["changed"] == 2
 
     assert read_card(populated_archive["characters"] / "Abbie_0d162f5f.png")["tags"] == [
-        "Female", "Vampire", "Fantasy",
+        "Female",
+        "Vampire",
+        "Fantasy",
     ]
     assert read_card(populated_archive["characters"] / "Bella_11112222.png")["tags"] == ["Fantasy"]
 
@@ -504,7 +505,8 @@ def test_apply_renames_across_every_card_with_the_tag(client, populated_archive)
     assert resp.json()["changed"] == 2  # Abbie and Cleo, not Bella
 
     assert read_card(populated_archive["characters"] / "Abbie_0d162f5f.png")["tags"] == [
-        "Vampiress", "Vampire",
+        "Vampiress",
+        "Vampire",
     ]
     assert read_card(populated_archive["characters"] / "Cleo_33334444.png")["tags"] == ["Vampiress"]
     assert read_card(populated_archive["characters"] / "Bella_11112222.png")["tags"] == ["Male"]

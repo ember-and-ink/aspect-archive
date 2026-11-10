@@ -32,8 +32,8 @@ greetings, tags, creator notes, avatar) at export.
 ## Running it
 
 ```bash
-make docker-build     # docker compose build
-make docker-up        # docker compose up -d  -> http://127.0.0.1:8000
+task docker-build     # docker compose build
+task docker-up        # docker compose up -d  -> http://127.0.0.1:8000
 ```
 
 One image, one mount (`./data`), one port. The image carries the **server only**:
@@ -56,12 +56,12 @@ move as long as you set the same one there.
 Pushing to `main` publishes `ghcr.io/ember-and-ink/aspect-archive` — `linux/amd64`,
 `:latest` plus `:sha-<short>` and the release version, e.g. `:0.1.4` — and cuts
 a matching GitHub release (`.github/workflows/publish.yml`). The patch number is
-assigned automatically; `make bump-minor` / `make bump-major` start a new
+assigned automatically; `task bump-minor` / `task bump-major` start a new
 series. A server pulls that image rather than building:
 
 ```bash
-make docker-pull      # docker compose -f compose.prod.yaml pull
-make docker-up-prod
+task docker-pull      # docker compose -f compose.prod.yaml pull
+task docker-up-prod
 ```
 
 `compose.prod.yaml` and `unraid-template.xml` are the two ways to run it there;
@@ -81,7 +81,7 @@ Security can put a single username and password in front of the whole server
 Userscripts carry it); it is a gate for a shared LAN, sent over plain http, not a reason to expose the
 server. Locked out: delete `data/security.json`.
 
-The maintenance scripts (`make import` / `check` / `names` / `thumbs` /
+The maintenance scripts (`task import` / `check` / `names` / `thumbs` /
 `gallery-ids`) stay on the host and run against the same `./data`. They are not
 in the image on purpose: they are leftovers from stitching several repos
 together, and the intended flow is *retrieve → cleaned once on the way in →
@@ -169,14 +169,14 @@ The userscript is **compiled** from small modules under `userscript/src_jai/`.
 After editing any of them, rebuild the single-file bundle with:
 
 ```bash
-make compile        # -> userscript/jai-proxy-bridge.user.js
+task compile        # -> userscript/jai-proxy-bridge.user.js
                     #    + userscript/saucepan-proxy-bridge.user.js
 ```
 
 The concatenation itself lives in `aspect/userscripts.py`, not in the two scripts
 under `scripts/` — the server runs the same code for Settings → Userscripts, with
 `DEFAULT_SERVER` and `BULK_TAG_FILTER` substituted. With nothing substituted the
-output is byte-identical to what `make compile` writes, and a test asserts that
+output is byte-identical to what `task compile` writes, and a test asserts that
 against the checked-in bundles.
 
 (A twin **saucepan** bridge is compiled the same way from
@@ -228,7 +228,7 @@ notes, alternate greetings, avatar, lorebooks) still comes from the JSON.
 
 A card whose id is already in the cards folder is **never rewritten**. Every
 build path stops on it: the export button reports `• Already saved`, the bulk
-sweep marks the row `• already saved — skipped`, and `make import` skips it too.
+sweep marks the row `• already saved — skipped`, and `task import` skips it too.
 The match is the `_<id8>` filename fragment, so it holds however the file was
 renamed since (as long as the fragment survives — SillyTavern's **Rename** drops
 it, and such a card is acquirable again).
@@ -281,7 +281,7 @@ send-a-chat-then-capture flow — no server needed:
 
 ```bash
 # drop card PNGs into ./import, then:
-make import
+task import
 ```
 
 Each card lands in the configured cards folder under the same `<name>_<id>.png`
@@ -324,8 +324,8 @@ Cards built before this (or imported from a source with no id) can be caught up
 in place:
 
 ```bash
-make gallery-ids              # read-only report: which cards lack an id
-make gallery-ids ARGS=--apply # mint and patch them in (pixels preserved)
+task gallery-ids              # read-only report: which cards lack an id
+task gallery-ids -- --apply  # mint and patch them in (pixels preserved)
 ```
 
 ## The archive API (`/api/v1`)
@@ -370,11 +370,11 @@ prevent.
 The grid cannot serve 800 KB originals, but it did not need a thumbnailer either:
 both caches were inherited at cutover (SillyTavern's `thumbnails/avatar`, keyed by
 the exact card filename, and CharacterLibrary's `cl_thumbs`) and covered 99.6% of
-the archive on arrival. `make thumbs` closes the rest:
+the archive on arrival. `task thumbs` closes the rest:
 
 ```bash
-make thumbs               # report: missing, miscased, stale
-make thumbs ARGS=--apply  # render the misses, retire the orphans
+task thumbs               # report: missing, miscased, stale
+task thumbs -- --apply    # render the misses, retire the orphans
 ```
 
 **Every inherited avatar thumb is JPEG data behind a `.png` extension** — all
@@ -410,12 +410,24 @@ leaf utilities, then `sources` mapping onto `cards`, then `api` on top. Nothing
 below `api` knows about HTTP, and nothing below `sources` knows which site a card
 came from. `tests/` mirrors this layout directory for directory.
 
-## Tests
+## Tests and tooling
+
+Commands live in `Taskfile.yml` ([Task](https://taskfile.dev)); `task` on its own
+lists them. Task is pinned in the uv dev group, so `uv run task <name>` always
+works, and `uv tool install go-task-bin` puts a bare `task` on your PATH.
 
 ```bash
-uv run pytest        # server (aspect/)
-make test-js          # userscript (userscript/src_jai/)
+task test             # server (aspect/), pytest
+task test-js          # userscript (userscript/src_jai/), node:test
+task lint             # ruff format + check, ty, jscpd, then the frontend's prettier + oxlint
+task test-lint        # the same checks without writing anything -- what CI runs
+task pre-commit-install  # once per checkout: prek runs the lint hooks on every commit
 ```
+
+The Python tooling is the Rust/Go set: uv, ruff (lint + format), ty (types),
+prek (the git hooks, reading `.pre-commit-config.yaml`) and Task. ty and jscpd are
+exact pins that Dependabot skips -- a new release can report findings across the
+tree, so bump them by hand and fix what they find in the same PR.
 
 All server-side logic (JanitorAI-JSON→V3 mapper, system-prompt parser, macro
 repair, lorebook mapper, card builder, PNG round-trip, HTML→markdown, the datacat
@@ -459,12 +471,12 @@ is where the "ported from `web/...`" comments throughout `aspect/` and
 bundle `.zip` gets restored from.
 
 ```
-make run              # the server -- serves the client from frontend/dist at /
-make frontend-dev     # the client on :5173, /api proxied to :8000
-make api-schema       # regenerate the typed client after any route change
-make frontend-test frontend-typing frontend-lint
-make frontend-smoke   # the browser gate, against a running server
-make pre-commit-install  # once per checkout: lint/format/typing on every commit
+task run              # the server -- serves the client from frontend/dist at /
+task frontend-dev     # the client on :5173, /api proxied to :8000
+task api-schema       # regenerate the typed client after any route change
+task frontend-test frontend-typing frontend-lint
+task frontend-smoke   # the browser gate, against a running server
+task pre-commit-install  # once per checkout: lint/format/typing on every commit
 ```
 
 Deliberately out of scope unless a real need surfaces: reconstructing lorebook

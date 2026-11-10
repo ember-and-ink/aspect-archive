@@ -12,10 +12,16 @@ belongs in the threadpool.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter
+from fastapi import HTTPException
+from fastapi import Request
+from fastapi import Response
 
 from aspect.api import gate
-from aspect.api.schemas import LoginIn, SecurityIn, SecurityOut, SessionOut
+from aspect.api.schemas import LoginIn
+from aspect.api.schemas import SecurityIn
+from aspect.api.schemas import SecurityOut
+from aspect.api.schemas import SessionOut
 from aspect.state import security
 
 router = APIRouter()
@@ -76,9 +82,7 @@ def put_security(body: SecurityIn, response: Response) -> SecurityOut:
     """Store the gate's settings. Omit `password` (or send it empty) to keep the
     current one; the password itself is never stored or returned."""
     try:
-        config = security.store().update(
-            enabled=body.enabled, username=body.username, password=body.password or None
-        )
+        config = security.store().update(enabled=body.enabled, username=body.username, password=body.password or None)
     except security.SecurityError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OSError as exc:

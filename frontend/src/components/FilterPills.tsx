@@ -146,23 +146,12 @@ export function TagsPill({
         {/* One line at 278px — the longer wording wrapped, and a two-line
             heading above a scrolling list reads as a paragraph. */}
         <PopoverHeading>Tags · click twice to exclude</PopoverHeading>
-        {facets.isPending && <Pending />}
-        {facets.error && <Failed message={facets.error.message} />}
-        {count > 0 && (
-          <>
-            <PopoverItem
-              className="text-[12.5px] text-faint"
-              onClick={() => onChange({ ...state, tags: new Map() })}
-            >
-              Clear {count} selected
-            </PopoverItem>
-            <PopoverSeparator />
-          </>
-        )}
-        <div className="max-h-[300px] overflow-y-auto">
-          {!facets.isPending && !facets.error && matching.length === 0 && (
-            <NoMatches />
-          )}
+        <PickList
+          facets={facets}
+          empty={matching.length === 0}
+          clearLabel={count > 0 && `Clear ${count} selected`}
+          onClear={() => onChange({ ...state, tags: new Map() })}
+        >
           {[...chosen, ...rest].map((tag) => (
             <PopoverItem key={tag.value} onClick={() => cycleTag(tag.value)}>
               <PopoverDot state={state.tags.get(tag.value)} />
@@ -170,7 +159,7 @@ export function TagsPill({
               <PopoverCount>{tag.count.toLocaleString()}</PopoverCount>
             </PopoverItem>
           ))}
-        </div>
+        </PickList>
       </PopoverContent>
     </Popover>
   )
@@ -215,23 +204,12 @@ export function CreatorPill({
           placeholder="Search creators…"
         />
         <PopoverHeading>Creator</PopoverHeading>
-        {facets.isPending && <Pending />}
-        {facets.error && <Failed message={facets.error.message} />}
-        {state.creator && (
-          <>
-            <PopoverItem
-              className="text-[12.5px] text-faint"
-              onClick={() => onChange({ ...state, creator: '' })}
-            >
-              Any creator
-            </PopoverItem>
-            <PopoverSeparator />
-          </>
-        )}
-        <div className="max-h-[300px] overflow-y-auto">
-          {!facets.isPending && !facets.error && matching.length === 0 && (
-            <NoMatches />
-          )}
+        <PickList
+          facets={facets}
+          empty={matching.length === 0}
+          clearLabel={state.creator && 'Any creator'}
+          onClear={() => onChange({ ...state, creator: '' })}
+        >
           {[...chosen, ...rest].map((creator) => (
             <PopoverItem
               key={creator.value}
@@ -244,7 +222,7 @@ export function CreatorPill({
               <PopoverCount>{creator.count.toLocaleString()}</PopoverCount>
             </PopoverItem>
           ))}
-        </div>
+        </PickList>
       </PopoverContent>
     </Popover>
   )
@@ -311,5 +289,42 @@ export function SourcePill({
         ))}
       </PopoverContent>
     </Popover>
+  )
+}
+
+/**
+ * The body of a facet pill: loading/error state, an optional reset row on top
+ * (shown while `clearLabel` is set), then the scrolling list of options.
+ */
+function PickList({
+  facets,
+  empty,
+  clearLabel,
+  onClear,
+  children,
+}: {
+  facets: { isPending: boolean; error: Error | null }
+  empty: boolean
+  clearLabel: string | false
+  onClear: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <>
+      {facets.isPending && <Pending />}
+      {facets.error && <Failed message={facets.error.message} />}
+      {clearLabel && (
+        <>
+          <PopoverItem className="text-[12.5px] text-faint" onClick={onClear}>
+            {clearLabel}
+          </PopoverItem>
+          <PopoverSeparator />
+        </>
+      )}
+      <div className="max-h-[300px] overflow-y-auto">
+        {!facets.isPending && !facets.error && empty && <NoMatches />}
+        {children}
+      </div>
+    </>
   )
 }

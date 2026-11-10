@@ -46,20 +46,27 @@ import hashlib
 import io
 import logging
 import re
-import time
-from collections.abc import AsyncIterator, Callable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import AsyncIterator
+from collections.abc import Callable
+from collections.abc import Sequence
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
+from typing import Literal
 from urllib.parse import urlsplit
 
 import httpx
-from PIL import Image, ImageSequence
+from PIL import Image
+from PIL import ImageSequence
 
-from aspect.cards import edit
 from aspect.archive import thumbs
+from aspect.cards import edit
 from aspect.config import settings
-from aspect.media import guard as media_guard, manifest as media_manifest, mega as media_mega, names as media_names
+from aspect.media import guard as media_guard
+from aspect.media import manifest as media_manifest
+from aspect.media import mega as media_mega
+from aspect.media import names as media_names
 
 logger = logging.getLogger("aspect.media.writer")
 
@@ -352,7 +359,7 @@ class GalleryIndex:
     _by_hash: dict[str, str] | None = None  # sha256 -> filename, built on demand
 
     @classmethod
-    def build(cls, gallery_dir: Path) -> "GalleryIndex":
+    def build(cls, gallery_dir: Path) -> GalleryIndex:
         idx = cls(_dir=gallery_dir)
         try:
             entries = sorted(p for p in gallery_dir.iterdir() if p.is_file() and not p.name.startswith("."))
@@ -531,6 +538,7 @@ async def _fetch(client: httpx.AsyncClient, url: str) -> tuple[bytes | None, str
         return None, None, str(exc)
 
 
+# jscpd:ignore-start -- the same keyword-only parameters as download_item below, on purpose
 def finish_item(
     gallery_dir: Path,
     folder_name: str,
@@ -545,7 +553,7 @@ def finish_item(
     body: bytes,
     content_type: str | None,
     thumbnail_store: thumbs.ThumbnailStore,
-) -> DownloadOutcome:
+) -> DownloadOutcome:  # jscpd:ignore-end
     """Steps 5-10 of the plan's §3 list, for bytes already in hand -- shared by
     `download_item` (bytes just fetched by this server) and the
     `POST .../media/bytes` route (bytes the *browser* fetched, e.g. MEGA's
@@ -618,7 +626,7 @@ async def download_item(
     manifest: dict[str, Any],
     ledger: dict[str, Any],
     thumbnail_store: thumbs.ThumbnailStore,
-    fetch_gate: "asyncio.Semaphore | None" = None,
+    fetch_gate: asyncio.Semaphore | None = None,
     retry_dead: bool = False,
 ) -> DownloadOutcome:
     """Everything the plan's §3 numbered list says for one URL, end to end.

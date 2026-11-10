@@ -6,12 +6,10 @@ import { useBulkDeleteCharacters } from '@/hooks/use-card-mutations'
 import { toast } from '@/lib/toast'
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogTitle,
+  DeleteDialogFooter,
 } from '@/components/ui/alert-dialog'
 
 /**
@@ -87,26 +85,10 @@ export function BatchActionBar() {
             />
             Delete their gallery folders too
           </label>
-          <AlertDialogFooter>
-            <AlertDialogCancel asChild>
-              <button
-                type="button"
-                className="rounded-[10px] border border-line px-3.5 py-2 text-[13px] hover:bg-raised"
-              >
-                Cancel
-              </button>
-            </AlertDialogCancel>
-            <AlertDialogAction asChild>
-              <button
-                type="button"
-                onClick={onDelete}
-                disabled={bulkDelete.isPending}
-                className="rounded-[10px] border border-bad bg-bad/90 px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-bad disabled:opacity-60"
-              >
-                {bulkDelete.isPending ? 'Deleting…' : 'Delete'}
-              </button>
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          <DeleteDialogFooter
+            onDelete={onDelete}
+            pending={bulkDelete.isPending}
+          />
         </AlertDialogContent>
       </AlertDialog>
     </>

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { useSearchParams } from 'react-router'
+import { useInfiniteSentinel } from '@/hooks/use-infinite-sentinel'
 import { ArrowLeftRight } from 'lucide-react'
 import { ChipStrip } from '@/components/ChipStrip'
 import { CreatorPill, SourcePill, TagsPill } from '@/components/FilterPills'
@@ -83,22 +84,11 @@ export function CharactersPage({ favorites = false }: { favorites?: boolean }) {
   const cards = data?.pages.flatMap((page) => page.items) ?? []
   const total = data?.pages[0]?.total ?? 0
 
-  // Infinite scroll: a sentinel below the grid asks for the next page as it
-  // comes into view. Kept a screen ahead with rootMargin so the grid does not
-  // visibly stop at the bottom of each page.
-  const sentinelRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const element = sentinelRef.current
-    if (!element || !hasNextPage) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) void fetchNextPage()
-      },
-      { rootMargin: '600px' },
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [hasNextPage, fetchNextPage, cards.length])
+  const sentinelRef = useInfiniteSentinel(
+    hasNextPage,
+    fetchNextPage,
+    cards.length,
+  )
 
   useScrollRestore({
     contentRef: gridRef,

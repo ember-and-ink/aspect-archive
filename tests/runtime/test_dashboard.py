@@ -3,13 +3,11 @@ import logging
 
 from rich.console import Console
 
-from aspect.runtime.dashboard import (
-    Dashboard,
-    DownloadFeed,
-    LogBuffer,
-    StdoutSink,
-    replay_problems,
-)
+from aspect.runtime.dashboard import Dashboard
+from aspect.runtime.dashboard import DownloadFeed
+from aspect.runtime.dashboard import LogBuffer
+from aspect.runtime.dashboard import StdoutSink
+from aspect.runtime.dashboard import replay_problems
 
 
 def _render(dashboard: Dashboard, *, width: int = 120, height: int = 30) -> str:
@@ -38,9 +36,7 @@ def test_log_buffer_captures_records():
 def test_log_buffer_splits_multiline_and_evicts():
     buffer = LogBuffer(maxlen=3)
     buffer.append("INFO", "one")
-    buffer.emit(
-        logging.LogRecord("x", logging.WARNING, __file__, 1, "a\nb\nc", None, None)
-    )
+    buffer.emit(logging.LogRecord("x", logging.WARNING, __file__, 1, "a\nb\nc", None, None))
     assert len(buffer.lines) == 3
     assert [line.plain.split()[-1] for line in buffer.lines] == ["a", "b", "c"]
 
@@ -67,9 +63,7 @@ def test_download_feed_counts_and_orders_newest_first():
     feed = DownloadFeed()
     feed.record(source="janitor", name="Aurora", creator="Ravenborn")
     feed.record(source="saucepan", name="Akane Kujo", creator="someone")
-    feed.record(
-        source="janitor", name="Ghost", creator="", ok=False, detail="no capture"
-    )
+    feed.record(source="janitor", name="Ghost", creator="", ok=False, detail="no capture")
 
     assert (feed.succeeded, feed.failed) == (2, 1)
     assert [row["name"] for row in feed.tail(2)] == ["Ghost", "Akane Kujo"]

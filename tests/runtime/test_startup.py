@@ -11,7 +11,8 @@ import os
 
 import pytest
 
-from aspect import config, server
+from aspect import config
+from aspect import server
 from aspect.state.captures import CaptureStore
 from aspect.state.lorebook_cache import LorebookCache
 
@@ -37,17 +38,13 @@ def test_capture_store_records_mkdir_failure_instead_of_raising(unwritable):
     store = CaptureStore(captures_dir=unwritable / "state" / "captures")
 
     assert store.get("anyone") is None
-    assert [path for path, _ in config.STARTUP_DIR_ERRORS] == [
-        unwritable / "state" / "captures"
-    ]
+    assert [path for path, _ in config.STARTUP_DIR_ERRORS] == [unwritable / "state" / "captures"]
 
 
 def test_lorebook_cache_records_mkdir_failure_instead_of_raising(unwritable):
     LorebookCache(cache_dir=unwritable / "state" / "lorecache")
 
-    assert [path for path, _ in config.STARTUP_DIR_ERRORS] == [
-        unwritable / "state" / "lorecache"
-    ]
+    assert [path for path, _ in config.STARTUP_DIR_ERRORS] == [unwritable / "state" / "lorecache"]
 
 
 def test_preflight_reports_each_failed_directory_once(unwritable, monkeypatch):

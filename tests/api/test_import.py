@@ -15,7 +15,8 @@ from pathlib import Path
 from PIL import Image
 
 from aspect.cards import pngtools
-from tests.conftest import card_png, jai_extensions
+from tests.conftest import card_png
+from tests.conftest import jai_extensions
 
 
 def read_card(raw: bytes) -> dict:
@@ -77,9 +78,7 @@ def test_macros_are_sanitized_on_the_way_in(client, archive_dirs):
     """A foreign card gets intake's full text treatment -- the same repairs
     (broken brackets, JanitorAI pronoun macros) the build routes apply, with the
     same unresolved-macro warnings reported back."""
-    body = post(
-        client, card_png("Mac", description="Hi {char}, {{poss}} friend. {{nonsense}}")
-    ).json()
+    body = post(client, card_png("Mac", description="Hi {char}, {{poss}} friend. {{nonsense}}")).json()
     data = read_card((archive_dirs["characters"] / body["id"]).read_bytes())
     assert data["description"] == "Hi {{char}}, {{user}} friend. {{nonsense}}"
     assert body["warnings"] == ["unresolved macro: {{nonsense}}"]

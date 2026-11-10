@@ -89,11 +89,7 @@ def _fold_pronouns(text: str) -> str:
 
 
 def _unknown_macros(text: str) -> list[str]:
-    found = {
-        m.group(1).lower()
-        for m in _MACRO_TOKEN_RE.finditer(text)
-        if m.group(1).lower() not in _ST_KNOWN_MACROS
-    }
+    found = {m.group(1).lower() for m in _MACRO_TOKEN_RE.finditer(text) if m.group(1).lower() not in _ST_KNOWN_MACROS}
     return sorted(found)
 
 

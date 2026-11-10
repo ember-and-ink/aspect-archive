@@ -1,11 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from 'react-router'
+import { useMemo, useState } from 'react'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router'
 import { Download } from 'lucide-react'
 import {
   useCharacterDetail,
@@ -14,7 +8,10 @@ import {
 import { useCharacters } from '@/hooks/use-characters'
 import { readState } from '@/lib/browse'
 import { sourceLabel, formatDate, formatBytes } from '@/lib/card'
-import { isTypingTarget } from '@/lib/utils'
+import {
+  useNeighbourNavigation,
+  useTabParam,
+} from '@/hooks/use-detail-navigation'
 import {
   CardDetailLayout,
   DetailPager,
@@ -44,10 +41,12 @@ import { PANES, type Pane } from '@/components/detail/panes-def'
  * param is the browse filter this card was opened from, carried in by the tile
  * link so prev/next can step through the same filtered set the grid showed.
  */
+const characterPath = (card: { id: string }) =>
+  `/characters/${encodeURIComponent(card.id)}`
+
 export function CharacterDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [params, setParams] = useSearchParams()
-  const navigate = useNavigate()
   const location = useLocation()
   // Set by the Fork action's navigate — "open the fork in edit mode with the
   // name focused" (docs/FORKS_AND_EXTRAS_PLAN.md §3). PortraitActions consumes
@@ -77,53 +76,15 @@ export function CharacterDetailPage() {
   )
   const position = cards.findIndex((card) => card.id === id)
 
-  const activeTab = (params.get('tab') as Pane) ?? 'overview'
-  const setTab = (tab: Pane) => {
-    const next = new URLSearchParams(params)
-    if (tab === 'overview') next.delete('tab')
-    else next.set('tab', tab)
-    setParams(next, { replace: true })
-  }
+  const [activeTab, setTab] = useTabParam<Pane>(params, setParams)
 
-  const go = useCallback(
-    (delta: number) => {
-      if (position < 0) return
-      const target = cards[position + delta]
-      if (target) {
-        const next = new URLSearchParams(params)
-        next.delete('tab')
-        navigate(
-          {
-            pathname: `/characters/${encodeURIComponent(target.id)}`,
-            search: next.toString(),
-          },
-          { replace: true },
-        )
-      } else if (delta > 0 && neighbours.hasNextPage) {
-        // The neighbour is on a page not yet fetched — pull it, then the effect
-        // below runs again with a longer list.
-        void neighbours.fetchNextPage()
-      }
-    },
-    [position, cards, params, navigate, neighbours],
-  )
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      // J/K are bare letters, so they collide with typing. Stage 3 put
-      // textareas and tag inputs on this page, and without this guard a
-      // description containing "j" navigated to the next card mid-edit and
-      // took the unsaved draft with it.
-      if (isTypingTarget(event.target)) return
-      // A shortcut, not a modified chord: ⌘K opens search, and Alt/Ctrl+K are
-      // the terminal-style bindings a browser or OS may already own.
-      if (event.metaKey || event.ctrlKey || event.altKey) return
-      if (event.key === 'j') go(1)
-      else if (event.key === 'k') go(-1)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [go])
+  const go = useNeighbourNavigation({
+    items: cards,
+    position,
+    params,
+    pathOf: characterPath,
+    feed: neighbours,
+  })
 
   if (detail.isPending)
     return <p className="py-24 text-center text-faint">reading card…</p>

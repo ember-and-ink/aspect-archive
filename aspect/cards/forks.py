@@ -17,10 +17,12 @@ multi-hop chain would buy nothing but complexity. See §3's "Do forks fork?".
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 from typing import Any
 
-from aspect.cards import intake, naming
+from aspect.cards import intake
+from aspect.cards import naming
 
 
 def generate_card_id() -> str:
@@ -88,7 +90,7 @@ def stamp(
     extensions["fork"] = {
         "of": root,
         "of_filename": of_filename,
-        "forkedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+        "forkedAt": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
         "note": note,
     }
 

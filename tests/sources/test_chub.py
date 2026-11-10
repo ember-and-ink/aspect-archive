@@ -18,8 +18,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from aspect.sources import chub as mapper
 from aspect.cards import pngtools
+from aspect.sources import chub as mapper
 from aspect.text.macros import MacroSanitizer
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "chub"
@@ -61,9 +61,7 @@ def test_provenance_accessors():
     assert mapper.name(data) == "Sakura, Makoto"
     assert mapper.creator(data) == "Sancay"
     assert mapper.page_name(data) == "Sakura - Neglected Roommate"
-    assert mapper.source_url(data) == (
-        "https://chub.ai/characters/Sancay/sakura-neglected-roommate-cec5866ac66c"
-    )
+    assert mapper.source_url(data) == ("https://chub.ai/characters/Sancay/sakura-neglected-roommate-cec5866ac66c")
 
 
 # ---------------------------------------------------------------------------
@@ -140,9 +138,7 @@ def test_extensions_preserved_verbatim():
     cleaned, _ = clean()
     # chub block, depth_prompt injection, and fav flag all carried through as-is.
     assert cleaned["extensions"] == data["extensions"]
-    assert cleaned["extensions"]["depth_prompt"]["prompt"] == (
-        data["extensions"]["depth_prompt"]["prompt"]
-    )
+    assert cleaned["extensions"]["depth_prompt"]["prompt"] == (data["extensions"]["depth_prompt"]["prompt"])
 
 
 def test_lorebook_entries_and_extras_preserved():
@@ -151,7 +147,7 @@ def test_lorebook_entries_and_extras_preserved():
     src_entries = data["character_book"]["entries"]
     out_entries = cleaned["character_book"]["entries"]
     assert len(out_entries) == len(src_entries)
-    for src, out in zip(src_entries, out_entries):
+    for src, out in zip(src_entries, out_entries, strict=True):
         # Fields our LoreEntry model doesn't carry must not be dropped.
         for extra in ("priority", "probability", "selectiveLogic"):
             assert out[extra] == src[extra]
@@ -171,9 +167,7 @@ def test_int_position_passes_through_uncoerced():
         "name": "X",
         "creator": "c",
         "extensions": {"chub": {"id": 1}},
-        "character_book": {
-            "entries": [{"content": "{{user}} hi", "position": 4, "probability": 50}]
-        },
+        "character_book": {"entries": [{"content": "{{user}} hi", "position": 4, "probability": 50}]},
     }
     cleaned, _ = mapper.clean_card(data, MacroSanitizer())
     entry = cleaned["character_book"]["entries"][0]
@@ -208,11 +202,12 @@ def test_payload_survives_png_roundtrip():
     payload = mapper.to_payload(cleaned)
     png = png_with_card(payload)
     back = pngtools.extract_embedded_card(png)
+    assert back is not None
     assert back["name"] == "Sakura, Makoto"
     assert back["extensions"]["chub"]["id"] == 5655941
     assert len(back["character_book"]["entries"]) == 5
-    assert back["character_book"]["entries"][0]["probability"] == (
-        cleaned["character_book"]["entries"][0]["probability"]
+    assert (
+        back["character_book"]["entries"][0]["probability"] == (cleaned["character_book"]["entries"][0]["probability"])
     )
 
 

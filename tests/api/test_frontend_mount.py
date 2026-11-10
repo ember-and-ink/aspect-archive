@@ -1,7 +1,7 @@
 """How the React client at the root is served (aspect/server.py).
 
 The mount is conditional on `frontend/dist` existing, so these tests skip in a
-checkout that has not run `make frontend-build` -- and in CI, where the Python
+checkout that has not run `task frontend-build` -- and in CI, where the Python
 job never builds it. What they pin down is the behaviour that is easy to break
 and invisible until a browser hits it: the SPA fallback, the registration order
 that keeps the root catch-all from swallowing the API, and the prefix guard that
@@ -16,7 +16,7 @@ from aspect.server import FRONTEND_DIST
 
 pytestmark = pytest.mark.skipif(
     not FRONTEND_DIST.is_dir(),
-    reason="frontend/dist is not built (make frontend-build)",
+    reason="frontend/dist is not built (task frontend-build)",
 )
 
 
@@ -36,7 +36,7 @@ def test_client_side_routes_fall_back_to_the_shell(client):
     """
     response = client.get("/characters/Aurora_1a2b3c4d")
     assert response.status_code == 200
-    assert b"<div id=\"root\">" in response.content
+    assert b'<div id="root">' in response.content
     # The shell names this build's content-hashed assets, so a cached copy
     # would keep pointing at the previous build's JavaScript.
     assert "no-store" in response.headers["cache-control"]
@@ -86,7 +86,7 @@ def test_traversal_out_of_dist_is_refused(client):
     """
     response = client.get("/%2e%2e/%2e%2e/pyproject.toml")
     assert b"[project]" not in response.content
-    assert b"<div id=\"root\">" in response.content
+    assert b'<div id="root">' in response.content
 
 
 @pytest.mark.parametrize(

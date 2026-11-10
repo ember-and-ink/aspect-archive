@@ -13,53 +13,55 @@ import copy
 import html
 import logging
 import os
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
 from urllib.parse import quote
 
-from fastapi import (
-    APIRouter,
-    File,
-    Form,
-    Header,
-    HTTPException,
-    Query,
-    Request,
-    Response,
-    UploadFile,
-)
+from fastapi import APIRouter
+from fastapi import File
+from fastapi import Form
+from fastapi import Header
+from fastapi import HTTPException
+from fastapi import Query
+from fastapi import Request
+from fastapi import Response
+from fastapi import UploadFile
 
 from aspect import deps
-from aspect.api.schemas import (
-    BulkDeleteIn,
-    BulkDeleteOut,
-    BulkTagsIn,
-    BulkTagsOut,
-    CardDetailOut,
-    CardImportOut,
-    CardListOut,
-    CardOut,
-    CardWriteIn,
-    CharactersHaveFragmentsOut,
-    CharactersHaveIn,
-    CharactersHaveOut,
-    DeletedOut,
-    FavoriteIn,
-    FavoriteOut,
-    ForkParentOut,
-    GalleryOut,
-    TagsApplyIn,
-    TagsApplyOut,
-)
+from aspect.api.schemas import BulkDeleteIn
+from aspect.api.schemas import BulkDeleteOut
+from aspect.api.schemas import BulkTagsIn
+from aspect.api.schemas import BulkTagsOut
+from aspect.api.schemas import CardDetailOut
+from aspect.api.schemas import CardImportOut
+from aspect.api.schemas import CardListOut
+from aspect.api.schemas import CardOut
+from aspect.api.schemas import CardWriteIn
+from aspect.api.schemas import CharactersHaveFragmentsOut
+from aspect.api.schemas import CharactersHaveIn
+from aspect.api.schemas import CharactersHaveOut
+from aspect.api.schemas import DeletedOut
+from aspect.api.schemas import FavoriteIn
+from aspect.api.schemas import FavoriteOut
+from aspect.api.schemas import ForkParentOut
+from aspect.api.schemas import GalleryOut
+from aspect.api.schemas import TagsApplyIn
+from aspect.api.schemas import TagsApplyOut
 from aspect.api.v1 import _shared
 from aspect.api.v1 import media as v1_media
 from aspect.archive import catalog
-from aspect.cards import avatar_refetch, edit, forks, gallery, intake, pngtools
+from aspect.cards import avatar_refetch
+from aspect.cards import edit
+from aspect.cards import forks
+from aspect.cards import gallery
+from aspect.cards import intake
 from aspect.cards.naming import id_fragment
+from aspect.config import settings
 from aspect.media import expressions
 from aspect.media import manifest as media_manifest
-from aspect.config import settings
 
 logger = logging.getLogger("aspect.api")
 
@@ -84,6 +86,7 @@ _SORTS: dict[str, str] = {
     "description": "description_chars",
     "prompt": "prompt_chars",
 }
+
 
 def _card_out(record: catalog.CardSummary, *, extensions: bool = False) -> CardOut:
     quoted = quote(record.filename, safe="")
@@ -111,7 +114,7 @@ def _card_out(record: catalog.CardSummary, *, extensions: bool = False) -> CardO
         size=record.size,
         avatar_width=record.avatar_width,
         avatar_height=record.avatar_height,
-        modified=datetime.fromtimestamp(record.mtime, tz=timezone.utc),
+        modified=datetime.fromtimestamp(record.mtime, tz=UTC),
         linked_at=record.linked_at,
         create_date=record.create_date,
         thumb_url=f"{_shared.PREFIX}/characters/{quoted}/thumb",
@@ -132,9 +135,7 @@ def _folder_out(record: catalog.CardSummary, root: Path) -> GalleryOut:
     `gallery.resolve_folder`."""
     wanted = gallery.folder_name(record.name, record.gallery_id)
     folder = gallery.resolve_folder(root, wanted) or wanted
-    out = GalleryOut(
-        gallery_id=record.gallery_id, folder=folder, exists=False, images=0, bytes=0
-    )
+    out = GalleryOut(gallery_id=record.gallery_id, folder=folder, exists=False, images=0, bytes=0)
     if not folder:
         return out
     path = root / folder
@@ -147,7 +148,6 @@ def _folder_out(record: catalog.CardSummary, root: Path) -> GalleryOut:
     out.images = len(files)
     out.bytes = sum(e.stat().st_size for e in files)
     return out
-
 
 
 def _media_map(gallery_out: GalleryOut) -> dict[str, str | None]:
@@ -181,6 +181,7 @@ def _media_map(gallery_out: GalleryOut) -> dict[str, str | None]:
         out.setdefault(html.unescape(url), value)
     return out
 
+
 # What a `scope`d search matches `q` against, as a function of the record. The
 # default (`all`) uses the pre-folded haystack; the rest fold on demand, which
 # costs about a millisecond across the whole archive and keeps the index from
@@ -211,9 +212,7 @@ def _cards_needing_media() -> set[str]:
     idx = _shared.index()
     needing: set[str] = set()
     for record in idx.cards():
-        folder = gallery.resolve_folder(
-            settings.galleries_dir, gallery.folder_name(record.name, record.gallery_id)
-        )
+        folder = gallery.resolve_folder(settings.galleries_dir, gallery.folder_name(record.name, record.gallery_id))
         if not folder:
             continue
         gallery_dir = settings.galleries_dir / folder
@@ -331,21 +330,32 @@ def _check_precondition(path: Path, if_match: str | None) -> None:
 def list_characters(
     q: str | None = Query(
         None,
-        description="Free text over name, creator, page title, filename and tags. Space-separated terms are ANDed. Prose is not searched.",
+        description=(
+            "Free text over name, creator, page title, filename and tags. Space-separated terms are ANDed. Prose is "
+            "not searched."
+        ),
     ),
     scope: Literal["all", "name", "creator", "tags"] = Query(
         "all",
-        description="Which fields `q` is matched against. A narrower scope narrows the same query -- it never reaches fields `all` does not cover, and prose is searched by none of them.",
+        description=(
+            "Which fields `q` is matched against. A narrower scope narrows the same query -- it never reaches fields "
+            "`all` does not cover, and prose is searched by none of them."
+        ),
     ),
     tag: list[str] = Query(default=[], description="Repeatable; a card must carry every tag given."),
     exclude_tag: list[str] = Query(
         default=[],
-        description="Repeatable; a card carrying any of these is left out. Overrides `tag` when both name the same one.",
+        description=(
+            "Repeatable; a card carrying any of these is left out. Overrides `tag` when both name the same one."
+        ),
     ),
     creator: str | None = Query(None, description="Exact creator match, case-insensitive."),
     source: list[str] = Query(
         default=[],
-        description="Repeatable; exact `source_kind` match, e.g. `chub_import`. Several are ORed, which is how one platform spanning two importer kinds (`chub_import` and `chub_core`) is asked for.",
+        description=(
+            "Repeatable; exact `source_kind` match, e.g. `chub_import`. Several are ORed, which is how one platform "
+            "spanning two importer kinds (`chub_import` and `chub_core`) is asked for."
+        ),
     ),
     has_lorebook: bool | None = Query(None),
     has_gallery: bool | None = Query(None, description="Whether the card carries a gallery_id at all."),
@@ -353,7 +363,10 @@ def list_characters(
     is_fork: bool | None = Query(None, description="Only forks, or only cards that aren't forks."),
     fork_of: str | None = Query(
         None,
-        description="The root original's `_<id8>` fragment -- every fork of that card (siblings included, per the flattened lineage in docs/FORKS_AND_EXTRAS_PLAN.md §3), and nothing else.",
+        description=(
+            "The root original's `_<id8>` fragment -- every fork of that card (siblings included, per the flattened "
+            "lineage in docs/FORKS_AND_EXTRAS_PLAN.md §3), and nothing else."
+        ),
     ),
     untagged: bool | None = Query(None, description="`true` for cards carrying no tags at all -- the tagging backlog."),
     min_greetings: int | None = Query(
@@ -361,11 +374,17 @@ def list_characters(
     ),
     added_after: str | None = Query(
         None,
-        description="Cards acquired at or after this ISO-8601 instant, compared against `linked_at`. Cards with no stamp are excluded.",
+        description=(
+            "Cards acquired at or after this ISO-8601 instant, compared against `linked_at`. Cards with no stamp are "
+            "excluded."
+        ),
     ),
     low_res: bool | None = Query(
         None,
-        description="`true` for cards whose image is under 250px on both sides -- a thumbnail saved in place of the portrait, which `POST /characters/{id}/avatar/refetch` can repair.",
+        description=(
+            "`true` for cards whose image is under 250px on both sides -- a thumbnail saved in place of the portrait, "
+            "which `POST /characters/{id}/avatar/refetch` can repair."
+        ),
     ),
     needs_media: bool | None = Query(
         None,
@@ -382,13 +401,19 @@ def list_characters(
     ),
     sort: str = Query(
         "name",
-        description="One of name, creator, added, created, modified, size, greetings, lore, description, prompt. Prefix with `-` to reverse.",
+        description=(
+            "One of name, creator, added, created, modified, size, greetings, lore, description, prompt. Prefix with "
+            "`-` to reverse."
+        ),
     ),
     limit: int = Query(60, ge=0, le=5000, description="0 means no limit -- the whole filtered set."),
     offset: int = Query(0, ge=0),
     include: list[Literal["extensions"]] = Query(
         default=[],
-        description="Optional heavier fields. `extensions` attaches each card's `data.extensions` -- provider links, gallery_id, version uids -- at roughly 790 bytes a card.",
+        description=(
+            "Optional heavier fields. `extensions` attaches each card's `data.extensions` -- provider links, "
+            "gallery_id, version uids -- at roughly 790 bytes a card."
+        ),
     ),
 ) -> CardListOut:
     idx = _shared.index()
@@ -455,7 +480,11 @@ def list_characters(
     )
 
 
-@router.get("/characters/have-fragments", response_model=CharactersHaveFragmentsOut, summary="Every provider-id fragment already in the archive")
+@router.get(
+    "/characters/have-fragments",
+    response_model=CharactersHaveFragmentsOut,
+    summary="Every provider-id fragment already in the archive",
+)
 def characters_have_fragments() -> CharactersHaveFragmentsOut:
     """The whole `_<id8>` fragment set, for Discover to fetch once and match
     against locally instead of resending its ever-growing loaded-id list to
@@ -470,7 +499,7 @@ def characters_have_fragments() -> CharactersHaveFragmentsOut:
 
 
 @router.get("/characters/{card_id}", response_model=CardDetailOut, summary="One card in full")
-def get_character(card_id: str, response: Response = None) -> CardDetailOut:  # type: ignore[assignment]
+def get_character(card_id: str, response: Response = None) -> CardDetailOut:  # ty: ignore[invalid-parameter-default]
     # The detail read carries the same `If-Match` validator a write checks against
     # (`_etag_of`), so an editor gets its precondition token from the read that
     # populated the page -- no second request to fetch it. `response` is injected
@@ -486,15 +515,7 @@ def get_character(card_id: str, response: Response = None) -> CardDetailOut:  # 
     # that one rather than a second, vaguer opinion.
     if not record.ok:
         raise HTTPException(status_code=422, detail=record.error)
-    path = idx.root / record.filename
-    try:
-        envelope = pngtools.read_envelope(path.read_bytes())
-    except (OSError, ValueError, TypeError) as exc:
-        raise HTTPException(status_code=422, detail=f"cannot read card: {exc}") from exc
-    if envelope is None:
-        # Only reachable when the card changed between the scan and this read.
-        raise HTTPException(status_code=422, detail="file carries no character card")
-    outer, data = envelope
+    outer, data = _shared.read_envelope(idx.root / record.filename)
     expressions = _folder_out(record, settings.expressions_dir)
     gallery_out = _folder_out(record, settings.galleries_dir)
     return CardDetailOut(
@@ -536,11 +557,19 @@ def import_character(
     file: UploadFile = File(description="A tavern card PNG -- the card is read out of its tEXt chunks."),
     on_duplicate: Literal["skip", "overwrite"] = Form(
         "skip",
-        description="What to do when the archive already holds this card's `_<id8>` fragment. `skip` reports the card already there; `overwrite` replaces it in place, under the name it currently carries.",
+        description=(
+            "What to do when the archive already holds this card's `_<id8>` fragment. `skip` reports the card already "
+            "there; `overwrite` replaces it in place, under the name it currently carries."
+        ),
     ),
     fork_of: str | None = Form(
         None,
-        description="The parent's `_<id8>` fragment. Adopts the uploaded PNG as a fork of that card (docs/FORKS_AND_EXTRAS_PLAN.md §3): forces `extensions.gallery_id` to the parent's and stamps `extensions.fork`. The uploaded card's own content and id are otherwise taken as given -- this is 'I already have a card that is a rewrite of one I own', not a clone.",
+        description=(
+            "The parent's `_<id8>` fragment. Adopts the uploaded PNG as a fork of that card "
+            "(docs/FORKS_AND_EXTRAS_PLAN.md §3): forces `extensions.gallery_id` to the parent's and stamps "
+            "`extensions.fork`. The uploaded card's own content and id are otherwise taken as given -- this is 'I "
+            "already have a card that is a rewrite of one I own', not a clone."
+        ),
     ),
     note: str | None = Form(None, description="Free text for `extensions.fork.note`. Only meaningful with `fork_of`."),
 ) -> CardImportOut:
@@ -553,7 +582,7 @@ def import_character(
     judgement and the cleaning that follows from it.
 
     Duplicates are decided on the `_<id8>` fragment alone, never the name, like
-    every other duplicate check in the archive: a card renamed by `make names`
+    every other duplicate check in the archive: a card renamed by `task names`
     is still the same card. A skipped duplicate is a 200 naming the file that is
     already here, not an error -- the caller wanted it present, and it is.
     """
@@ -780,7 +809,10 @@ def delete_character(
     gallery_action: Literal["keep", "delete"] = Query(
         "keep",
         alias="gallery",
-        description="`delete` bins the card's gallery folder along with it. Default keeps it -- images are often the expensive half and are not always re-downloadable.",
+        description=(
+            "`delete` bins the card's gallery folder along with it. Default keeps it -- images are often the "
+            "expensive half and are not always re-downloadable."
+        ),
     ),
 ) -> DeletedOut:
     """Move a card into the bin. Nothing here unlinks anything.
@@ -794,11 +826,7 @@ def delete_character(
     path = idx.root / record.filename
 
     try:
-        binned_gallery = (
-            edit.trash_gallery(record.name, record.gallery_id)
-            if gallery_action == "delete"
-            else None
-        )
+        binned_gallery = edit.trash_gallery(record.name, record.gallery_id) if gallery_action == "delete" else None
         binned_card = edit.to_trash(path)
     except edit.WriteError as exc:
         raise _shared.write_error(exc) from exc
@@ -837,11 +865,7 @@ def bulk_delete(body: BulkDeleteIn) -> BulkDeleteOut:
             continue
         path = idx.root / record.filename
         try:
-            binned_gallery = (
-                edit.trash_gallery(record.name, record.gallery_id)
-                if body.gallery == "delete"
-                else None
-            )
+            binned_gallery = edit.trash_gallery(record.name, record.gallery_id) if body.gallery == "delete" else None
             edit.to_trash(path)
         except edit.WriteError as exc:
             failed[record.filename] = str(exc)
@@ -977,7 +1001,11 @@ def bulk_tags(body: BulkTagsIn) -> BulkTagsOut:
     return BulkTagsOut(changed=changed, unchanged=unchanged, failed=failed)
 
 
-@router.post("/characters/have", response_model=CharactersHaveOut, summary="Which of these provider card ids are already in the archive")
+@router.post(
+    "/characters/have",
+    response_model=CharactersHaveOut,
+    summary="Which of these provider card ids are already in the archive",
+)
 def characters_have(body: CharactersHaveIn) -> CharactersHaveOut:
     """The `/api/v1` peer of `POST /existing` (`aspect/api/capture.py`) -- same
     id-fragment match, exposed here so Discover (UI_REWRITE_PLAN.md §3.8)
@@ -1101,7 +1129,10 @@ def get_character_thumb(
         None,
         ge=48,
         le=1024,
-        description="Thumbnail height in pixels; the 2:3 grid aspect is fixed. Omit for the inherited 96x144 cache, which covers the whole archive already and costs nothing to serve.",
+        description=(
+            "Thumbnail height in pixels; the 2:3 grid aspect is fixed. Omit for the inherited 96x144 cache, which "
+            "covers the whole archive already and costs nothing to serve."
+        ),
     ),
 ) -> Response:
     """A ~10 KB derivative of the card, generated on a cache miss.

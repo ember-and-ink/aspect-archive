@@ -37,7 +37,7 @@ signals, strongest first:
     first-mention breaks ties between co-stars.
 
 Accuracy, measured against real human judgements rather than a proxy: replaying
-the 267 decisions in logs/name_repair.jsonl (`make names ARGS=--rejudge`) the
+the 267 decisions in logs/name_repair.jsonl (`task names -- --rejudge`) the
 rules now propose exactly what the human chose 80% of the time -- JUNK 85%,
 TITLE 74%, GENERIC 63%. An older estimate of 87%, taken by treating the
 archive's single-token names as ground truth, is measurably too kind; prefer the
@@ -58,7 +58,9 @@ from __future__ import annotations
 import collections
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from collections.abc import Set as AbstractSet
+from dataclasses import dataclass
+from dataclasses import field
 
 # --------------------------------------------------------------------------
 # Vocabulary
@@ -233,9 +235,7 @@ def _original_case(key: str, body: str) -> str:
     leaves a genuine acronym (`MSSS`, `NAMRC`) alone.
     """
     forms = collections.Counter(
-        m.group(1)
-        for m in re.finditer(r"\b(" + re.escape(key) + r")\b", body, re.I)
-        if m.group(1)[0].isupper()
+        m.group(1) for m in re.finditer(r"\b(" + re.escape(key) + r")\b", body, re.I) if m.group(1)[0].isupper()
     )
     if not forms:
         return key.capitalize()
@@ -308,12 +308,7 @@ def roster(
         if preceded[key] >= 0.75 * n:
             continue
         pos = min(first_at.get(key, span) / span, 1.0)
-        score = (
-            (n**0.5)
-            * purity
-            * (1 + 1.2 * min(possessive[key], 6) / 6)
-            * (1.35 - 0.6 * pos)
-        )
+        score = (n**0.5) * purity * (1 + 1.2 * min(possessive[key], 6) / 6) * (1.35 - 0.6 * pos)
         ranked.append(
             Candidate(
                 token=key,
@@ -386,9 +381,7 @@ def name_score(segment: str) -> float:
     # An honorific is part of the name when a name follows it. A bare rank
     # counts too, but only in first position and only ahead of a capitalized
     # word -- see `_LEADING_RANKS`.
-    honorific = [
-        w.rstrip(".") in _HONORIFICS and i < len(bare) - 1 for i, w in enumerate(bare)
-    ]
+    honorific = [w.rstrip(".") in _HONORIFICS and i < len(bare) - 1 for i, w in enumerate(bare)]
     if (
         len(words) > 1
         and bare[0].rstrip(".") in _LEADING_RANKS
@@ -400,10 +393,7 @@ def name_score(segment: str) -> float:
     # Joiners, honorifics, particles and quoted epithets are all name furniture:
     # they don't count toward length, so `Kara & Valeria & Elizabeth` is judged
     # as three words and `Vanessa "Vanny" di Notturni` as two.
-    furniture = [
-        joiner[i] or honorific[i] or quoted[i] or bare[i] in _NAME_PARTICLES
-        for i in range(len(words))
-    ]
+    furniture = [joiner[i] or honorific[i] or quoted[i] or bare[i] in _NAME_PARTICLES for i in range(len(words))]
     effective = max(len(words) - sum(furniture), 1)
     score = 1.0 if effective <= 3 else (-1.0 if effective <= 5 else -3.0)
 
@@ -421,18 +411,11 @@ def name_score(segment: str) -> float:
         core = w.strip(".,()\"'’“”")
         if furniture[i]:
             continue
-        if (
-            core
-            and core[0].islower()
-            and core.lower() not in _NAME_PARTICLES
-            and not _has_inner_capital(core)
-        ):
+        if core and core[0].islower() and core.lower() not in _NAME_PARTICLES and not _has_inner_capital(core):
             score -= 2.0
 
     score += 0.5 * sum(
-        1
-        for w in words
-        if w.strip("\"'“”‘’")[:1].isupper() or _has_inner_capital(w.strip(".,()\"'’“”"))
+        1 for w in words if w.strip("\"'“”‘’")[:1].isupper() or _has_inner_capital(w.strip(".,()\"'’“”"))
     )
     return score
 
@@ -468,7 +451,7 @@ def split_name(raw: str) -> list[str]:
     return [s.strip() for s in _SEP.split(raw or "") if s.strip()]
 
 
-def _parenthetical_is_descriptive(inner: str, roster_tokens: frozenset[str]) -> bool:
+def _parenthetical_is_descriptive(inner: str, roster_tokens: AbstractSet[str]) -> bool:
     """True when a parenthetical is marketing copy rather than a nickname/alias.
 
     `Malinda (Your Adopted Wolfgirl)` / `Maia (Blackmailed Assailant)` -> drop.
@@ -492,7 +475,7 @@ def _parenthetical_is_descriptive(inner: str, roster_tokens: frozenset[str]) -> 
     return True
 
 
-def strip_parentheticals(name: str, roster_tokens: frozenset[str] = frozenset()) -> str:
+def strip_parentheticals(name: str, roster_tokens: AbstractSet[str] = frozenset()) -> str:
     """Drop descriptive parentheticals, keep nickname/alias ones."""
 
     def repl(m: re.Match[str]) -> str:
@@ -504,9 +487,7 @@ def strip_parentheticals(name: str, roster_tokens: frozenset[str] = frozenset())
 def _segment_tokens(segment: str) -> frozenset[str]:
     """The comparable lowercase word tokens of a name segment."""
     return frozenset(
-        t.lower().strip(".,()\"'’“”")
-        for t in _tokens(_strip_edges(segment))
-        if len(t.strip(".,()\"'’“”")) >= 3
+        t.lower().strip(".,()\"'’“”") for t in _tokens(_strip_edges(segment)) if len(t.strip(".,()\"'’“”")) >= 3
     )
 
 
@@ -662,9 +643,7 @@ def _word_seq(text: str) -> list[str]:
 def _contiguous_in(needle: list[str], haystack: list[str]) -> bool:
     if not needle or len(needle) > len(haystack):
         return False
-    return any(
-        haystack[i : i + len(needle)] == needle for i in range(len(haystack) - len(needle) + 1)
-    )
+    return any(haystack[i : i + len(needle)] == needle for i in range(len(haystack) - len(needle) + 1))
 
 
 def declared_as_name(raw: str, body: str) -> bool:
@@ -692,10 +671,7 @@ def declared_as_name(raw: str, body: str) -> bool:
         words = words[1:]
     if not words or not stripped[:1].isupper():
         return False
-    return any(
-        _contiguous_in(words, _word_seq(m.group(1)))
-        for m in _DECLARED_NAME.finditer(body)
-    )
+    return any(_contiguous_in(words, _word_seq(m.group(1))) for m in _DECLARED_NAME.finditer(body))
 
 
 def _looks_like_ensemble(cands: list[Candidate], body: str) -> bool:

@@ -116,9 +116,7 @@ class SystemPromptParser:
             # `personality` and pulling it out again would duplicate it.
             nested_in_char = char_start != -1 and char_start <= m_scenario.start() < char_end
             if not nested_in_char:
-                scenario_block_end, scenario_inner = _extract_tag_content(
-                    text, "scenario", m_scenario.end()
-                )
+                scenario_block_end, scenario_inner = _extract_tag_content(text, "scenario", m_scenario.end())
                 if scenario_inner.strip():
                     scenario_parts.append(scenario_inner.strip())
 
@@ -127,9 +125,7 @@ class SystemPromptParser:
         example_open_re, _ = _compile_tag_pair("example_dialogs")
         m_example = example_open_re.search(text)
         if m_example:
-            example_block_end, example_inner = _extract_tag_content(
-                text, "example_dialogs", m_example.end()
-            )
+            example_block_end, example_inner = _extract_tag_content(text, "example_dialogs", m_example.end())
             mes_example = example_inner.strip()
 
         # Real captures show JanitorAI sometimes trails genuine

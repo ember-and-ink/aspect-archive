@@ -13,8 +13,8 @@ saucepan's API. Four representative fully-open cards:
 import json
 from pathlib import Path
 
-from aspect.sources import saucepan as m
 from aspect.cards.builder import CardBuilder
+from aspect.sources import saucepan as m
 
 FIX = Path(__file__).parent.parent / "fixtures" / "saucepan"
 
@@ -52,7 +52,9 @@ def test_eve_profile_fields():
     assert pf.creator_notes.startswith("It was Sunday night in the living room of one Doctor Charles Ackerman")
     assert "What if the machine is more humane than the human?" not in pf.creator_notes
     assert pf.creator_notes.count("![") == 11
-    assert "![The Three Bullies](https://saucepan.ai/cdn/370f5b18-a180-4259-b9f8-17e46113cd00/highres)" in pf.creator_notes
+    assert (
+        "![The Three Bullies](https://saucepan.ai/cdn/370f5b18-a180-4259-b9f8-17e46113cd00/highres)" in pf.creator_notes
+    )
 
 
 def test_eve_greetings_drop_blank_placeholder():
@@ -166,6 +168,7 @@ def test_akane_mirror_card():
     assert pf.description.count("{{user}}") > 0
     assert len(m.greetings(raw)) == 9
     book = m.character_book(raw, "Akane Kujo")
+    assert book is not None
     assert len(book.entries) == 110  # 20 + 90 chapters merged
 
 
@@ -183,9 +186,7 @@ def test_build_scenario_advanced_leads_then_labeled_extras():
         ("Mystery Section", "mystery text"),
     ]
     assert m._build_scenario(sections) == (
-        "adv text\n\n"
-        "--- Response Formatting Instructions ---\nfmt text\n\n"
-        "--- Mystery Section ---\nmystery text"
+        "adv text\n\n--- Response Formatting Instructions ---\nfmt text\n\n--- Mystery Section ---\nmystery text"
     )
 
 
@@ -311,6 +312,7 @@ def test_lorebook_manifest_tops_up_books_the_listing_missed():
 def test_character_book_records_each_lorebooks_run():
     eve = {**load(EVE), "lorebook_list": [{**lorebook_list()[0], "id": SHARED}]}
     book = m.character_book(eve, character_name="Eve")
+    assert book is not None
     assert book.extensions["jai_sources"] == [
         {"id": "af12bbec-33db-4c41-aa2d-c350864e207d", "title": "", "entry_count": 6},
         {"id": SHARED, "title": "Pacing Primer", "entry_count": 13},

@@ -14,7 +14,8 @@ import httpx
 import pytest
 
 from aspect.config import settings
-from aspect.media import civitai, extractors
+from aspect.media import civitai
+from aspect.media import extractors
 
 
 def _client(handler) -> httpx.Client:
@@ -42,7 +43,9 @@ def _image(image_id: int, uuid: str, *, kind: str = "image") -> dict:
     ],
 )
 def test_recognized_urls_route_to_the_extractor(url: str):
-    assert extractors.extractor_for(url).id == "civitai"
+    extractor = extractors.extractor_for(url)
+    assert extractor is not None
+    assert extractor.id == "civitai"
 
 
 @pytest.mark.parametrize(
@@ -171,9 +174,7 @@ def test_html_fallback_runs_only_when_the_api_is_empty_and_prefers_the_original(
     with _client(handler) as client:
         images = civitai.extract_images(client, "https://civitai.com/images/9173928")
 
-    assert [i.url for i in images] == [
-        "https://image.civitai.com/xG1nkq/cc242d6c/original=true/cc242d6c.jpeg"
-    ]
+    assert [i.url for i in images] == ["https://image.civitai.com/xG1nkq/cc242d6c/original=true/cc242d6c.jpeg"]
 
 
 def test_html_fallback_prefers_the_widest_variant_when_none_is_original():

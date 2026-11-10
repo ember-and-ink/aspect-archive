@@ -177,9 +177,7 @@ def _prefer_larger(candidate: str, current: str) -> bool:
         return candidate_original
     candidate_width = _WIDTH_RE.search(candidate)
     current_width = _WIDTH_RE.search(current)
-    return int(candidate_width.group(1) if candidate_width else 0) > int(
-        current_width.group(1) if current_width else 0
-    )
+    return int(candidate_width.group(1) if candidate_width else 0) > int(current_width.group(1) if current_width else 0)
 
 
 def _filename_for(url: str, fallback_key: object) -> str:

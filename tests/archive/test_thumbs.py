@@ -93,6 +93,7 @@ def test_wide_source_is_cover_cropped_not_squashed(archive_dirs):
     (characters / "Wide_1.png").write_bytes(card_png("Wide", size=(400, 200)))
     store = thumbs.ThumbnailStore(archive_dirs["thumbs"], characters)
     thumb = store.generate_avatar("Wide_1.png")
+    assert thumb is not None
     assert Image.open(thumb.path).size == thumbs.THUMB_SIZE
 
 
@@ -101,9 +102,8 @@ def test_transparent_avatar_flattens_onto_white_not_black(archive_dirs):
     (characters / "Ghost_1.png").write_bytes(card_png("Ghost", colour=(255, 0, 0, 0)))
     store = thumbs.ThumbnailStore(archive_dirs["thumbs"], characters)
     thumb = store.generate_avatar("Ghost_1.png")
-    assert Image.open(thumb.path).convert("RGB").getpixel((48, 72)) == pytest.approx(
-        (255, 255, 255), abs=4
-    )
+    assert thumb is not None
+    assert Image.open(thumb.path).convert("RGB").getpixel((48, 72)) == pytest.approx((255, 255, 255), abs=4)
 
 
 def test_generate_returns_none_for_an_unrenderable_card(archive_dirs):

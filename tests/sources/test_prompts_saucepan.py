@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from aspect.sources.prompts.saucepan import SaucepanPromptParser, is_saucepan_prompt
+from aspect.sources.prompts.saucepan import SaucepanPromptParser
+from aspect.sources.prompts.saucepan import is_saucepan_prompt
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "saucepan"
 
@@ -30,9 +31,7 @@ FINLEY_SCENARIO = (
 
 
 def _load_system_prompt() -> str:
-    data = json.loads(
-        (FIXTURES / "saucepan_chat_finley_60bdd321.json").read_text(encoding="utf-8")
-    )
+    data = json.loads((FIXTURES / "saucepan_chat_finley_60bdd321.json").read_text(encoding="utf-8"))
     for message in data["messages"]:
         if message["role"] == "system":
             return message["content"]

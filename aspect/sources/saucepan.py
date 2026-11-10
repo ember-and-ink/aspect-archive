@@ -51,7 +51,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from aspect.cards.models import CharacterBook, LoreEntry, ProfileFields
+from aspect.cards.models import CharacterBook
+from aspect.cards.models import LoreEntry
+from aspect.cards.models import ProfileFields
 from aspect.sources.saucepan_fragments import deobfuscate_fragments as _deob
 
 SAUCEPAN_ORIGIN = "https://saucepan.ai"

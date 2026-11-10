@@ -18,7 +18,8 @@ docs/PHASE_4_REFACTOR_PLAN.md.
 from __future__ import annotations
 
 from aspect.cards.avatar_fetch import AvatarFetcher
-from aspect.cards.builder import CardBuilder, PngWriter
+from aspect.cards.builder import CardBuilder
+from aspect.cards.builder import PngWriter
 from aspect.cards.lorebook import LorebookMapper
 from aspect.config import settings
 from aspect.runtime.mock_responder import MockResponder

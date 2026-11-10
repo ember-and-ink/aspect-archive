@@ -8,7 +8,8 @@ import httpx
 import pytest
 
 from aspect.sources import datacat_client
-from aspect.sources.datacat_client import DatacatImageResolver, _original_avatar_url
+from aspect.sources.datacat_client import DatacatImageResolver
+from aspect.sources.datacat_client import _original_avatar_url
 
 
 @pytest.fixture(autouse=True)
@@ -40,9 +41,7 @@ def test_resolve_returns_original_avatar_url():
             json={
                 "success": True,
                 "character": {
-                    "chara_card_v2_json": {
-                        "data": {"avatar": "https://ella.janitorai.com/bot-avatars/abc.webp"}
-                    }
+                    "chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/bot-avatars/abc.webp"}}
                 },
             },
         )
@@ -84,7 +83,11 @@ def test_resolve_falls_back_to_content_variants():
                 "character": {
                     "chara_card_v2_json": {"data": {"avatar": None}},
                     "content_variants": [
-                        {"content": {"chara_card_v2_json": {"data": {"avatar": "https://cdn.saucepan.ai/images/x/card"}}}}
+                        {
+                            "content": {
+                                "chara_card_v2_json": {"data": {"avatar": "https://cdn.saucepan.ai/images/x/card"}}
+                            }
+                        }
                     ],
                 },
             },
@@ -97,12 +100,15 @@ def test_resolve_falls_back_to_content_variants():
 def test_resolve_ignores_datacat_rehosted_variants():
     """avatar_variant_urls/avatar are datacat's own downscaled re-hosting --
     never a substitute for the untouched original."""
-    assert _original_avatar_url(
-        {
-            "avatar": "https://media.datacat.run/media/variants/source-avatar/v2/card.webp",
-            "avatar_variant_urls": {"hero": "https://media.datacat.run/media/variants/source-avatar/v1/hero.webp"},
-        }
-    ) is None
+    assert (
+        _original_avatar_url(
+            {
+                "avatar": "https://media.datacat.run/media/variants/source-avatar/v2/card.webp",
+                "avatar_variant_urls": {"hero": "https://media.datacat.run/media/variants/source-avatar/v1/hero.webp"},
+            }
+        )
+        is None
+    )
 
 
 def test_resolve_returns_none_when_identify_fails():
@@ -140,7 +146,10 @@ def test_request_retries_transient_failures_then_succeeds():
             return _identify_ok()
         return httpx.Response(
             200,
-            json={"success": True, "character": {"chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/x.webp"}}}},
+            json={
+                "success": True,
+                "character": {"chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/x.webp"}}},
+            },
         )
 
     resolver = DatacatImageResolver(client=_client(handler), persist=False)
@@ -190,7 +199,10 @@ def test_uses_preloaded_token_without_calling_identify(monkeypatch):
         assert request.headers["X-Session-Token"] == "preloaded-tok"
         return httpx.Response(
             200,
-            json={"success": True, "character": {"chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/x.webp"}}}},
+            json={
+                "success": True,
+                "character": {"chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/x.webp"}}},
+            },
         )
 
     monkeypatch.setattr(datacat_client.settings, "datacat_session_token", "preloaded-tok")
@@ -212,7 +224,10 @@ def test_drops_and_refetches_a_rejected_stored_token(monkeypatch, tmp_path):
         assert request.headers["X-Session-Token"] == "fresh-tok"
         return httpx.Response(
             200,
-            json={"success": True, "character": {"chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/y.webp"}}}},
+            json={
+                "success": True,
+                "character": {"chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/y.webp"}}},
+            },
         )
 
     monkeypatch.setattr(datacat_client.settings, "datacat_session_token", "stale-tok")
@@ -230,7 +245,10 @@ def test_persists_freshly_fetched_token_to_env_file(tmp_path):
             return _identify_ok(session_token="brand-new-tok")
         return httpx.Response(
             200,
-            json={"success": True, "character": {"chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/z.webp"}}}},
+            json={
+                "success": True,
+                "character": {"chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/z.webp"}}},
+            },
         )
 
     env_path = tmp_path / ".env"
@@ -249,7 +267,10 @@ def test_persist_false_never_touches_the_env_file(tmp_path):
             return _identify_ok()
         return httpx.Response(
             200,
-            json={"success": True, "character": {"chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/z.webp"}}}},
+            json={
+                "success": True,
+                "character": {"chara_card_v2_json": {"data": {"avatar": "https://ella.janitorai.com/z.webp"}}},
+            },
         )
 
     env_path = tmp_path / ".env"
@@ -260,7 +281,9 @@ def test_persist_false_never_touches_the_env_file(tmp_path):
 
 def test_persist_session_token_replaces_existing_line(tmp_path):
     env_path = tmp_path / ".env"
-    env_path.write_text("ASPECT_ARCHIVE_DIR=/somewhere\nASPECT_DATACAT_SESSION_TOKEN=old-tok\nASPECT_CARD_LAYOUT=flat\n")
+    env_path.write_text(
+        "ASPECT_ARCHIVE_DIR=/somewhere\nASPECT_DATACAT_SESSION_TOKEN=old-tok\nASPECT_CARD_LAYOUT=flat\n"
+    )
 
     datacat_client._persist_session_token("new-tok", env_path)
 

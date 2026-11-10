@@ -13,12 +13,10 @@ import { CardTile } from '@/components/CardTile'
 import { CardGrid } from '@/components/CardGrid'
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogTitle,
+  DeleteDialogFooter,
 } from '@/components/ui/alert-dialog'
 import {
   useCharacterDetail,
@@ -266,27 +264,45 @@ export function GreetingsPane({ card }: { card: PaneCard }) {
   )
 }
 
-function GreetingsEditor({
-  initial,
-  onSave,
-}: {
+function GreetingsEditor(props: {
   initial: string[]
   onSave: (greetings: string[]) => void
+}) {
+  return (
+    <TextListEditor
+      {...props}
+      label={(index) =>
+        index === 0 ? 'Greeting 1 · primary' : `Greeting ${index + 1}`
+      }
+      addLabel="Add greeting"
+    />
+  )
+}
+
+/** An editable list of text blocks -- the greetings and the example dialogue. */
+function TextListEditor({
+  initial,
+  onSave,
+  label,
+  addLabel,
+}: {
+  initial: string[]
+  onSave: (blocks: string[]) => void
+  label: (index: number, count: number) => string
+  addLabel: string
 }) {
   const [drafts, setDrafts] = useState<string[]>(
     initial.length ? initial : [''],
   )
   const set = (index: number, value: string) =>
-    setDrafts(drafts.map((g, i) => (i === index ? value : g)))
+    setDrafts(drafts.map((d, i) => (i === index ? value : d)))
 
   return (
     <div className="mt-2.5 flex flex-col gap-3">
-      {drafts.map((greeting, index) => (
+      {drafts.map((draft, index) => (
         <div key={index}>
           <div className="flex items-center gap-2.5 text-[11.5px] text-faint">
-            <span>
-              {index === 0 ? 'Greeting 1 · primary' : `Greeting ${index + 1}`}
-            </span>
+            <span>{label(index, drafts.length)}</span>
             {drafts.length > 1 && (
               <button
                 type="button"
@@ -298,7 +314,7 @@ function GreetingsEditor({
             )}
           </div>
           <InlineTextField
-            value={greeting}
+            value={draft}
             onChange={(value) => set(index, value)}
             autoFocus={index === 0}
           />
@@ -309,7 +325,7 @@ function GreetingsEditor({
         onClick={() => setDrafts([...drafts, ''])}
         className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-line py-2.5 text-[12.5px] text-muted hover:border-sage-line hover:text-sage"
       >
-        <Plus className="size-3.5" /> Add greeting
+        <Plus className="size-3.5" /> {addLabel}
       </button>
       <SaveRow onSave={() => onSave(drafts)} />
     </div>
@@ -393,53 +409,18 @@ function DialogueTranscript({
   )
 }
 
-function DialogueEditor({
-  initial,
-  onSave,
-}: {
+function DialogueEditor(props: {
   initial: string[]
   onSave: (blocks: string[]) => void
 }) {
-  const [drafts, setDrafts] = useState<string[]>(
-    initial.length ? initial : [''],
-  )
-  const set = (index: number, value: string) =>
-    setDrafts(drafts.map((d, i) => (i === index ? value : d)))
-
   return (
-    <div className="mt-2.5 flex flex-col gap-3">
-      {drafts.map((draft, index) => (
-        <div key={index}>
-          <div className="flex items-center gap-2.5 text-[11.5px] text-faint">
-            <span>
-              {drafts.length > 1 ? `Example ${index + 1}` : 'Example dialogue'}
-            </span>
-            {drafts.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setDrafts(drafts.filter((_, i) => i !== index))}
-                className="text-faint hover:text-bad"
-              >
-                remove
-              </button>
-            )}
-          </div>
-          <InlineTextField
-            value={draft}
-            onChange={(value) => set(index, value)}
-            autoFocus={index === 0}
-          />
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={() => setDrafts([...drafts, ''])}
-        className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-line py-2.5 text-[12.5px] text-muted hover:border-sage-line hover:text-sage"
-      >
-        <Plus className="size-3.5" /> Add block
-      </button>
-      <SaveRow onSave={() => onSave(drafts)} />
-    </div>
+    <TextListEditor
+      {...props}
+      label={(index, count) =>
+        count > 1 ? `Example ${index + 1}` : 'Example dialogue'
+      }
+      addLabel="Add block"
+    />
   )
 }
 
@@ -651,26 +632,10 @@ export function GalleryPane({ card }: { card: CardDetail }) {
             emptied. A plain "Localize media" run won't re-fetch them; only a
             full rescan will.
           </AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel asChild>
-              <button
-                type="button"
-                className="rounded-[10px] border border-line px-3.5 py-2 text-[13px] hover:bg-raised"
-              >
-                Cancel
-              </button>
-            </AlertDialogCancel>
-            <AlertDialogAction asChild>
-              <button
-                type="button"
-                onClick={onDelete}
-                disabled={bulkDelete.isPending}
-                className="rounded-[10px] border border-bad bg-bad/90 px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-bad disabled:opacity-60"
-              >
-                {bulkDelete.isPending ? 'Deleting…' : 'Delete'}
-              </button>
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          <DeleteDialogFooter
+            onDelete={onDelete}
+            pending={bulkDelete.isPending}
+          />
         </AlertDialogContent>
       </AlertDialog>
     </>

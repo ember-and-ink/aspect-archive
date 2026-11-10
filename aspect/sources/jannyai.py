@@ -27,8 +27,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from aspect.text.notes_html import clean_creator_notes
 from aspect.cards.models import ProfileFields
+from aspect.sources import exported_card
 
 # A JannyAI card originates from jannyai.com; reconstruct the canonical character
 # URL from the id + slug so imported cards match the source_url/character_version
@@ -91,27 +91,9 @@ def source_url(data: dict[str, Any]) -> str | None:
 
 
 def to_profile_fields(data: dict[str, Any]) -> ProfileFields:
-    """Map a JannyAI card's `data` object onto ProfileFields. Like datacat, the
-    whole definition lives in `description` (its `personality` field is unused),
-    so that maps straight across; `creator_notes` is de-HTML'd."""
-    return ProfileFields(
-        name=_s(data.get("name")),
-        creator=creator(data),
-        tags=[t for t in (data.get("tags") or []) if isinstance(t, str) and t.strip()],
-        description=_s(data.get("description")),
-        scenario=_s(data.get("scenario")),
-        mes_example=_s(data.get("mes_example")),
-        creator_notes=clean_creator_notes(data.get("creator_notes") or ""),
-    )
+    """Map a JannyAI card's `data` object onto ProfileFields."""
+    return exported_card.profile_fields(data, creator=creator(data))
 
 
-def greetings(data: dict[str, Any]) -> list[str]:
-    """The card's greetings: the primary `first_mes` first, then any
-    `alternate_greetings` (none observed in practice). Blank/dupe entries are
-    dropped; the CardBuilder makes element 0 the first_mes."""
-    out: list[str] = []
-    for g in [data.get("first_mes"), *(data.get("alternate_greetings") or [])]:
-        text = g if isinstance(g, str) else ""
-        if text.strip() and text not in out:
-            out.append(text)
-    return out
+# No `alternate_greetings` observed on JannyAI in practice; the shared walk still reads them.
+greetings = exported_card.greetings

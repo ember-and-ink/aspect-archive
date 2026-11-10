@@ -186,9 +186,7 @@ class ThumbnailStore:
         share the same name."""
         return self.expression_dir / folder / f"{filename}_{size}{_THUMB_EXT}"
 
-    def gallery(
-        self, source: Path, folder: str, filename: str, size: int = GALLERY_THUMB_SIZE
-    ) -> ThumbFile | None:
+    def gallery(self, source: Path, folder: str, filename: str, size: int = GALLERY_THUMB_SIZE) -> ThumbFile | None:
         """A gallery image's thumbnail, generating it if the cache misses.
 
         `source` is passed in rather than derived because the galleries live
@@ -207,21 +205,9 @@ class ThumbnailStore:
         (`writer.UNSUPPORTED_EXT_RE`), but an svg or a truncated file still
         can't be rendered, and that is the caller's problem to present rather
         than this one's to guess at."""
-        try:
-            data = _render_thumb(source.read_bytes(), size=(size, size))
-        except (OSError, ValueError, TypeError, Image.DecompressionBombError) as exc:
-            logger.info("thumbs: cannot render gallery image %s/%s: %s", folder, filename, exc)
-            return None
-        path = self.gallery_path(folder, filename, size)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(path.name + ".part")
-        temporary.write_bytes(data)
-        temporary.replace(path)
-        return ThumbFile(path, sniff_media_type(data))
+        return _render_to(source, self.gallery_path(folder, filename, size), size, f"gallery image {folder}/{filename}")
 
-    def expression(
-        self, source: Path, folder: str, filename: str, size: int = GALLERY_THUMB_SIZE
-    ) -> ThumbFile | None:
+    def expression(self, source: Path, folder: str, filename: str, size: int = GALLERY_THUMB_SIZE) -> ThumbFile | None:
         """An expression sprite's thumbnail, generating it if the cache misses.
         Mirrors `gallery()` exactly -- see there for why `source` is passed in
         rather than derived."""
@@ -235,21 +221,11 @@ class ThumbnailStore:
     ) -> ThumbFile | None:
         """Render one expression sprite's thumb and cache it. Mirrors
         `generate_gallery()`."""
-        try:
-            data = _render_thumb(source.read_bytes(), size=(size, size))
-        except (OSError, ValueError, TypeError, Image.DecompressionBombError) as exc:
-            logger.info("thumbs: cannot render expression image %s/%s: %s", folder, filename, exc)
-            return None
-        path = self.expression_path(folder, filename, size)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(path.name + ".part")
-        temporary.write_bytes(data)
-        temporary.replace(path)
-        return ThumbFile(path, sniff_media_type(data))
+        return _render_to(
+            source, self.expression_path(folder, filename, size), size, f"expression image {folder}/{filename}"
+        )
 
-    def avatar(
-        self, filename: str, *, size: int | None = None, generate: bool = True
-    ) -> ThumbFile | None:
+    def avatar(self, filename: str, *, size: int | None = None, generate: bool = True) -> ThumbFile | None:
         """A card's avatar thumbnail, generating it if the cache misses.
 
         Returns None only when the thumb is absent *and* cannot be made -- an
@@ -349,41 +325,11 @@ class ThumbnailStore:
         gallery folder -- docs/PHASE_3C_PLAN.md §5. `live_filenames` is the
         caller's own scandir of the gallery, so this only ever reads the
         thumb cache."""
-        directory = self.gallery_dir / folder
-        if not directory.is_dir():
-            return 0
-        removed = 0
-        for candidate in directory.iterdir():
-            if not candidate.is_file():
-                continue
-            source = _gallery_thumb_source_name(candidate.name)
-            if source is None or source in live_filenames:
-                continue
-            try:
-                candidate.unlink()
-                removed += 1
-            except OSError:
-                continue
-        return removed
+        return _prune_thumbs(self.gallery_dir / folder, live_filenames)
 
     def prune_expression(self, folder: str, live_filenames: set[str]) -> int:
         """Mirrors `prune_gallery()`, over the expression cache."""
-        directory = self.expression_dir / folder
-        if not directory.is_dir():
-            return 0
-        removed = 0
-        for candidate in directory.iterdir():
-            if not candidate.is_file():
-                continue
-            source = _gallery_thumb_source_name(candidate.name)
-            if source is None or source in live_filenames:
-                continue
-            try:
-                candidate.unlink()
-                removed += 1
-            except OSError:
-                continue
-        return removed
+        return _prune_thumbs(self.expression_dir / folder, live_filenames)
 
     def missing(self, filenames: list[str]) -> list[str]:
         """Which of these cards have no avatar thumb yet."""
@@ -391,7 +337,7 @@ class ThumbnailStore:
 
     def stale(self, filenames: list[str]) -> list[Path]:
         """Avatar thumbs whose card is gone -- renamed or deleted. 840 of these
-        came across at cutover, the residue of every `make names` rename and
+        came across at cutover, the residue of every `task names` rename and
         every card removed from the archive over its life."""
         known = set(filenames)
         try:
@@ -401,9 +347,45 @@ class ThumbnailStore:
         return [p for p in entries if p.is_file() and p.name not in known]
 
 
+def _render_to(source: Path, path: Path, size: int, what: str) -> ThumbFile | None:
+    """Render `source` to a `size` thumb at `path`, via a `.part` file so a reader
+    never sees half a thumb. None (logged) when the image cannot be rendered."""
+    try:
+        data = _render_thumb(source.read_bytes(), size=(size, size))
+    except (OSError, ValueError, TypeError, Image.DecompressionBombError) as exc:
+        logger.info("thumbs: cannot render %s: %s", what, exc)
+        return None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".part")
+    temporary.write_bytes(data)
+    temporary.replace(path)
+    return ThumbFile(path, sniff_media_type(data))
+
+
+def _prune_thumbs(directory: Path, live_filenames: set[str]) -> int:
+    """Delete the cached thumbs in `directory` whose source image is not in
+    `live_filenames`; returns how many went."""
+    if not directory.is_dir():
+        return 0
+    removed = 0
+    for candidate in directory.iterdir():
+        if not candidate.is_file():
+            continue
+        source = _gallery_thumb_source_name(candidate.name)
+        if source is None or source in live_filenames:
+            continue
+        try:
+            candidate.unlink()
+            removed += 1
+        except OSError:
+            continue
+    return removed
+
+
 _GALLERY_THUMB_RE = re.compile(
-    r"^(?P<name>.+)_(?P<size>\d+)(?P<ext>%s)$"
-    % "|".join(re.escape(extension) for extension in _GALLERY_THUMB_EXTS)
+    r"^(?P<name>.+)_(?P<size>\d+)(?P<ext>{})$".format(
+        "|".join(re.escape(extension) for extension in _GALLERY_THUMB_EXTS)
+    )
 )
 
 
@@ -473,7 +455,7 @@ def _render_thumb(source: bytes, *, size: tuple[int, int] = THUMB_SIZE) -> bytes
     scale = min(1.0, max(target_w / src_w, target_h / src_h))
     resized = image.resize(
         (max(1, round(src_w * scale)), max(1, round(src_h * scale))),
-        Image.LANCZOS,
+        Image.Resampling.LANCZOS,
     )
     target_w = min(target_w, resized.width)
     target_h = min(target_h, resized.height)

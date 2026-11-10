@@ -21,11 +21,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
 
-from aspect.sources.datacat_client import DatacatSession, DatacatSessionError
+from aspect.sources.datacat_client import DatacatSession
+from aspect.sources.datacat_client import DatacatSessionError
 
 router = APIRouter(prefix="/api/v1/datacat", tags=["datacat"])
 
@@ -93,7 +96,5 @@ async def dc_proxy(path: str, request: Request) -> Response:
 
 @router.post("/dc-extract")
 async def dc_extract(req: DcExtractRequest) -> Response:
-    status, body = await session.extract(
-        req.url, public_feed=req.publicFeed, always_reextract=req.alwaysReextract
-    )
+    status, body = await session.extract(req.url, public_feed=req.publicFeed, always_reextract=req.alwaysReextract)
     return JSONResponse(body, status_code=status)

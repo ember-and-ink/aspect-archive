@@ -19,6 +19,7 @@ Duplicate detection is by filename identity, not content hash: the webp
 compression pass rewrote every file's bytes, so identical images no longer
 hash alike. See `identity()`.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,9 +43,7 @@ QUARANTINE = IMAGES / "_orphan_quarantine"
 
 _UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1F]')
 _FOLDER = re.compile(r"^(.*)_([A-Za-z0-9]{12})$")
-_PREFIX = re.compile(
-    r"^(?:localized_media_\d+|extgallery_\d+|(?:chub|datacat)gallery_[0-9a-f]+)_"
-)
+_PREFIX = re.compile(r"^(?:localized_media_\d+|extgallery_\d+|(?:chub|datacat)gallery_[0-9a-f]+)_")
 _IGNORE = {".DS_Store"}
 
 
@@ -106,8 +105,7 @@ def main() -> int:
     ap.add_argument(
         "--purge",
         action="store_true",
-        help="delete emptied folders outright instead of moving them to "
-        f"{QUARANTINE.name}/ for review",
+        help=f"delete emptied folders outright instead of moving them to {QUARANTINE.name}/ for review",
     )
     args = ap.parse_args()
 
@@ -160,8 +158,7 @@ def main() -> int:
             # A folder whose target does not exist yet is just misnamed: rename
             # it rather than moving every file individually.
             if files and not target.exists():
-                log.append({"op": "rename", "src": src.name, "dst": target_name,
-                            "files": len(files)})
+                log.append({"op": "rename", "src": src.name, "dst": target_name, "files": len(files)})
                 if args.apply:
                     src.rename(target)
                 seen = {identity(f) for f in files}
@@ -178,8 +175,13 @@ def main() -> int:
                 while dst.exists():
                     dst = dst.with_name(f"{stem}~{n}{suffix}")
                     n += 1
-                log.append({"op": "move", "src": f"{src.name}/{f.relative_to(src)}",
-                            "dst": f"{target_name}/{dst.relative_to(target)}"})
+                log.append(
+                    {
+                        "op": "move",
+                        "src": f"{src.name}/{f.relative_to(src)}",
+                        "dst": f"{target_name}/{dst.relative_to(target)}",
+                    }
+                )
                 if args.apply:
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(f), str(dst))
@@ -197,15 +199,14 @@ def main() -> int:
 
     if args.apply and not args.purge:
         print(f"  retired folders moved to {QUARANTINE}")
-    print(f"[{'APPLIED' if args.apply else 'DRY RUN'}] "
-          f"folders removed={removed}  files kept (moved/renamed)={moved}  "
-          f"duplicates discarded={skipped}")
+    print(
+        f"[{'APPLIED' if args.apply else 'DRY RUN'}] "
+        f"folders removed={removed}  files kept (moved/renamed)={moved}  "
+        f"duplicates discarded={skipped}"
+    )
     if bare_kept:
-        print(f"  left alone -- no gallery_id in the name but not empty: "
-              f"{[p.name for p in bare_kept]}")
-    Path(__file__).with_name(
-        f"log_{'applied' if args.apply else 'dryrun'}.json"
-    ).write_text(json.dumps(log, indent=1))
+        print(f"  left alone -- no gallery_id in the name but not empty: {[p.name for p in bare_kept]}")
+    Path(__file__).with_name(f"log_{'applied' if args.apply else 'dryrun'}.json").write_text(json.dumps(log, indent=1))
     return 0
 
 

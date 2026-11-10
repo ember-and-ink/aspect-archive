@@ -78,9 +78,7 @@ def normalize(ids: list[str]) -> list[str]:
         if not value:
             continue
         if len(value) > MAX_ID_CHARS:
-            raise SeenError(
-                f"id is {len(value)} characters, over the {MAX_ID_CHARS}-character ceiling"
-            )
+            raise SeenError(f"id is {len(value)} characters, over the {MAX_ID_CHARS}-character ceiling")
         if value in seen:
             continue
         seen.add(value)
@@ -140,9 +138,7 @@ class SeenStore:
             if isinstance(provider, str) and isinstance(bucket, dict)
         }
 
-    def record(
-        self, provider: str, ids: list[str], *, now: int | None = None
-    ) -> tuple[int, dict[str, int]]:
+    def record(self, provider: str, ids: list[str], *, now: int | None = None) -> tuple[int, dict[str, int]]:
         """Stamp every id not already in the bucket with `now`.
 
         Returns `(newly stamped, {id: first seen})` for exactly the given ids --
@@ -157,8 +153,7 @@ class SeenStore:
             added = [value for value in wanted if value not in bucket]
             if len(bucket) + len(added) > MAX_IDS_PER_PROVIDER:
                 raise SeenError(
-                    f"{provider} would hold {len(bucket) + len(added)} ids, over the "
-                    f"{MAX_IDS_PER_PROVIDER}-id ceiling"
+                    f"{provider} would hold {len(bucket) + len(added)} ids, over the {MAX_IDS_PER_PROVIDER}-id ceiling"
                 )
             if added:
                 for value in added:
@@ -176,9 +171,7 @@ class SeenStore:
             raise SeenError(f"seen stamps are not JSON-serialisable: {exc}") from exc
         encoded = text.encode("utf-8")
         if len(encoded) > MAX_BYTES:
-            raise SeenError(
-                f"seen stamps are {len(encoded)} bytes, over the {MAX_BYTES}-byte ceiling"
-            )
+            raise SeenError(f"seen stamps are {len(encoded)} bytes, over the {MAX_BYTES}-byte ceiling")
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp_fd, tmp_name = tempfile.mkstemp(dir=self.path.parent, prefix=".seen-", suffix=".tmp")

@@ -27,10 +27,10 @@ Three things per file, in the order that keeps state consistent if interrupted:
 
 Dry run by default; pass --apply to actually delete.
 """
+
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -39,7 +39,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from aspect.archive import thumbs  # noqa: E402
 from aspect.config import settings  # noqa: E402
-from aspect.media import manifest as media_manifest, writer as media_writer  # noqa: E402
+from aspect.media import manifest as media_manifest  # noqa: E402
+from aspect.media import writer as media_writer  # noqa: E402
 
 AUDIO_EXT = {".mp3", ".wav", ".ogg", ".opus", ".m4a", ".m4b", ".flac", ".aac", ".mid", ".midi"}
 VIDEO_EXT = {".mp4", ".webm", ".mov", ".m4v", ".mkv", ".avi", ".flv"}

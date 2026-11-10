@@ -86,9 +86,13 @@ def test_load_dead_ledger_missing_file_is_empty():
 def test_record_failure_then_is_dead_after_max_transient_attempts():
     ledger: dict = {}
     for _ in range(media_manifest.MAX_TRANSIENT_ATTEMPTS - 1):
-        result = media_manifest.record_failure(ledger, "https://x/flaky.png", permanent=False, status=None, message="timeout")
+        result = media_manifest.record_failure(
+            ledger, "https://x/flaky.png", permanent=False, status=None, message="timeout"
+        )
         assert result["dead"] is False
-    result = media_manifest.record_failure(ledger, "https://x/flaky.png", permanent=False, status=None, message="timeout")
+    result = media_manifest.record_failure(
+        ledger, "https://x/flaky.png", permanent=False, status=None, message="timeout"
+    )
     assert result["dead"] is True
     assert result["permanent"] is False
     assert media_manifest.is_dead(ledger, "https://x/flaky.png") is True

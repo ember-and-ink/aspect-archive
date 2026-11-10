@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
+import { Chip } from '@/components/ChipStrip'
+import { useInfiniteSentinel } from '@/hooks/use-infinite-sentinel'
 import { useQueryClient } from '@tanstack/react-query'
 import { RefreshCw, Search, X } from 'lucide-react'
 import { CardGrid } from '@/components/CardGrid'
@@ -205,19 +207,11 @@ export function DiscoverPage() {
   const add = useAddToArchive()
   const [addingKey, setAddingKey] = useState<string | null>(null)
 
-  const sentinelRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const element = sentinelRef.current
-    if (!element || !hasNextPage) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) void fetchNextPage()
-      },
-      { rootMargin: '600px' },
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [hasNextPage, fetchNextPage, visible.length])
+  const sentinelRef = useInfiniteSentinel(
+    hasNextPage,
+    fetchNextPage,
+    visible.length,
+  )
 
   const gridSearch = writeDiscoverState(state).toString()
 
@@ -237,57 +231,57 @@ export function DiscoverPage() {
 
           <div className="flex min-w-0 flex-none items-center gap-1.5 rounded-full border border-white/6 bg-white/3 p-1">
             {chubOn && (
-              <ProviderChip
+              <Chip
                 on={provider === 'chub'}
                 onClick={() =>
                   patch({ provider: 'chub', creator: '', creatorName: '' })
                 }
               >
                 Chub
-              </ProviderChip>
+              </Chip>
             )}
             {datacatOn && (
-              <ProviderChip
+              <Chip
                 on={provider === 'datacat'}
                 onClick={() =>
                   patch({ provider: 'datacat', creator: '', creatorName: '' })
                 }
               >
                 DataCat
-              </ProviderChip>
+              </Chip>
             )}
             <span className="mx-1 h-[18px] w-px bg-white/8" />
-            <ProviderChip
+            <Chip
               on={mode === 'browse'}
               onClick={() => patch({ mode: 'browse' as DiscoverMode })}
             >
               Discover
-            </ProviderChip>
-            <ProviderChip
+            </Chip>
+            <Chip
               on={mode === 'following'}
               onClick={() => patch({ mode: 'following' as DiscoverMode })}
             >
               Following
-            </ProviderChip>
+            </Chip>
             <span className="mx-1 h-[18px] w-px bg-white/8" />
-            <ProviderChip
+            <Chip
               on={state.hideHave}
               onClick={() => patch({ hideHave: !state.hideHave })}
             >
               Hide cards I have
-            </ProviderChip>
+            </Chip>
             {/* Absent rather than inert outside Following: only a Following
                 load is stamped, so there is nothing to call recent elsewhere. */}
             {recentFeed && (
               <>
                 <span className="mx-1 h-[18px] w-px bg-white/8" />
-                <ProviderChip
+                <Chip
                   on={state.recentOnly}
                   onClick={() => patch({ recentOnly: !state.recentOnly })}
                   title="Only cards your Following feed first returned in the last 48 hours"
                 >
                   Recent only
-                </ProviderChip>
+                </Chip>
               </>
             )}
           </div>
@@ -486,23 +480,5 @@ function EmptyFollowing({ title, body }: { title: string; body: string }) {
       <p className="text-[15px] font-medium text-text">{title}</p>
       <p className="mt-2 text-[13px] leading-[1.6] text-faint">{body}</p>
     </div>
-  )
-}
-
-function ProviderChip({
-  on,
-  className,
-  ...props
-}: React.ComponentProps<'button'> & { on?: boolean }) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        'inline-flex h-[30px] flex-none items-center gap-[7px] rounded-full border border-transparent px-3.5 text-[13px] text-muted-foreground hover:bg-white/5 hover:text-text',
-        on && 'border-sage-line bg-sage-dim text-sage hover:bg-sage-dim',
-        className,
-      )}
-      {...props}
-    />
   )
 }

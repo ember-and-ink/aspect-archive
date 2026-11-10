@@ -124,10 +124,7 @@ def test_unclosed_character_tag_takes_content_through_end(parser):
 
 
 def test_scenario_nested_inside_persona_is_not_duplicated(parser):
-    raw = (
-        "<X's Persona>before <Scenario>nested scenario text</Scenario> "
-        "after</X's Persona>"
-    )
+    raw = "<X's Persona>before <Scenario>nested scenario text</Scenario> after</X's Persona>"
     parsed = parser.parse(raw)
 
     assert parsed.name == "X"

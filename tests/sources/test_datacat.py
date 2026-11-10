@@ -22,9 +22,9 @@ from pathlib import Path
 
 from PIL import Image
 
-from aspect.sources import datacat as mapper
 from aspect.cards import pngtools
 from aspect.cards.builder import CardBuilder
+from aspect.sources import datacat as mapper
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "datacat"
 
@@ -66,7 +66,9 @@ def test_extract_card_prefers_ccv3_over_chara():
     v3 = base64.b64encode(json.dumps({"data": {"name": "V3"}}).encode()).decode()
     v2 = base64.b64encode(json.dumps({"data": {"name": "V2"}}).encode()).decode()
     png = pngtools.inject_text_chunks(buf.getvalue(), {"chara": v2, "ccv3": v3})
-    assert mapper.extract_card(png)["name"] == "V3"
+    card = mapper.extract_card(png)
+    assert card is not None
+    assert card["name"] == "V3"
 
 
 def test_extract_card_returns_none_for_non_png():
@@ -141,9 +143,7 @@ def test_provenance_accessors():
     assert mapper.card_id(data) == "f901406d-c5bb-48d7-b37a-6815e94ee879"
     assert mapper.creator(data) == "toraval"
     assert mapper.page_name(data) == "Abigail"
-    assert mapper.source_url(data) == (
-        "https://janitorai.com/characters/f901406d-c5bb-48d7-b37a-6815e94ee879"
-    )
+    assert mapper.source_url(data) == ("https://janitorai.com/characters/f901406d-c5bb-48d7-b37a-6815e94ee879")
     assert mapper.is_datacat(data) is True
 
 
@@ -159,9 +159,7 @@ def test_is_datacat_false_without_block():
 def test_builds_card_with_macros_intact_and_no_book():
     data = load_data("abigail")
     profile = mapper.to_profile_fields(data)
-    card, warnings = CardBuilder().build(
-        profile, mapper.greetings(data), capture=None, book=None
-    )
+    card, warnings = CardBuilder().build(profile, mapper.greetings(data), capture=None, book=None)
     assert card.name == "Abigail"
     assert card.description
     assert card.first_mes
@@ -197,6 +195,7 @@ def test_build_v2_from_character_matches_the_archived_native_twin():
     character = load_raw("raw_api_character_abbie")["character"]
 
     v2 = mapper.build_v2_from_character(character)
+    assert v2 is not None
     data = v2["data"]
 
     # This exact character is also in the archive via the native /build-jai path
@@ -233,11 +232,7 @@ def test_resolve_avatar_url_prefers_the_untouched_janitorai_original():
     # this exact card (verified against the real archived twin).
     character = load_raw("raw_api_character_abbie")["character"]
     assert character["avatar"].startswith("https://media.datacat.run/")
-    assert mapper.resolve_avatar_url(character) == (
-        "https://ella.janitorai.com/bot-avatars/RlgBeHp4QSVxOoA9Ic1nx.webp"
-    )
-
-
+    assert mapper.resolve_avatar_url(character) == ("https://ella.janitorai.com/bot-avatars/RlgBeHp4QSVxOoA9Ic1nx.webp")
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +284,7 @@ def test_scripts_book_records_each_scripts_run_so_it_splits_by_id():
             ]
         }
     )
+    assert book is not None
     assert book["extensions"]["jai_sources"] == [
         {"id": "w", "title": "World", "entry_count": 2},
         {"id": "c", "title": "Cast", "entry_count": 1},

@@ -325,9 +325,7 @@ def test_an_unsaved_url_can_be_tested_without_storing_it(client, ip_legs):
     body = client.get("/api/v1/proxy/status", params={"url": "http://typed:9999"}).json()
     assert body["state"] == "ok"
     assert body["proxy_ip"] == "198.51.100.7"
-    assert not settings.settings_file.exists() or net.SETTINGS_KEY not in json.loads(
-        settings.settings_file.read_text()
-    )
+    assert not settings.settings_file.exists() or net.SETTINGS_KEY not in json.loads(settings.settings_file.read_text())
 
 
 def test_testing_an_unusable_url_reports_an_error_not_a_crash(client, ip_legs):
@@ -337,9 +335,7 @@ def test_testing_an_unusable_url_reports_an_error_not_a_crash(client, ip_legs):
 
 
 def test_the_password_never_leaves_the_server(client, ip_legs):
-    settings.settings_file.write_text(
-        json.dumps({net.SETTINGS_KEY: "http://me:hunter2@ui:8118"})
-    )
+    settings.settings_file.write_text(json.dumps({net.SETTINGS_KEY: "http://me:hunter2@ui:8118"}))
     net.reset_cache()
     ip_legs["http://me:hunter2@ui:8118"] = ("198.51.100.4", None)
     ip_legs[None] = ("203.0.113.9", None)

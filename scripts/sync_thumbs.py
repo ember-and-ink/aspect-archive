@@ -7,7 +7,7 @@ already covers 99.6% of the archive, so this is a tidy-up pass, not a build:
                of a fresh archive is not also the thing that generates them.
                (The API generates on miss too, so this is an optimization of
                first-paint, never a prerequisite.)
-  stale     -- a thumb whose card is gone: renamed by `make names`, or deleted.
+  stale     -- a thumb whose card is gone: renamed by `task names`, or deleted.
                840 of these at cutover, the residue of the archive's whole life.
   miscased  -- a thumb whose name differs from its card's only by case. macOS
                resolves it anyway, so it looks fine here and would silently miss
@@ -47,14 +47,13 @@ import os
 import shutil
 from pathlib import Path
 
-from aspect.archive import catalog, thumbs
+from aspect.archive import catalog
+from aspect.archive import thumbs
 from aspect.config import settings
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--archive-dir", type=Path, default=settings.archive_dir)
     parser.add_argument("--thumbs-dir", type=Path, default=settings.thumbs_dir)
     parser.add_argument("--galleries-dir", type=Path, default=settings.galleries_dir)
@@ -195,10 +194,7 @@ def _sync_galleries(args: argparse.Namespace) -> int:
     _report("dropped (cache folder, no live gallery)", dropped_folders, args.limit)
     if superseded:
         verb = "to delete" if args.drop_superseded else "pass --drop-superseded to delete"
-        print(
-            f"\nsuperseded (pre-WebP .jpg): {len(superseded)} file(s), "
-            f"{superseded_bytes / 1048576:.0f} MB -- {verb}"
-        )
+        print(f"\nsuperseded (pre-WebP .jpg): {len(superseded)} file(s), {superseded_bytes / 1048576:.0f} MB -- {verb}")
 
     if not args.apply:
         print("\norphaned (to prune): computed per folder during --apply")

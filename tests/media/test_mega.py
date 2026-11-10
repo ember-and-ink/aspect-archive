@@ -16,7 +16,6 @@ import json
 import os
 
 import httpx
-import pytest
 from Crypto.Cipher import AES
 from Crypto.Util import Counter
 
@@ -46,7 +45,7 @@ def _file_node(handle: str, parent_handle: str, parent_key: bytes, filename: str
     """A file node keyed under `parent_key`, plus the encrypted bytes it
     should decrypt back into `content`."""
     raw = os.urandom(32)
-    file_key = bytes(a ^ b for a, b in zip(raw[:16], raw[16:32]))
+    file_key = bytes(a ^ b for a, b in zip(raw[:16], raw[16:32], strict=True))
     nonce = raw[16:24]
     node = {
         "h": handle,

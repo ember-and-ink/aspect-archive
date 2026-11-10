@@ -20,15 +20,14 @@ from urllib.parse import quote
 
 from fastapi import APIRouter
 
-from aspect.api.schemas import (
-    DuplicateGroupOut,
-    DuplicateMemberOut,
-    DuplicatePairOut,
-    DuplicatesOut,
-)
+from aspect.api.schemas import DuplicateGroupOut
+from aspect.api.schemas import DuplicateMemberOut
+from aspect.api.schemas import DuplicatePairOut
+from aspect.api.schemas import DuplicatesOut
 from aspect.api.v1 import _shared
 from aspect.archive import catalog
-from aspect.cards import dupes, edit
+from aspect.cards import dupes
+from aspect.cards import edit
 
 router = APIRouter()
 
