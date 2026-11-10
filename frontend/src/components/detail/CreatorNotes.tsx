@@ -246,7 +246,40 @@ const BASE_STYLES = `
   }
   [style*="position:fixed"], [style*="position: fixed"],
   [style*="position:sticky"], [style*="position: sticky"] { position: static !important; }
+
+  /* A carousel: a non-wrapping flex row of children that refuse to shrink
+     (JanitorAI's "swipe to meet them" strips). The source scrolls it
+     sideways; tame_html (aspect/text/notes_html.py) keeps the row but not its
+     overflow-x, so without this it runs off the host and contain:paint
+     clips it mid-card. */
+  [style*="display:flex"]:not([style*="flex-wrap:wrap"]):not([style*="flex-direction:column"]):has(> [style*="flex:0 0"], > [style*="flex-shrink:0"]) {
+    overflow-x: auto; overscroll-behavior-x: contain;
+  }
+
+  /* A cropped portrait: the author pulled an oversized <img> up/left with
+     negative margins inside an overflow:hidden frame. tame_html drops the
+     frame's overflow and the image's width but keeps the offset, so the
+     picture slides out of its frame over its neighbour. Uncropped is the
+     honest fallback. */
+  img[style*="margin:-"], img[style*="margin: -"],
+  img[style*="margin-top:-"], img[style*="margin-left:-"],
+  img[style*="margin"][style*=" -"] { margin: 0 !important; }
 `
+
+/** A line that is nothing but a markdown image. builder.py leads every
+ *  JanitorAI card's notes with `![name](avatar)` -- even when the rest is
+ *  HTML, which then takes the raw-HTML path and shows the syntax literally. */
+const MD_IMAGE_LINE = /^[ \t]*!\[([^\]\n]*)\]\((https?:\/\/[^)\s]+)\)[ \t]*$/gm
+
+const escapeAttr = (s: string) => escapeHtml(s).replace(/"/g, '&quot;')
+
+function markdownImageLines(html: string): string {
+  return html.replace(
+    MD_IMAGE_LINE,
+    (_, alt: string, src: string) =>
+      `<p><img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" loading="lazy"></p>`,
+  )
+}
 
 /** Real HTML tag names only -- matches PURIFY_CONFIG.ALLOWED_TAGS so a hit
  *  here is guaranteed to survive sanitization as a structural element. */
@@ -322,7 +355,9 @@ export function CreatorNotes({
   const hostRef = useRef<HTMLDivElement>(null)
 
   const fragment = useMemo(() => {
-    const html = looksLikeHtml(notes) ? notes : markdownToHtml(notes)
+    const html = looksLikeHtml(notes)
+      ? markdownImageLines(notes)
+      : markdownToHtml(notes)
     // Straight to a fragment: serializing the sanitized tree and parsing it
     // again is where mutation-XSS lives.
     const clean = DOMPurify.sanitize(html, {

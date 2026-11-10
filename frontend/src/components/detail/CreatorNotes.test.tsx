@@ -152,4 +152,35 @@ describe('CreatorNotes', () => {
     expect(root.querySelector('img')!.getAttribute('src')).toBe(FILE)
     expect(root.textContent).toContain('<SYMBOLS=943F533B>')
   })
+
+  it("renders builder.py's leading markdown avatar line as an <img> even when the rest is HTML", () => {
+    const root = notesRoot(
+      '![Risa](https://example.com/av.webp)\n\n<p style="text-align:center">He saved her life.</p>',
+      { 'https://example.com/av.webp': FILE },
+    )
+    expect(root.textContent).not.toContain('![Risa]')
+    const img = root.querySelector('img')!
+    expect(img.getAttribute('src')).toBe(FILE)
+    expect(img.getAttribute('alt')).toBe('Risa')
+  })
+
+  it('leaves inline markdown image syntax in HTML notes alone', () => {
+    const root = notesRoot(
+      '<p>see ![x](https://example.com/x.png) here</p>',
+      {},
+    )
+    expect(root.querySelector('img, .notes-missing')).toBeNull()
+  })
+
+  it('escapes a hostile alt on the markdown avatar line', () => {
+    const root = notesRoot(
+      '![a" onerror="x](https://example.com/av.webp)\n<p>hi</p>',
+      {
+        'https://example.com/av.webp': FILE,
+      },
+    )
+    const img = root.querySelector('img')!
+    expect(img.getAttribute('onerror')).toBeNull()
+    expect(img.getAttribute('alt')).toBe('a" onerror="x')
+  })
 })
