@@ -13,14 +13,17 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse
 
 from aspect import deps
 
 logger = logging.getLogger("aspect.api.chat")
 
 router = APIRouter()
+
 
 def _first_message_of_role(messages: list[dict[str, Any]], role: str) -> str:
     for message in messages:
@@ -65,7 +68,5 @@ async def chat_completions(request: Request) -> Any:
     # upstream to fail, so there is no error branch left here -- the capture
     # above is the part that matters, and it already swallows its own failures.
     if body.get("stream"):
-        return StreamingResponse(
-            deps.responder.stream(body), media_type="text/event-stream"
-        )
+        return StreamingResponse(deps.responder.stream(body), media_type="text/event-stream")
     return JSONResponse(await deps.responder.complete(body))

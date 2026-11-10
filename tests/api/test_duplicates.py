@@ -14,9 +14,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from PIL import Image, ImageDraw
+from PIL import Image
+from PIL import ImageDraw
 
-from tests.conftest import card_png, jai_extensions
+from tests.conftest import card_png
+from tests.conftest import jai_extensions
 
 
 def _split_image(vertical: bool, size: tuple[int, int] = (384, 576)) -> Image.Image:
@@ -47,9 +49,7 @@ def _write(characters: Path, filename: str, **kwargs) -> None:
     (characters / filename).write_bytes(card_png(**kwargs))
 
 
-def test_same_creator_same_avatar_groups_despite_different_description(
-    client, archive_dirs: dict[str, Path]
-):
+def test_same_creator_same_avatar_groups_despite_different_description(client, archive_dirs: dict[str, Path]):
     """The Olivia/StormSight shape: one creator, same picture, one card's
     description is a much longer rewrite of the other's."""
     characters = archive_dirs["characters"]
@@ -86,9 +86,7 @@ def test_same_creator_same_avatar_groups_despite_different_description(
     assert "identical avatar" in pair["reasons"]
 
 
-def test_same_creator_same_name_different_avatar_is_weak_or_absent(
-    client, archive_dirs: dict[str, Path]
-):
+def test_same_creator_same_name_different_avatar_is_weak_or_absent(client, archive_dirs: dict[str, Path]):
     """The EverNever/"Alpha" shape: same creator, same base name, but a
     different picture and unrelated prose -- likely two different characters
     that happen to share a name. Must never be silently treated as a strong
@@ -126,9 +124,7 @@ def test_same_creator_same_name_different_avatar_is_weak_or_absent(
     assert pair["avatar_distance"] is not None and pair["avatar_distance"] > 12
 
 
-def test_different_creators_never_grouped_even_when_identical(
-    client, archive_dirs: dict[str, Path]
-):
+def test_different_creators_never_grouped_even_when_identical(client, archive_dirs: dict[str, Path]):
     """The hard constraint: same name, same avatar, near-identical text -- but
     different creators. Must never appear together in any group, and since
     each creator only has one card here, neither should appear at all."""

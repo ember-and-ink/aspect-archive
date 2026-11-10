@@ -25,7 +25,7 @@ export interface paths {
          *     judgement and the cleaning that follows from it.
          *
          *     Duplicates are decided on the `_<id8>` fragment alone, never the name, like
-         *     every other duplicate check in the archive: a card renamed by `make names`
+         *     every other duplicate check in the archive: a card renamed by `task names`
          *     is still the same card. A skipped duplicate is a 200 naming the file that is
          *     already here, not an error -- the caller wanted it present, and it is.
          */
@@ -3027,6 +3027,10 @@ export interface components {
             status: "saved" | "skipped" | "error";
             /** File */
             file?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Bytes */
+            bytes?: number | null;
         };
         /**
          * MediaDedupeOut

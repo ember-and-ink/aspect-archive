@@ -64,7 +64,7 @@ Disable the pass with `--no-orphans`.
 
 Offline batch -- it does not need the proxy server running.
 
-    make import
+    task import
     uv run python scripts/import_cards.py --import-dir import --cards-dir /some/where
 """
 
@@ -72,21 +72,26 @@ from __future__ import annotations
 
 import argparse
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from aspect.sources import chub, datacat, jannyai
-from aspect.cards import gallery, pngtools
-from aspect.cards.builder import CardBuilder, PngWriter
+from aspect.cards import gallery
+from aspect.cards import pngtools
+from aspect.cards.builder import CardBuilder
+from aspect.cards.builder import PngWriter
 from aspect.cards.naming import id_fragment
 from aspect.config import settings
+from aspect.sources import chub
+from aspect.sources import datacat
+from aspect.sources import jannyai
 from aspect.sources.datacat_client import DatacatImageResolver
 from aspect.text.macros import MacroSanitizer
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 def _datacat_extensions(data: dict, creator: str) -> dict:
@@ -440,7 +445,7 @@ def main() -> int:
             gid = gallery.read_id(data)
             # Matched on the id fragment alone -- the same key `already` was
             # computed with. Pinning the name too used to look safer, but the
-            # name on the archive card is not stable: `make names` renames a
+            # name on the archive card is not stable: `task names` renames a
             # junk name (`Narrator_04355852.png` -> `Angelica_04355852.png`)
             # while the staged export still says `Narrator`, so the name-pinned
             # glob missed the very card it had just matched by id and the
@@ -452,10 +457,7 @@ def main() -> int:
             for target in targets:
                 if _backfill_gallery_id(target, gid) == "added":
                     added += 1
-                    print(
-                        f"  patch {path.name}: +gallery_id {gid} -> "
-                        f"{target.relative_to(args.cards_dir)}"
-                    )
+                    print(f"  patch {path.name}: +gallery_id {gid} -> {target.relative_to(args.cards_dir)}")
             if added:
                 backfilled += added
             else:

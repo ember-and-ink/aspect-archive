@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import aspect
-from aspect.config import ROOT, Settings
 from aspect.cards.models import CharacterCardV3
+from aspect.config import ROOT
+from aspect.config import Settings
 
 
 def test_package_imports():

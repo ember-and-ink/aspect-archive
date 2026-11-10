@@ -12,14 +12,16 @@ The request/response shapes of the endpoints that consume these live in
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ---------------------------------------------------------------------------

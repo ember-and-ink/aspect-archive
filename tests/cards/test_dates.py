@@ -12,7 +12,8 @@ import io
 
 from PIL import Image
 
-from aspect.cards import dates, pngtools
+from aspect.cards import dates
+from aspect.cards import pngtools
 
 EARLY = "2026-05-15T15:41:58.048Z"
 LATE = "2026-07-30T16:47:21.656Z"
@@ -82,7 +83,10 @@ def test_stamp_leaves_an_underivable_card_unstamped():
 def test_embed_card_stamps_a_card_that_had_none():
     data = {"name": "Test", **_extensions(jai=LATE, chub=EARLY)}
     png = pngtools.embed_card(_png(), {}, data)
-    envelope, _ = pngtools.read_envelope(png)
+    assert pngtools.read_envelope is not None
+    parsed = pngtools.read_envelope(png)
+    assert parsed is not None
+    envelope, _ = parsed
     assert envelope["create_date"] == EARLY
 
 
@@ -93,7 +97,10 @@ def test_embed_card_does_not_drop_an_existing_create_date():
     data = {"name": "Test", **_extensions(jai=LATE)}
     original = {"spec": "chara_card_v3", "spec_version": "3.0", "create_date": EARLY}
     png = pngtools.embed_card(_png(), original, data)
-    envelope, _ = pngtools.read_envelope(png)
+    assert pngtools.read_envelope is not None
+    parsed = pngtools.read_envelope(png)
+    assert parsed is not None
+    envelope, _ = parsed
     assert envelope["create_date"] == EARLY
 
 
@@ -101,6 +108,9 @@ def test_create_date_stays_at_the_root_not_in_data():
     """SillyTavern reads it from the root. Inside `data` it would be invisible
     to ST's own Date Created sort, which is half of why this field exists."""
     data = {"name": "Test", **_extensions(jai=LATE)}
-    envelope, embedded = pngtools.read_envelope(pngtools.embed_card(_png(), {}, data))
+    assert pngtools.read_envelope is not None
+    parsed = pngtools.read_envelope(pngtools.embed_card(_png(), {}, data))
+    assert parsed is not None
+    envelope, embedded = parsed
     assert envelope["create_date"] == LATE
     assert "create_date" not in embedded

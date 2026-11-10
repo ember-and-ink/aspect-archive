@@ -6,15 +6,16 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 from PIL import Image
+from PIL import PngImagePlugin
 
 import aspect.server as server_module
 from aspect import deps
 from aspect.cards.builder import PngWriter
+from aspect.config import settings
 from aspect.runtime import dashboard as dashboard_mod
+from aspect.runtime.dashboard import Dashboard
 from aspect.state.captures import CaptureStore
 from aspect.state.lorebook_cache import LorebookCache
-from aspect.config import settings
-from aspect.runtime.dashboard import Dashboard
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -68,18 +69,18 @@ class FakeAvatarFetcher:
 
 
 def make_client(fake: FakeResponder, tmp_path=None) -> TestClient:
-    deps.responder = fake
+    deps.responder = fake  # ty: ignore[invalid-assignment]  # test double
     deps.capture_store = CaptureStore(captures_dir=tmp_path)
     deps.png_writer = PngWriter(output_dir=tmp_path)
-    deps.avatar_fetcher = FakeAvatarFetcher()
-    deps.lorebook_cache = LorebookCache(
-        cache_dir=(tmp_path / ".lorecache") if tmp_path else None
-    )
+    deps.avatar_fetcher = FakeAvatarFetcher()  # ty: ignore[invalid-assignment]  # test double
+    deps.lorebook_cache = LorebookCache(cache_dir=(tmp_path / ".lorecache") if tmp_path else None)
     return TestClient(server_module.app)
 
 
 def _decode(path) -> dict:
-    return json.loads(base64.b64decode(Image.open(Path(path)).text["ccv3"]))["data"]
+    image = Image.open(Path(path))
+    assert isinstance(image, PngImagePlugin.PngImageFile)
+    return json.loads(base64.b64decode(image.text["ccv3"]))["data"]
 
 
 def test_health(tmp_path):
@@ -126,6 +127,7 @@ def test_chat_completions_captures_system_prompt_and_forwards(tmp_path):
 
     assert resp.status_code == 200
     assert resp.json()["choices"][0]["message"]["content"] == "fake reply"
+    assert fake.last_request is not None
     assert fake.last_request["messages"][0]["content"] == "<system>hidden def here</system>"
 
     assert client.get("/health").json()["captures"] == 1
@@ -149,6 +151,7 @@ def test_chat_completions_captures_assistant_message_as_primary_greeting(tmp_pat
 
     # Stored as the assistant message (index 2), stripped.
     record = deps.capture_store.get("Ari")
+    assert record is not None
     assert record.greetings == [real_request["messages"][2]["content"].strip()]
 
 
@@ -227,8 +230,16 @@ def test_build_exports_open_card_png(tmp_path):
     assert data["name"] == "Akane Kujo"
     assert data["creator"] == "dezea"
     assert data["tags"] == [
-        "Female", "Multiple", "AnyPOV", "Angst", "Demi-Human",
-        "Fluff", "Horror", "kitsune", "yandere", "TheValentine",
+        "Female",
+        "Multiple",
+        "AnyPOV",
+        "Angst",
+        "Demi-Human",
+        "Fluff",
+        "Horror",
+        "kitsune",
+        "yandere",
+        "TheValentine",
     ]
     assert data["first_mes"].startswith("**Scenario: Welcome to Kamii University!**")
     assert data["character_version"] == "https://janitorai.com/characters/abc123"
@@ -354,10 +365,7 @@ def test_build_saucepan_exports_open_card_png(tmp_path):
     # Advanced Prompt leads scenario, raw.
     assert data["scenario"].startswith("{{char}} is an android")
     assert len(data["character_book"]["entries"]) == 19  # two lorebooks merged
-    assert (
-        data["character_version"]
-        == "https://saucepan.ai/companion/04a0c1ac-187b-4aa0-8f5b-885533be748d"
-    )
+    assert data["character_version"] == "https://saucepan.ai/companion/04a0c1ac-187b-4aa0-8f5b-885533be748d"
 
     jai = data["extensions"]["jai"]
     assert jai["sourceKind"] == "saucepan_core"
@@ -695,9 +703,7 @@ def test_existing_matches_on_id_fragment_regardless_of_name(tmp_path):
         },
     )
 
-    resp = client.post(
-        "/existing", json={"ids": ["deadbeef-1111-2222-3333-444455556666"]}
-    )
+    resp = client.post("/existing", json={"ids": ["deadbeef-1111-2222-3333-444455556666"]})
 
     assert resp.json()["existing"] == ["deadbeef-1111-2222-3333-444455556666"]
 
@@ -842,8 +848,7 @@ def test_build_hidden_card_merges_capture_and_json(tmp_path):
     assert data["tags"] == ["AnyPOV", "mystery"]
     # creator_notes leads with a markdown reference to the original avatar.
     assert data["creator_notes"] == (
-        "![Ari](https://ella.janitorai.com/bot-avatars/ari.webp)\n\n"
-        "The creator's authored note."
+        "![Ari](https://ella.janitorai.com/bot-avatars/ari.webp)\n\nThe creator's authored note."
     )
     assert data["extensions"]["jai"]["pageName"] == "A Mysterious Transfer Student"
 
@@ -923,8 +928,8 @@ def test_clear_captures_wipes_state_but_leaves_pngs(tmp_path):
     output_dir = tmp_path / "cards"
     deps.capture_store = CaptureStore(captures_dir=captures_dir)
     deps.png_writer = PngWriter(output_dir=output_dir)
-    deps.responder = FakeResponder()
-    deps.avatar_fetcher = FakeAvatarFetcher()
+    deps.responder = FakeResponder()  # ty: ignore[invalid-assignment]  # test double
+    deps.avatar_fetcher = FakeAvatarFetcher()  # ty: ignore[invalid-assignment]  # test double
     client = TestClient(server_module.app)
 
     _capture_ari(client, greeting="Hi USER")
@@ -948,7 +953,10 @@ def test_a_built_card_queues_its_images_once_and_a_duplicate_does_not(tmp_path, 
     # Every /build-* route shares fetch_avatar_and_write; a duplicate returns
     # before it, so the same card exported twice queues one download.
     client = make_client(FakeResponder(), tmp_path)
-    body = {"node": _chub_node("raw_api_full_your_bully"), "linked_lorebook": _chub_node("raw_linked_lorebook_your_bully")}
+    body = {
+        "node": _chub_node("raw_api_full_your_bully"),
+        "linked_lorebook": _chub_node("raw_linked_lorebook_your_bully"),
+    }
 
     first = client.post("/build-chub", json=body).json()
     client.post("/build-chub", json=body)

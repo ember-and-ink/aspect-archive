@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import io
 from collections import defaultdict
+from collections.abc import Callable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Callable, Iterable, Literal
+from typing import Literal
 
 from PIL import Image
 

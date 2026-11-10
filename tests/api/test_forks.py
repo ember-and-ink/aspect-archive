@@ -10,7 +10,8 @@ existing fork, and `fork.of` always names the root original.
 from __future__ import annotations
 
 from aspect.cards import pngtools
-from tests.conftest import card_png, jai_extensions
+from tests.conftest import card_png
+from tests.conftest import jai_extensions
 
 
 def read_card(raw: bytes) -> dict:

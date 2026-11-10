@@ -11,7 +11,8 @@ import pytest
 
 from aspect.archive import thumbs
 from aspect.config import settings
-from aspect.media import dedupe as media_dedupe, manifest as media_manifest
+from aspect.media import dedupe as media_dedupe
+from aspect.media import manifest as media_manifest
 
 
 def _sha(data: bytes) -> str:
@@ -71,9 +72,7 @@ def test_leaves_a_manually_added_file_alone(galleries_root: Path, tmp_path: Path
     assert manual.exists()
 
 
-def test_dry_run_reports_without_moving_anything(
-    galleries_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_dry_run_reports_without_moving_anything(galleries_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "trash_dir", tmp_path / "trash")
     gallery = galleries_root / "Alex_EOuYqgqXXBfX"
     gallery.mkdir(parents=True)

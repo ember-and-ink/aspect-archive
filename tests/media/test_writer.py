@@ -23,7 +23,9 @@ import pytest
 from PIL import Image
 
 from aspect.archive import thumbs
-from aspect.media import manifest as media_manifest, names as media_names, writer as media_writer
+from aspect.media import manifest as media_manifest
+from aspect.media import names as media_names
+from aspect.media import writer as media_writer
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
@@ -370,9 +372,7 @@ def test_gallery_index_re_hashes_a_file_that_changed(tmp_path: Path):
     target.write_bytes(replacement)
     os.utime(target, (0, 0))
 
-    assert media_writer.GalleryIndex.build(tmp_path).digest_for(target.name) == hashlib.sha256(
-        replacement
-    ).hexdigest()
+    assert media_writer.GalleryIndex.build(tmp_path).digest_for(target.name) == hashlib.sha256(replacement).hexdigest()
     assert first != hashlib.sha256(replacement).hexdigest()
 
 
@@ -434,6 +434,7 @@ async def test_download_item_saves_a_new_image(gallery_dir, thumbnail_store, mon
         )
 
     assert outcome.status == "saved"
+    assert outcome.file is not None
     assert outcome.file.startswith("localized_media_1_photo")
     assert outcome.file.endswith(".webp")
     written = gallery_dir / outcome.file
@@ -446,7 +447,9 @@ async def test_download_item_saves_a_new_image(gallery_dir, thumbnail_store, mon
 
 
 @pytest.mark.asyncio
-async def test_download_item_404_is_permanent_and_recorded_in_manifest_and_ledger(gallery_dir, thumbnail_store, monkeypatch):
+async def test_download_item_404_is_permanent_and_recorded_in_manifest_and_ledger(
+    gallery_dir, thumbnail_store, monkeypatch
+):
     monkeypatch.setattr(media_writer, "_preflight_dns", lambda url: None)
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -526,18 +529,32 @@ async def test_download_item_second_call_skips_by_name_index(gallery_dir, thumbn
 
     async with _client_for(handler) as client:
         first = await media_writer.download_item(
-            client, gallery_dir, "gallery",
-            url="https://cdn.example.com/x/photo.png", filename_hint=None,
-            prefix="localized_media", index=1, index_state=index_state,
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            client,
+            gallery_dir,
+            "gallery",
+            url="https://cdn.example.com/x/photo.png",
+            filename_hint=None,
+            prefix="localized_media",
+            index=1,
+            index_state=index_state,
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
         assert first.status == "saved"
 
         second = await media_writer.download_item(
-            client, gallery_dir, "gallery",
-            url="https://other-cdn.example.com/y/photo.png", filename_hint=None,
-            prefix="localized_media", index=2, index_state=index_state,
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            client,
+            gallery_dir,
+            "gallery",
+            url="https://other-cdn.example.com/y/photo.png",
+            filename_hint=None,
+            prefix="localized_media",
+            index=2,
+            index_state=index_state,
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
 
     assert second.status == "skipped"
@@ -570,10 +587,17 @@ async def test_download_item_cross_character_dead_ledger_skips_without_fetch(gal
 
     async with _client_for(handler) as client:
         outcome = await media_writer.download_item(
-            client, gallery_dir, "gallery",
-            url="https://cdn.example.com/x/gone.png", filename_hint=None,
-            prefix="localized_media", index=1, index_state=index_state,
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            client,
+            gallery_dir,
+            "gallery",
+            url="https://cdn.example.com/x/gone.png",
+            filename_hint=None,
+            prefix="localized_media",
+            index=1,
+            index_state=index_state,
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
 
     assert outcome.status == "skipped"
@@ -597,12 +621,19 @@ async def test_download_item_content_hash_dedupe_against_existing_file(gallery_d
 
     async with _client_for(handler) as client:
         outcome = await media_writer.download_item(
-            client, gallery_dir, "gallery",
+            client,
+            gallery_dir,
+            "gallery",
             # A name that would NOT match the name index, so this exercises
             # the content-hash path specifically.
-            url="https://cdn.example.com/totally/different/name.png", filename_hint=None,
-            prefix="localized_media", index=5, index_state=index_state,
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            url="https://cdn.example.com/totally/different/name.png",
+            filename_hint=None,
+            prefix="localized_media",
+            index=5,
+            index_state=index_state,
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
 
     assert outcome.status == "skipped"
@@ -623,10 +654,17 @@ async def test_download_item_html_error_page_is_transient_not_permanent(gallery_
 
     async with _client_for(handler) as client:
         outcome = await media_writer.download_item(
-            client, gallery_dir, "gallery",
-            url="https://cdn.example.com/x/errorpage.png", filename_hint=None,
-            prefix="localized_media", index=1, index_state=index_state,
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            client,
+            gallery_dir,
+            "gallery",
+            url="https://cdn.example.com/x/errorpage.png",
+            filename_hint=None,
+            prefix="localized_media",
+            index=1,
+            index_state=index_state,
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
 
     assert outcome.status == "error"
@@ -650,10 +688,17 @@ async def test_download_item_respects_size_cap(gallery_dir, thumbnail_store, mon
 
     async with _client_for(handler) as client:
         outcome = await media_writer.download_item(
-            client, gallery_dir, "gallery",
-            url="https://cdn.example.com/x/huge.png", filename_hint=None,
-            prefix="localized_media", index=1, index_state=index_state,
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            client,
+            gallery_dir,
+            "gallery",
+            url="https://cdn.example.com/x/huge.png",
+            filename_hint=None,
+            prefix="localized_media",
+            index=1,
+            index_state=index_state,
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
 
     assert outcome.status == "error"
@@ -687,6 +732,7 @@ def test_finish_item_saves_bytes_already_fetched(gallery_dir, thumbnail_store):
     )
 
     assert outcome.status == "saved"
+    assert outcome.file is not None
     assert outcome.file.startswith("extgallery_1_cool_pic")
     assert outcome.file.endswith(".webp")
     written = gallery_dir / outcome.file
@@ -776,10 +822,17 @@ async def test_download_item_skips_a_url_the_manifest_already_recorded(gallery_d
 
     async with _client_for(handler) as client:
         first = await media_writer.download_item(
-            client, gallery_dir, "gallery",
-            url=url, filename_hint=None,
-            prefix="localized_media", index=1, index_state=index_state,
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            client,
+            gallery_dir,
+            "gallery",
+            url=url,
+            filename_hint=None,
+            prefix="localized_media",
+            index=1,
+            index_state=index_state,
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
         assert first.status == "saved"
         # Nothing in the name index could match it.
@@ -788,10 +841,17 @@ async def test_download_item_skips_a_url_the_manifest_already_recorded(gallery_d
         # A fresh run: new index, same manifest -- exactly a re-localize.
         rerun_index = media_writer.GalleryIndex.build(gallery_dir)
         second = await media_writer.download_item(
-            client, gallery_dir, "gallery",
-            url=url, filename_hint=None,
-            prefix="localized_media", index=2, index_state=rerun_index,
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            client,
+            gallery_dir,
+            "gallery",
+            url=url,
+            filename_hint=None,
+            prefix="localized_media",
+            index=2,
+            index_state=rerun_index,
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
 
     assert second.status == "skipped"
@@ -819,18 +879,32 @@ async def test_download_item_refetches_when_the_recorded_file_is_gone(gallery_di
 
     async with _client_for(handler) as client:
         first = await media_writer.download_item(
-            client, gallery_dir, "gallery",
-            url=url, filename_hint=None,
-            prefix="localized_media", index=1, index_state=media_writer.GalleryIndex.build(gallery_dir),
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            client,
+            gallery_dir,
+            "gallery",
+            url=url,
+            filename_hint=None,
+            prefix="localized_media",
+            index=1,
+            index_state=media_writer.GalleryIndex.build(gallery_dir),
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
         (gallery_dir / first.file).unlink()
 
         second = await media_writer.download_item(
-            client, gallery_dir, "gallery",
-            url=url, filename_hint=None,
-            prefix="localized_media", index=2, index_state=media_writer.GalleryIndex.build(gallery_dir),
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            client,
+            gallery_dir,
+            "gallery",
+            url=url,
+            filename_hint=None,
+            prefix="localized_media",
+            index=2,
+            index_state=media_writer.GalleryIndex.build(gallery_dir),
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
 
     assert second.status == "saved"
@@ -876,20 +950,31 @@ async def test_download_batch_fetches_concurrently(gallery_dir, thumbnail_store,
             await asyncio.sleep(0.05)
         finally:
             in_flight -= 1
-        return httpx.Response(200, content=_png_bytes(size=(4, 4 + int(request.url.path[-5]))),
-                              headers={"content-type": "image/png"})
+        return httpx.Response(
+            200, content=_png_bytes(size=(4, 4 + int(request.url.path[-5]))), headers={"content-type": "image/png"}
+        )
 
     items = [{"url": f"https://cdn{i}.example.com/photo{i}.png", "filename": None} for i in range(6)]
     index_state = media_writer.GalleryIndex.build(gallery_dir)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         started = time.monotonic()
-        outcomes = await _drain(media_writer.download_batch(
-            client, gallery_dir, "gallery",
-            items=items, prefix="localized_media", start_index=1,
-            index_state=index_state, manifest=media_manifest.empty_manifest(), ledger={},
-            thumbnail_store=thumbnail_store, concurrency=6, per_host=3,
-        ))
+        outcomes = await _drain(
+            media_writer.download_batch(
+                client,
+                gallery_dir,
+                "gallery",
+                items=items,
+                prefix="localized_media",
+                start_index=1,
+                index_state=index_state,
+                manifest=media_manifest.empty_manifest(),
+                ledger={},
+                thumbnail_store=thumbnail_store,
+                concurrency=6,
+                per_host=3,
+            )
+        )
         elapsed = time.monotonic() - started
 
     assert len(outcomes) == 6
@@ -911,19 +996,30 @@ async def test_download_batch_bounds_concurrency_per_host(gallery_dir, thumbnail
             await asyncio.sleep(0.02)
         finally:
             in_flight -= 1
-        return httpx.Response(200, content=_png_bytes(size=(4, 4 + int(request.url.path[-5]))),
-                              headers={"content-type": "image/png"})
+        return httpx.Response(
+            200, content=_png_bytes(size=(4, 4 + int(request.url.path[-5]))), headers={"content-type": "image/png"}
+        )
 
     items = [{"url": f"https://i.postimg.cc/abc/{i}.png", "filename": None} for i in range(8)]
     index_state = media_writer.GalleryIndex.build(gallery_dir)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        outcomes = await _drain(media_writer.download_batch(
-            client, gallery_dir, "gallery",
-            items=items, prefix="localized_media", start_index=1,
-            index_state=index_state, manifest=media_manifest.empty_manifest(), ledger={},
-            thumbnail_store=thumbnail_store, concurrency=8, per_host=2,
-        ))
+        outcomes = await _drain(
+            media_writer.download_batch(
+                client,
+                gallery_dir,
+                "gallery",
+                items=items,
+                prefix="localized_media",
+                start_index=1,
+                index_state=index_state,
+                manifest=media_manifest.empty_manifest(),
+                ledger={},
+                thumbnail_store=thumbnail_store,
+                concurrency=8,
+                per_host=2,
+            )
+        )
 
     assert len(outcomes) == 8
     assert peak <= 2  # one host, so the per-host cap is the binding one
@@ -949,12 +1045,22 @@ async def test_download_batch_local_skips_never_wait_on_a_busy_host(gallery_dir,
     index_state = media_writer.GalleryIndex.build(gallery_dir)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        outcomes = await _drain(media_writer.download_batch(
-            client, gallery_dir, "gallery",
-            items=items, prefix="localized_media", start_index=1,
-            index_state=index_state, manifest=manifest, ledger={},
-            thumbnail_store=thumbnail_store, concurrency=2, per_host=1,
-        ))
+        outcomes = await _drain(
+            media_writer.download_batch(
+                client,
+                gallery_dir,
+                "gallery",
+                items=items,
+                prefix="localized_media",
+                start_index=1,
+                index_state=index_state,
+                manifest=manifest,
+                ledger={},
+                thumbnail_store=thumbnail_store,
+                concurrency=2,
+                per_host=1,
+            )
+        )
 
     assert len(outcomes) == 20
     assert all(o.status == "skipped" and o.reason == "already downloaded" for o in outcomes)
@@ -967,8 +1073,9 @@ async def test_download_batch_stops_handing_out_work_once_cancelled(gallery_dir,
 
     async def handler(request: httpx.Request) -> httpx.Response:
         await asyncio.sleep(0.01)
-        return httpx.Response(200, content=_png_bytes(size=(4, 4 + int(request.url.path[-5]))),
-                              headers={"content-type": "image/png"})
+        return httpx.Response(
+            200, content=_png_bytes(size=(4, 4 + int(request.url.path[-5]))), headers={"content-type": "image/png"}
+        )
 
     items = [{"url": f"https://cdn.example.com/photo{i}.png", "filename": None} for i in range(20)]
     index_state = media_writer.GalleryIndex.build(gallery_dir)
@@ -976,11 +1083,20 @@ async def test_download_batch_stops_handing_out_work_once_cancelled(gallery_dir,
     seen = []
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         async for outcome in media_writer.download_batch(
-            client, gallery_dir, "gallery",
-            items=items, prefix="localized_media", start_index=1,
-            index_state=index_state, manifest=media_manifest.empty_manifest(), ledger={},
-            thumbnail_store=thumbnail_store, concurrency=2, per_host=2,
-            should_cancel=lambda: cancelled,
+            client,
+            gallery_dir,
+            "gallery",
+            items=items,
+            prefix="localized_media",
+            start_index=1,
+            index_state=index_state,
+            manifest=media_manifest.empty_manifest(),
+            ledger={},
+            thumbnail_store=thumbnail_store,
+            concurrency=2,
+            per_host=2,
+            # Late binding is the point: the loop below flips it mid-batch.
+            should_cancel=lambda: cancelled,  # noqa: B023
         ):
             seen.append(outcome)
             if len(seen) == 4:
@@ -992,13 +1108,20 @@ async def test_download_batch_stops_handing_out_work_once_cancelled(gallery_dir,
 @pytest.mark.asyncio
 async def test_download_batch_empty_item_list_yields_nothing(gallery_dir, thumbnail_store):
     async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(500))) as client:
-        outcomes = await _drain(media_writer.download_batch(
-            client, gallery_dir, "gallery",
-            items=[], prefix="localized_media", start_index=1,
-            index_state=media_writer.GalleryIndex.build(gallery_dir),
-            manifest=media_manifest.empty_manifest(), ledger={},
-            thumbnail_store=thumbnail_store,
-        ))
+        outcomes = await _drain(
+            media_writer.download_batch(
+                client,
+                gallery_dir,
+                "gallery",
+                items=[],
+                prefix="localized_media",
+                start_index=1,
+                index_state=media_writer.GalleryIndex.build(gallery_dir),
+                manifest=media_manifest.empty_manifest(),
+                ledger={},
+                thumbnail_store=thumbnail_store,
+            )
+        )
     assert outcomes == []
 
 
@@ -1218,10 +1341,17 @@ async def test_download_item_mega_api_error_is_a_skip_not_a_crash(gallery_dir, t
 
     async with _client_for(handler) as client:
         outcome = await media_writer.download_item(
-            client, gallery_dir, "gallery",
-            url=pseudo_url, filename_hint="photo.png",
-            prefix="localized_media", index=1, index_state=index_state,
-            manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+            client,
+            gallery_dir,
+            "gallery",
+            url=pseudo_url,
+            filename_hint="photo.png",
+            prefix="localized_media",
+            index=1,
+            index_state=index_state,
+            manifest=manifest,
+            ledger=ledger,
+            thumbnail_store=thumbnail_store,
         )
 
     assert outcome.status == "error"
@@ -1251,11 +1381,17 @@ def _dead_everywhere(*, permanent: bool = True) -> tuple[dict, dict]:
 
 async def _retry(client, gallery_dir, thumbnail_store, manifest, ledger):
     return await media_writer.download_item(
-        client, gallery_dir, "gallery",
-        url=_DEAD_URL, filename_hint=None,
-        prefix="localized_media", index=1,
+        client,
+        gallery_dir,
+        "gallery",
+        url=_DEAD_URL,
+        filename_hint=None,
+        prefix="localized_media",
+        index=1,
         index_state=media_writer.GalleryIndex.build(gallery_dir),
-        manifest=manifest, ledger=ledger, thumbnail_store=thumbnail_store,
+        manifest=manifest,
+        ledger=ledger,
+        thumbnail_store=thumbnail_store,
         retry_dead=True,
     )
 
@@ -1316,7 +1452,9 @@ async def test_retry_dead_transient_exhausted_link_is_dead_again_immediately(gal
 
 
 @pytest.mark.asyncio
-async def test_retry_dead_still_failing_with_no_ledger_entry_keeps_the_manifest_entry(gallery_dir, thumbnail_store, monkeypatch):
+async def test_retry_dead_still_failing_with_no_ledger_entry_keeps_the_manifest_entry(
+    gallery_dir, thumbnail_store, monkeypatch
+):
     """The global ledger evicts; the card's own `dead` entry doesn't. A first
     transient failure is below the cap, but the card's record must survive."""
     monkeypatch.setattr(media_writer, "_preflight_dns", lambda url: None)

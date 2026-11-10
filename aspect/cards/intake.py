@@ -31,13 +31,16 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 from typing import Any
 
 from aspect import deps
 from aspect.cards import pngtools
 from aspect.cards.naming import id_fragment
-from aspect.sources import chub, datacat, jannyai
+from aspect.sources import chub
+from aspect.sources import datacat
+from aspect.sources import jannyai
 
 
 class IntakeError(ValueError):
@@ -64,7 +67,7 @@ class PreparedCard:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 def _is_ours(data: dict[str, Any]) -> bool:
@@ -84,9 +87,7 @@ def synthetic_id(data: dict[str, Any]) -> str:
     import modal twice then lands on the same fragment and is caught as the
     duplicate it is.
     """
-    basis = "\n\x00".join(
-        str(data.get(field) or "") for field in ("name", "description", "first_mes")
-    )
+    basis = "\n\x00".join(str(data.get(field) or "") for field in ("name", "description", "first_mes"))
     return hashlib.sha1(basis.encode("utf-8")).hexdigest()
 
 

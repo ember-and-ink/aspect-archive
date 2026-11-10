@@ -21,7 +21,8 @@ from pathlib import Path
 
 # The algorithm under test now lives in aspect/ (lifted here once saucepan support
 # became real). This file stays the executable spec, pinned against real captures.
-from aspect.sources.saucepan_fragments import _is_real, deobfuscate_fragments
+from aspect.sources.saucepan_fragments import _is_real
+from aspect.sources.saucepan_fragments import deobfuscate_fragments
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "saucepan"
 
@@ -87,9 +88,7 @@ def test_real_fragment_ordinals_are_contiguous_from_zero():
     # is what makes concatenation-after-sort reconstruct the prose exactly.
     for chapter in (_chapter0(), _chapter1()):
         mask = chapter["text_fragments"]["mask"]
-        ordinals = sorted(
-            f["key"] ^ mask for f in chapter["text_fragments"]["fragments"] if _is_real(mask, f)
-        )
+        ordinals = sorted(f["key"] ^ mask for f in chapter["text_fragments"]["fragments"] if _is_real(mask, f))
         assert ordinals == list(range(len(ordinals)))
 
 
@@ -104,9 +103,7 @@ def test_skipping_proof_validation_corrupts_only_the_tail():
     mask = text_fragments["mask"]
 
     clean = deobfuscate_fragments(text_fragments)
-    unvalidated = "".join(
-        f["text"] for f in sorted(text_fragments["fragments"], key=lambda f: f["key"] ^ mask)
-    )
+    unvalidated = "".join(f["text"] for f in sorted(text_fragments["fragments"], key=lambda f: f["key"] ^ mask))
 
     assert unvalidated.startswith(clean)  # the head is identical -- the trap
     assert len(unvalidated) > len(clean)  # the damage is entirely appended

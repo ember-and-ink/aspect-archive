@@ -40,7 +40,9 @@ def _write_card(cards_dir: Path, rel: str, data: dict) -> Path:
 
 
 def _read_data(path: Path) -> dict:
-    return pngtools.extract_embedded_card(path.read_bytes())
+    card = pngtools.extract_embedded_card(path.read_bytes())
+    assert card is not None
+    return card
 
 
 def _run(cards_dir: Path, monkeypatch, *args: str) -> int:

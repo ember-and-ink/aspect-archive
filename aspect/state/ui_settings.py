@@ -91,17 +91,13 @@ class SettingsStore:
         except OSError as exc:
             raise SettingsError(f"could not read {self.path}: {exc}") from exc
         if len(raw) > MAX_BYTES:
-            raise SettingsError(
-                f"{self.path} is {len(raw)} bytes, over the {MAX_BYTES}-byte ceiling"
-            )
+            raise SettingsError(f"{self.path} is {len(raw)} bytes, over the {MAX_BYTES}-byte ceiling")
         try:
             blob = json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise SettingsError(f"{self.path} is not valid JSON: {exc}") from exc
         if not isinstance(blob, dict):
-            raise SettingsError(
-                f"{self.path} holds a {type(blob).__name__}, expected a JSON object"
-            )
+            raise SettingsError(f"{self.path} holds a {type(blob).__name__}, expected a JSON object")
         return blob
 
     def write(self, blob: dict[str, Any]) -> dict[str, Any]:
@@ -121,14 +117,10 @@ class SettingsStore:
             raise SettingsError(f"settings are not JSON-serialisable: {exc}") from exc
         encoded = text.encode("utf-8")
         if len(encoded) > MAX_BYTES:
-            raise SettingsError(
-                f"settings are {len(encoded)} bytes, over the {MAX_BYTES}-byte ceiling"
-            )
+            raise SettingsError(f"settings are {len(encoded)} bytes, over the {MAX_BYTES}-byte ceiling")
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_fd, tmp_name = tempfile.mkstemp(
-            dir=self.path.parent, prefix=".settings-", suffix=".tmp"
-        )
+        tmp_fd, tmp_name = tempfile.mkstemp(dir=self.path.parent, prefix=".settings-", suffix=".tmp")
         tmp_path = Path(tmp_name)
         try:
             with os.fdopen(tmp_fd, "wb") as handle:

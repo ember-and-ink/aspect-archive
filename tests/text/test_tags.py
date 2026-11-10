@@ -1,6 +1,8 @@
 import pytest
 
-from aspect.text.tags import clean_tag, normalize_tag, normalize_tags
+from aspect.text.tags import clean_tag
+from aspect.text.tags import normalize_tag
+from aspect.text.tags import normalize_tags
 
 # ---------------------------------------------------------------------------
 # clean_tag -- real emoji-prefixed tag chips (SillyTavern can't render emoji
@@ -69,4 +71,4 @@ def test_normalize_tags_preserves_order_of_first_occurrence():
 
 
 def test_normalize_tags_ignores_non_string_entries():
-    assert normalize_tags(["Female", 42, None, "AnyPOV"]) == ["Female", "AnyPOV"]
+    assert normalize_tags(["Female", 42, None, "AnyPOV"])  # ty: ignore[invalid-argument-type]  # junk on purpose == ["Female", "AnyPOV"]

@@ -3,14 +3,16 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
+from typing import TypeIs
 
+from aspect.cards.models import CharacterBook
+from aspect.cards.models import LoreEntry
 from aspect.text.macros import MacroSanitizer
-from aspect.cards.models import CharacterBook, LoreEntry
 
 logger = logging.getLogger("aspect.lorebook")
 
 
-def _is_number(v: Any) -> bool:
+def _is_number(v: Any) -> TypeIs[int | float]:
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
@@ -19,11 +21,7 @@ def _looks_like_entry(e: Any) -> bool:
     signal. Ported from janitorai-export.user.js's looksLikeEntry (~L732)."""
     if not isinstance(e, dict) or not isinstance(e.get("content"), str):
         return False
-    return (
-        isinstance(e.get("key"), list)
-        or isinstance(e.get("keysRaw"), str)
-        or isinstance(e.get("constant"), bool)
-    )
+    return isinstance(e.get("key"), list) or isinstance(e.get("keysRaw"), str) or isinstance(e.get("constant"), bool)
 
 
 def _looks_like_book(arr: Any) -> bool:
@@ -57,18 +55,16 @@ class LorebookMapper:
         warnings: list[str] = []
 
         keys = [k for k in e.get("key") or [] if k] if isinstance(e.get("key"), list) else []
-        secondary = (
-            [k for k in e.get("keysecondary") or [] if k]
-            if isinstance(e.get("keysecondary"), list)
-            else []
-        )
+        secondary = [k for k in e.get("keysecondary") or [] if k] if isinstance(e.get("keysecondary"), list) else []
 
         comment = e.get("comment") or e.get("name") or ""
         if multi_book and book_title:
             comment = f"[{book_title}] {comment}"
 
-        probability = e.get("probability") if _is_number(e.get("probability")) else 100
-        order = e.get("insertion_order") if _is_number(e.get("insertion_order")) else 100
+        raw_probability = e.get("probability")
+        probability = raw_probability if _is_number(raw_probability) else 100
+        raw_order = e.get("insertion_order")
+        order = raw_order if _is_number(raw_order) else 100
 
         mww = e.get("matchWholeWords")
         if mww is not True and mww is not False:
@@ -159,10 +155,7 @@ class LorebookMapper:
                     warnings.append(w)
                     continue
             if not _looks_like_book(raw_entries):
-                w = (
-                    f'skipping "{title}" ({script_id}) -- parsed but not lorebook-shaped '
-                    "(likely a true script)"
-                )
+                w = f'skipping "{title}" ({script_id}) -- parsed but not lorebook-shaped (likely a true script)'
                 logger.warning(w)
                 warnings.append(w)
                 continue
@@ -194,15 +187,11 @@ class LorebookMapper:
                 max_depth = depth if max_depth is None else max(max_depth, depth)
 
             for e in book["entries"]:
-                entry, entry_warnings = self._map_entry(
-                    e, len(entries), len(entries), title, multi_book
-                )
+                entry, entry_warnings = self._map_entry(e, len(entries), len(entries), title, multi_book)
                 entries.append(entry)
                 warnings.extend(entry_warnings)
 
-            sources.append(
-                {"id": book["id"], "title": title, "depth": depth, "entry_count": len(book["entries"])}
-            )
+            sources.append({"id": book["id"], "title": title, "depth": depth, "entry_count": len(book["entries"])})
 
         if not entries:
             return None, warnings
@@ -210,12 +199,8 @@ class LorebookMapper:
         if multi_book:
             name = f"{character_name} — JanitorAI lorebooks" if character_name else "JanitorAI lorebooks"
         else:
-            name = books[0]["meta"].get("title") or (
-                f"{character_name} lorebook" if character_name else "lorebook"
-            )
-        description = "\n\n".join(
-            d for d in (b["meta"].get("description") or "" for b in books) if d
-        )
+            name = books[0]["meta"].get("title") or (f"{character_name} lorebook" if character_name else "lorebook")
+        description = "\n\n".join(d for d in (b["meta"].get("description") or "" for b in books) if d)
 
         book_obj = CharacterBook(
             name=name,

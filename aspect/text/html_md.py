@@ -3,7 +3,10 @@ from __future__ import annotations
 import re
 
 from bs4 import BeautifulSoup
-from bs4.element import NavigableString, PageElement, PreformattedString, Tag
+from bs4.element import NavigableString
+from bs4.element import PageElement
+from bs4.element import PreformattedString
+from bs4.element import Tag
 
 # ---------------------------------------------------------------------------
 # Small text utilities (ported from janitorai-export.user.js)
@@ -111,7 +114,7 @@ def rich_to_md(node: PageElement) -> str:
     if tag == "li":
         return "- " + inner().strip() + "\n"
     if tag == "a":
-        href = node.get("href") or ""
+        href = str(node.get("href") or "")
         text = inner()
         return f"[{text}]({href})" if re.match(r"^https?://", href, re.IGNORECASE) else text
     if tag in ("p", "div"):

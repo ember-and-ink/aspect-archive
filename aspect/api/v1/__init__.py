@@ -22,7 +22,15 @@ when this was a single module.
 from fastapi import APIRouter
 
 from aspect.api.v1 import _shared  # noqa: F401  -- re-exported for tests and the server's startup hook
-from aspect.api.v1 import auth, characters, discover, duplicates, galleries, media, network, system, userscripts
+from aspect.api.v1 import auth
+from aspect.api.v1 import characters
+from aspect.api.v1 import discover
+from aspect.api.v1 import duplicates
+from aspect.api.v1 import galleries
+from aspect.api.v1 import media
+from aspect.api.v1 import network
+from aspect.api.v1 import system
+from aspect.api.v1 import userscripts
 
 router = APIRouter(prefix=_shared.PREFIX, tags=["archive"])
 router.include_router(characters.router)

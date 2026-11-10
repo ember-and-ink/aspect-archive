@@ -13,7 +13,8 @@ from pathlib import Path
 import pytest
 
 from aspect.state import ui_settings
-from aspect.state.ui_settings import SettingsError, SettingsStore
+from aspect.state.ui_settings import SettingsError
+from aspect.state.ui_settings import SettingsStore
 
 
 @pytest.fixture
@@ -78,7 +79,7 @@ def test_a_json_array_is_not_a_settings_blob(store: SettingsStore) -> None:
 
 def test_writing_a_non_object_is_refused(store: SettingsStore) -> None:
     with pytest.raises(SettingsError, match="expected a JSON object"):
-        store.write(["not", "a", "blob"])  # type: ignore[arg-type]
+        store.write(["not", "a", "blob"])  # ty: ignore[invalid-argument-type]
 
 
 def test_unserialisable_values_are_refused_before_the_file_is_touched(
@@ -161,9 +162,7 @@ def test_put_refuses_a_json_array(client, archive_dirs) -> None:
     assert client.put("/api/v1/settings", json=[1, 2]).status_code == 422
 
 
-def test_get_reports_damaged_settings_instead_of_masking_them(
-    client, archive_dirs
-) -> None:
+def test_get_reports_damaged_settings_instead_of_masking_them(client, archive_dirs) -> None:
     """A 500 so the frontend keeps whatever it has and the user is told. An
     empty 200 would read as "fresh archive" and get saved over the damage."""
     archive_dirs["settings"].write_text("{broken", encoding="utf-8")

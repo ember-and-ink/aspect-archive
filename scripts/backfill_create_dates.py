@@ -30,14 +30,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from aspect.cards import dates, pngtools
+from aspect.cards import dates
+from aspect.cards import pngtools
 from aspect.config import settings
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--cards-dir", type=Path, default=settings.archive_dir)
     parser.add_argument(
         "--apply",

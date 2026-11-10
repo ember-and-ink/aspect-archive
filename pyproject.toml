@@ -1,7 +1,7 @@
 # `version` is major.minor only. The patch number is assigned by the publish
 # workflow from the git tags, so it never needs touching for an ordinary
-# change. To cut a new minor or major release, run `make bump-minor` or
-# `make bump-major` in the PR that earns it.
+# change. To cut a new minor or major release, run `task bump-minor` or
+# `task bump-major` in the PR that earns it.
 [project]
 name = "aspect-archive"
 version = "0.3.0"
@@ -30,9 +30,21 @@ aspect-archive = "aspect.server:main"
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.7.0",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
+    "ruff>=0.17",
+    # prek, not pre-commit: a single Rust binary that reads the same
+    # .pre-commit-config.yaml, so no virtualenv/filelock/nodeenv chain in the lock.
+    "prek>=0.5.10",
+    # Task (taskfile.dev), the repo's command runner. A floor pin like the rest:
+    # Taskfile v3 is stable, so a routine Dependabot bump is safe.
+    "go-task-bin>=3.54.0",
+    # Exact pin, and Dependabot ignores it: ty is pre-1.0 and a bump can add new
+    # errors across the tree. Bump it by hand and fix what it finds in the same PR.
+    "ty==0.0.99",
+    # Copy-paste detection (`task lint-dupes`, settings in .jscpd.json). Exact pin
+    # for the same reason: a new release can find clones the old one missed.
+    "jscpd==5.4.2",
 ]
 
 [build-system]
@@ -47,3 +59,23 @@ asyncio_mode = "auto"
 markers = [
     "real_media_queue: run the real add-time image download queue instead of the autouse recorder",
 ]
+
+[tool.ruff]
+line-length = 120
+# target-version is left unset: ruff reads it from requires-python.
+
+[tool.ruff.lint]
+# UP (pyupgrade) keeps syntax current with requires-python.
+select = ["E", "W", "F", "B", "I", "UP"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's parameter markers are meant to sit in argument defaults.
+extend-immutable-calls = ["fastapi.File", "fastapi.Query", "fastapi.Depends", "fastapi.Body", "fastapi.Form"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ty.analysis]
+# Playwright is only for the browser smoke gate (`task frontend-smoke`), which
+# pulls it in with `uv run --with playwright`, so it is not in the locked env.
+allowed-unresolved-imports = ["playwright.**"]

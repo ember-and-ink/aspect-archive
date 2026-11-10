@@ -65,8 +65,16 @@ def test_akane_maps_to_trusted_reference_metadata():
     assert fields.name == "Akane Kujo"
     assert fields.creator == "dezea"
     assert fields.tags == [
-        "Female", "Multiple", "AnyPOV", "Angst", "Demi-Human",
-        "Fluff", "Horror", "kitsune", "yandere", "TheValentine",
+        "Female",
+        "Multiple",
+        "AnyPOV",
+        "Angst",
+        "Demi-Human",
+        "Fluff",
+        "Horror",
+        "kitsune",
+        "yandere",
+        "TheValentine",
     ]
     assert fields.description.startswith(">Character Information:")
     assert fields.mes_example == ""  # example_dialogs is empty for this card
@@ -190,9 +198,7 @@ def test_greetings_empty_when_nothing_present():
 
 def test_avatar_url_builds_cdn_url():
     akane = load("open_akane_kujo")
-    assert mapper.avatar_url(akane) == (
-        "https://ella.janitorai.com/bot-avatars/" + akane["avatar"]
-    )
+    assert mapper.avatar_url(akane) == ("https://ella.janitorai.com/bot-avatars/" + akane["avatar"])
 
 
 def test_avatar_url_none_when_absent():

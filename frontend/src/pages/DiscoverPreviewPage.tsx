@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { ExternalLink, Plus, TriangleAlert } from 'lucide-react'
 import {
   CardDetailLayout,
@@ -36,7 +36,11 @@ import { useProviderSettings } from '@/hooks/use-settings'
 import { readDiscoverState, writeDiscoverState } from '@/lib/discover-state'
 import { formatDate } from '@/lib/card'
 import { toast } from '@/lib/toast'
-import { cn, isTypingTarget } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import {
+  useNeighbourNavigation,
+  useTabParam,
+} from '@/hooks/use-detail-navigation'
 
 /**
  * The panes a card that is not in the archive can honestly fill.
@@ -67,13 +71,15 @@ const PROVIDER_LABEL = { chub: 'Chub', datacat: 'DataCat' } as const
  * archive. The row it started from comes out of the Discover query the tile
  * linked from, which is also what prev/next steps through.
  */
+const previewPath = (item: DiscoverItem) =>
+  `/discover/${item.provider}/${encodeURIComponent(item.providerId)}`
+
 export function DiscoverPreviewPage() {
   const { provider, id } = useParams<{
     provider: 'chub' | 'datacat'
     id: string
   }>()
   const [params, setParams] = useSearchParams()
-  const navigate = useNavigate()
   const { chubToken, chubNsfw } = useProviderSettings()
 
   const state = readDiscoverState(params)
@@ -128,45 +134,15 @@ export function DiscoverPreviewPage() {
   const inArchive = Boolean(id && have.data?.has(idFragment(id)))
 
   const add = useAddToArchive()
-  const activeTab = (params.get('tab') as Pane) ?? 'overview'
-  const setTab = (tab: Pane) => {
-    const next = new URLSearchParams(params)
-    if (tab === 'overview') next.delete('tab')
-    else next.set('tab', tab)
-    setParams(next, { replace: true })
-  }
+  const [activeTab, setTab] = useTabParam<Pane>(params, setParams)
 
-  const go = useCallback(
-    (delta: number) => {
-      if (position < 0) return
-      const target = items[position + delta]
-      if (target) {
-        const next = new URLSearchParams(params)
-        next.delete('tab')
-        navigate(
-          {
-            pathname: `/discover/${target.provider}/${encodeURIComponent(target.providerId)}`,
-            search: next.toString(),
-          },
-          { replace: true },
-        )
-      } else if (delta > 0 && feed.hasNextPage) {
-        void feed.fetchNextPage()
-      }
-    },
-    [position, items, params, navigate, feed],
-  )
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target)) return
-      if (event.metaKey || event.ctrlKey || event.altKey) return
-      if (event.key === 'j') go(1)
-      else if (event.key === 'k') go(-1)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [go])
+  const go = useNeighbourNavigation({
+    items,
+    position,
+    params,
+    pathOf: previewPath,
+    feed,
+  })
 
   const back = {
     pathname: '/discover',

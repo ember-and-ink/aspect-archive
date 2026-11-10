@@ -14,7 +14,8 @@ from pathlib import Path
 import pytest
 
 from aspect.state import seen
-from aspect.state.seen import SeenError, SeenStore
+from aspect.state.seen import SeenError
+from aspect.state.seen import SeenStore
 
 
 @pytest.fixture
@@ -78,9 +79,7 @@ def test_an_overlong_id_is_refused_and_writes_nothing(store: SeenStore) -> None:
     assert store.read() == {}
 
 
-def test_the_per_provider_ceiling_is_enforced(
-    store: SeenStore, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_the_per_provider_ceiling_is_enforced(store: SeenStore, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(seen, "MAX_IDS_PER_PROVIDER", 2)
     store.record("chub", ["a", "b"], now=1)
     with pytest.raises(SeenError):
@@ -100,9 +99,7 @@ def test_damaged_json_raises_rather_than_reading_as_empty(store: SeenStore) -> N
 
 
 def test_junk_rows_are_dropped_rather_than_raising(store: SeenStore) -> None:
-    store.path.write_text(
-        json.dumps({"chub": {"a": 5, "b": "soon", "c": True, "": 1}, "datacat": ["x"]})
-    )
+    store.path.write_text(json.dumps({"chub": {"a": 5, "b": "soon", "c": True, "": 1}, "datacat": ["x"]}))
     assert store.read() == {"chub": {"a": 5}}
 
 
@@ -114,9 +111,7 @@ def test_a_hand_edit_is_picked_up_without_a_restart(store: SeenStore) -> None:
     assert first == {"a": 7}
 
 
-def test_a_failed_write_leaves_the_previous_stamps_intact(
-    store: SeenStore, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_a_failed_write_leaves_the_previous_stamps_intact(store: SeenStore, monkeypatch: pytest.MonkeyPatch) -> None:
     store.record("chub", ["a"], now=1)
 
     def boom(*_args: object, **_kwargs: object) -> None:
@@ -173,9 +168,7 @@ def test_too_many_ids_in_one_request_is_refused(client, archive_dirs, monkeypatc
     from aspect.api.v1 import discover
 
     monkeypatch.setattr(discover, "MAX_IDS_PER_REQUEST", 3)
-    resp = client.post(
-        "/api/v1/discover/seen", json={"provider": "chub", "ids": ["a", "b", "c", "d"]}
-    )
+    resp = client.post("/api/v1/discover/seen", json={"provider": "chub", "ids": ["a", "b", "c", "d"]})
     assert resp.status_code == 422
     assert not archive_dirs["seen"].exists()
 

@@ -17,16 +17,14 @@ from unittest.mock import patch
 
 import pytest
 
-from aspect.media.guard import (
-    MAX_MEDIA_BYTES,
-    MediaTooLargeError,
-    UnsafeAddressError,
-    check_content_length,
-    is_safe_address,
-    is_url_safe_for_download,
-    read_body_with_cap,
-    resolve_safe_addresses,
-)
+from aspect.media.guard import MAX_MEDIA_BYTES
+from aspect.media.guard import MediaTooLargeError
+from aspect.media.guard import UnsafeAddressError
+from aspect.media.guard import check_content_length
+from aspect.media.guard import is_safe_address
+from aspect.media.guard import is_url_safe_for_download
+from aspect.media.guard import read_body_with_cap
+from aspect.media.guard import resolve_safe_addresses
 
 
 class _FakeStreamResponse:
@@ -39,6 +37,7 @@ class _FakeStreamResponse:
     async def aiter_bytes(self):
         for chunk in self._chunks:
             yield chunk
+
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "media_3c" / "guard_urls_js.json"
 

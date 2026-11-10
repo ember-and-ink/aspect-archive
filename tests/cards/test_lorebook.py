@@ -79,8 +79,9 @@ def test_map_real_script_matches_sillytavern_reexport_field_for_field():
     book, warnings = LorebookMapper().map([raw])
 
     assert warnings == []
+    assert book is not None
     assert len(book.entries) == len(expected_entries) == 20
-    for i, (mine, expected) in enumerate(zip(book.entries, expected_entries)):
+    for i, (mine, expected) in enumerate(zip(book.entries, expected_entries, strict=True)):
         mine_dict = mine.model_dump()
         expected_dict = dict(expected)
         assert expected_dict.pop("comment") == f"[Kamii University: A Living Campus] {mine_dict.pop('comment')}"
@@ -95,6 +96,7 @@ def test_map_content_runs_through_macro_sanitizer():
 
     book, warnings = LorebookMapper().map([raw])
 
+    assert book is not None
     assert book.entries[0].content == "hi {{user}}, love {{user}} and {{unknownmacro}}"
     assert any("unknownmacro" in w for w in warnings)
 
@@ -184,6 +186,7 @@ def test_map_multi_book_prefixes_comment_with_title_and_unions_depth():
     book, warnings = LorebookMapper().map([first, second], character_name="Akane Kujo")
 
     assert warnings == []
+    assert book is not None
     assert book.name == "Akane Kujo — JanitorAI lorebooks"
     assert "Some places want you to stay." in book.description
     assert "Second description" in book.description
@@ -206,6 +209,7 @@ def test_map_falls_back_to_character_name_when_no_title():
         }
     ]
     book, _ = LorebookMapper().map(raw_scripts, character_name="Some Character")
+    assert book is not None
     assert book.name == "Some Character lorebook"
 
 
@@ -219,6 +223,7 @@ def test_map_entry_matchwholewords_absent_maps_to_none():
         }
     ]
     book, _ = LorebookMapper().map(raw_scripts)
+    assert book is not None
     assert book.entries[0].extensions["match_whole_words"] is None
 
 
@@ -228,12 +233,11 @@ def test_map_selective_true_when_secondary_keys_present():
             "type": "lorebook",
             "id": "x",
             "title": "T",
-            "script": json.dumps(
-                [{"key": ["k"], "keysecondary": ["sk"], "content": "c", "constant": False}]
-            ),
+            "script": json.dumps([{"key": ["k"], "keysecondary": ["sk"], "content": "c", "constant": False}]),
         }
     ]
     book, _ = LorebookMapper().map(raw_scripts)
+    assert book is not None
     assert book.entries[0].selective is True
     assert book.entries[0].secondary_keys == ["sk"]
 
@@ -264,6 +268,8 @@ def test_merge_unions_new_entries_into_existing_book():
 
     merged = LorebookMapper().merge(book, [extra])
 
+    assert book is not None
+    assert merged is not None
     assert len(merged.entries) == len(book.entries) + 1
     assert merged.entries[-1] is extra
 
@@ -271,11 +277,13 @@ def test_merge_unions_new_entries_into_existing_book():
 def test_merge_dedupes_by_keys_and_content():
     raw = _load_json("hampter_script_kamii_university.json")
     book, _ = LorebookMapper().map([raw])
+    assert book is not None
     original_count = len(book.entries)
     duplicate = LoreEntry(keys=book.entries[0].keys, content=book.entries[0].content)
 
     merged = LorebookMapper().merge(book, [duplicate])
 
+    assert merged is not None
     assert len(merged.entries) == original_count
 
 

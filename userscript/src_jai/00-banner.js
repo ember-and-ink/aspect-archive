@@ -23,6 +23,6 @@
 // entries above stay for the default case.
 //
 // SOURCE LAYOUT — this file is COMPILED. Do not edit jai-proxy-bridge.user.js by
-// hand; edit userscript/src_jai/*.js and run `make compile` (see
+// hand; edit userscript/src_jai/*.js and run `task compile` (see
 // scripts/compile_userscript_jai.py). The modules are concatenated, in order,
 // inside a single IIFE beneath this banner.

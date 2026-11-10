@@ -3,7 +3,10 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-from aspect.text.html_md import html_to_md, normalize_quotes, serialize_md, tidy_text
+from aspect.text.html_md import html_to_md
+from aspect.text.html_md import normalize_quotes
+from aspect.text.html_md import serialize_md
+from aspect.text.html_md import tidy_text
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -18,7 +21,7 @@ def _load_character(name: str) -> dict:
 
 
 def test_normalize_quotes_folds_typographic_quotes():
-    assert normalize_quotes("“hi” ‘there’") == '"hi" \'there\''
+    assert normalize_quotes("“hi” ‘there’") == "\"hi\" 'there'"
 
 
 def test_tidy_text_collapses_blank_runs_and_trailing_space():

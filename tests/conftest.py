@@ -19,11 +19,11 @@ import pytest
 from PIL import Image
 
 from aspect import deps
+from aspect.api.v1 import _shared as v1_shared
 from aspect.archive import catalog
+from aspect.archive import thumbs
 from aspect.cards import pngtools
 from aspect.cards.builder import PngWriter
-from aspect.archive import thumbs
-from aspect.api.v1 import _shared as v1_shared
 from aspect.config import settings
 
 
@@ -80,7 +80,7 @@ def card_png(
 def jai_extensions(
     card_id: str = "0d162f5f-86ab-4fdd-a2c2-3912adf24960",
     *,
-    gallery_id: str = "kzbYR2QbpncC",
+    gallery_id: str | None = "kzbYR2QbpncC",
     source_kind: str = "janitor_core",
     creator_name: str = "tester",
     page_name: str = "A Test Page | Test",

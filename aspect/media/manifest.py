@@ -33,8 +33,9 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from aspect.cards import edit
 from aspect.config import settings
@@ -107,9 +108,7 @@ def save_manifest(gallery_dir: Path, manifest: dict[str, Any]) -> None:
     edit.write_atomic(manifest_path(gallery_dir), payload)
 
 
-def record_saved(
-    manifest: dict[str, Any], url: str, file_name: str, sha256: str, *, size: int | None = None
-) -> None:
+def record_saved(manifest: dict[str, Any], url: str, file_name: str, sha256: str, *, size: int | None = None) -> None:
     entry: dict[str, Any] = {"file": file_name, "sha256": sha256, "at": _now_iso()}
     if size is not None:
         entry["size"] = size
@@ -173,7 +172,7 @@ def record_source(
     sources[key] = entry
 
 
-def effective_sources(manifest: dict[str, Any], refs: "Iterable[Any]") -> dict[str, Any]:
+def effective_sources(manifest: dict[str, Any], refs: Iterable[Any]) -> dict[str, Any]:
     """The ledger as the skip check should see it: what `files`/`dead` already
     prove, overlaid with what runs have explicitly recorded.
 
@@ -207,7 +206,7 @@ def effective_sources(manifest: dict[str, Any], refs: "Iterable[Any]") -> dict[s
     return view
 
 
-def sources_satisfied(manifest: dict[str, Any], refs: "Iterable[Any]") -> bool:
+def sources_satisfied(manifest: dict[str, Any], refs: Iterable[Any]) -> bool:
     """Whether every source this card carries has already been dealt with, by
     code no older than what is running now.
 
@@ -311,7 +310,7 @@ def record_failure(
     `{dead, permanent, attempts}` -- `dead` is what the caller checks to
     decide whether this run's classification of the URL just became final."""
     now = time.time()
-    entry = ledger.get(url) or {"n": 0, "f": now}
+    entry: dict[str, Any] = ledger.get(url) or {"n": 0, "f": now}
     entry["n"] = entry.get("n", 0) + 1
     entry["l"] = now
     entry["s"] = status

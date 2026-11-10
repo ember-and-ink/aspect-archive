@@ -1,6 +1,13 @@
 # The gate in front of publish.yml: a push to main publishes :latest, so a
 # broken tree should fail here first.
 #
+# The job ids below (python, javascript, frontend, api-schema) are the required
+# check names in the `main` ruleset -- renaming one silently blocks every PR on a
+# check that never reports. Rename a job and the ruleset together.
+#
+# Every step runs through Task (pinned in the uv dev group), so CI runs exactly
+# what `task <name>` runs locally.
+#
 # Both suites are fast (the Python one is ~10s) and neither needs the archive --
 # tests/conftest.py builds real card PNGs in a tmp directory, so nothing here
 # depends on data/, which is why this can run on a clean runner at all.
@@ -25,44 +32,50 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           enable-cache: true
-      # --frozen: fail if uv.lock disagrees with pyproject.toml rather than
+      # --locked: fail if uv.lock disagrees with pyproject.toml rather than
       # silently resolving something the image will never contain.
-      - run: uv sync --frozen
-      - run: uv run python -m pytest -q
+      - run: uv run task install
+      # ruff format/check, ty, jscpd and `uv lock --check`, none of them writing.
+      - run: uv run task test-lint
+      - run: uv run task test
 
   javascript:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # Only here for Task, which is pinned in the uv dev group.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          enable-cache: true
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: "22"
       # The userscripts' suite: node:test with zero deps, so there is nothing
-      # to install first (see the test-js target in the Makefile).
-      - run: make test-js
+      # to install first (see the test-js task in Taskfile.yml).
+      - run: uv run task test-js
 
   frontend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # Only here for Task, which is pinned in the uv dev group.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          enable-cache: true
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npm run format:check
-      - run: npm run lint:check
-      - run: npx tsc -b --noEmit
-      - run: npm run test
+      - run: uv run task frontend-install
+      # prettier --check, oxlint and tsc, none of them writing.
+      - run: uv run task frontend-test-lint
+      - run: uv run task frontend-test
 
   # The client's types are generated from FastAPI and committed. This is the
   # check that keeps them honest: regenerate, and fail if the tree moved. A red
   # run here means a route changed without its client -- regenerate with
-  # `make api-schema` and commit the result.
+  # `task api-schema` and commit the result.
   api-schema:
     runs-on: ubuntu-latest
     steps:
@@ -75,8 +88,8 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: uv sync --frozen
-      - run: cd frontend && npm ci
-      - run: make api-schema
+      - run: uv run task install
+      - run: uv run task frontend-install
+      - run: uv run task api-schema
       - name: Fail if the generated client is out of date
         run: git diff --exit-code -- frontend/src/lib/api-schema.ts

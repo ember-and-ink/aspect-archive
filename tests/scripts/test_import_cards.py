@@ -21,12 +21,15 @@ import io
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from PIL import Image
 
 import scripts.import_cards as importer
-from aspect.cards import gallery, pngtools
-from aspect.cards.builder import CardBuilder, PngWriter
+from aspect.cards import gallery
+from aspect.cards import pngtools
+from aspect.cards.builder import CardBuilder
+from aspect.cards.builder import PngWriter
 
 
 def _envelope(data: dict) -> dict:
@@ -49,7 +52,7 @@ def _import_png(data: dict) -> bytes:
 
 
 def _chub_data(gallery_id: str | None = None) -> dict:
-    data = {
+    data: dict[str, Any] = {
         "name": "Tsuko",
         "creator": "SteakedGamer",
         "description": "hello",
@@ -60,7 +63,8 @@ def _chub_data(gallery_id: str | None = None) -> dict:
         },
     }
     if gallery_id is not None:
-        data["extensions"]["gallery_id"] = gallery_id
+        extensions: dict[str, Any] = data["extensions"]
+        extensions["gallery_id"] = gallery_id
     return data
 
 
@@ -71,12 +75,14 @@ def _datacat_data(cid: str = "f901406d-c5bb-48d7-b37a-6815e94ee879") -> dict:
         "description": "The Queen of Dragons",
         "first_mes": "*Abigail enters.*",
         "creator_notes": "<p>a blurb</p>",
-        "extensions": {"datacat": {"id": cid, "sourceKind": "janitor", "creatorName": "toraval", "pageName": "Abigail"}},
+        "extensions": {
+            "datacat": {"id": cid, "sourceKind": "janitor", "creatorName": "toraval", "pageName": "Abigail"}
+        },
     }
 
 
 def _jannyai_data(gallery_id: str | None = None) -> dict:
-    data = {
+    data: dict[str, Any] = {
         "name": "Abby",
         "creator": "@MathiDoos",
         "description": "A card about {{char}} meeting {{user}}.",
@@ -95,7 +101,8 @@ def _jannyai_data(gallery_id: str | None = None) -> dict:
         },
     }
     if gallery_id is not None:
-        data["extensions"]["gallery_id"] = gallery_id
+        extensions: dict[str, Any] = data["extensions"]
+        extensions["gallery_id"] = gallery_id
     return data
 
 
@@ -117,19 +124,22 @@ def _write_existing(cards_dir: Path, *, name: str, creator: str, cid: str, data:
     data.setdefault("extensions", {}).setdefault("jai", {"sourceKind": "test", "id": cid})
     writer = PngWriter(output_dir=cards_dir, compress=False)
     source_had_id = gallery.read_id(data) is not None  # the write stamps one in place
-    path = writer.write_payload(
-        _envelope(data), _png_bytes((8, 8)), creator=creator, name=name, card_id=cid
-    )
+    path = writer.write_payload(_envelope(data), _png_bytes((8, 8)), creator=creator, name=name, card_id=cid)
     if not source_had_id:
         raw = path.read_bytes()
-        envelope, written = pngtools.read_envelope(raw)
+        assert pngtools.read_envelope is not None
+        parsed = pngtools.read_envelope(raw)
+        assert parsed is not None
+        envelope, written = parsed
         written["extensions"].pop("gallery_id", None)
         path.write_bytes(pngtools.embed_card(raw, envelope, written))
     return path
 
 
 def _read_data(path: Path) -> dict:
-    return pngtools.extract_embedded_card(path.read_bytes())
+    card = pngtools.extract_embedded_card(path.read_bytes())
+    assert card is not None
+    return card
 
 
 def _pixel_chunks(png: bytes):
@@ -175,7 +185,7 @@ def test_find_by_id_matches_on_the_fragment(tmp_path):
 
 
 def test_find_by_id_still_matches_a_renamed_card(tmp_path):
-    """The regression this replaces a name+id lookup for: `make names` renames a
+    """The regression this replaces a name+id lookup for: `task names` renames a
     junk-named card in place while the staged export still carries the old name,
     so any match that pinned the name missed the card it had just matched by id
     and skipped the gallery_id backfill."""
@@ -262,7 +272,12 @@ def test_import_datacat_leads_creator_notes_with_resolved_avatar(tmp_path):
     resolver = _FakeResolver("https://ella.janitorai.com/bot-avatars/abc.webp")
 
     out, warnings = importer._import_datacat(
-        builder, writer, _datacat_data(), _png_bytes(), "f901406d-c5bb-48d7-b37a-6815e94ee879", resolver
+        builder,
+        writer,
+        _datacat_data(),
+        _png_bytes(),
+        "f901406d-c5bb-48d7-b37a-6815e94ee879",
+        resolver,  # ty: ignore[invalid-argument-type]  # test double
     )
 
     assert resolver.calls == ["f901406d-c5bb-48d7-b37a-6815e94ee879"]
@@ -277,7 +292,12 @@ def test_import_datacat_notes_when_resolver_finds_nothing(tmp_path):
     resolver = _FakeResolver(None)
 
     out, warnings = importer._import_datacat(
-        builder, writer, _datacat_data(), _png_bytes(), "f901406d-c5bb-48d7-b37a-6815e94ee879", resolver
+        builder,
+        writer,
+        _datacat_data(),
+        _png_bytes(),
+        "f901406d-c5bb-48d7-b37a-6815e94ee879",
+        resolver,  # ty: ignore[invalid-argument-type]  # test double
     )
 
     assert any("original avatar not recovered" in w for w in warnings)
@@ -304,7 +324,7 @@ def test_main_fetch_datacat_images_flag_wires_resolver_and_closes_it(tmp_path, m
 
     resolver = _FakeResolver("https://ella.janitorai.com/bot-avatars/xyz.webp")
     closed = []
-    resolver.close = lambda: closed.append(True)
+    resolver.close = lambda: closed.append(True)  # ty: ignore[unresolved-attribute]
     monkeypatch.setattr(importer, "DatacatImageResolver", lambda: resolver)
 
     monkeypatch.setattr(
@@ -371,9 +391,7 @@ def test_main_backfills_gallery_id_into_existing_card(tmp_path, monkeypatch):
     imports.mkdir()
 
     # An existing (fuller) card with no gallery_id...
-    existing = _write_existing(
-        cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data()
-    )
+    existing = _write_existing(cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data())
     before = existing.read_bytes()
 
     # ...and a legacy Chub export of the same character that carries one.
@@ -445,9 +463,7 @@ def test_main_skips_when_import_has_no_gallery_id(tmp_path, monkeypatch):
     imports = tmp_path / "import"
     imports.mkdir()
 
-    existing = _write_existing(
-        cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data()
-    )
+    existing = _write_existing(cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data())
     (imports / "tsuko.png").write_bytes(_import_png(_chub_data()))  # no gallery_id
 
     assert _run_import(imports, cards, monkeypatch) == 0
@@ -512,9 +528,7 @@ def test_overwrite_prunes_a_card_renamed_upstream(tmp_path, monkeypatch):
     imports = tmp_path / "import"
     imports.mkdir()
 
-    _write_existing(
-        cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data()
-    )
+    _write_existing(cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data())
 
     renamed = _chub_data()
     renamed["name"] = "Tsuko Reborn"
@@ -533,12 +547,8 @@ def test_overwrite_leaves_unrelated_cards_alone(tmp_path, monkeypatch):
     other = _chub_data()
     other["name"] = "Someone Else"
     other["extensions"]["chub"]["id"] = 9999999
-    neighbour = _write_existing(
-        cards, name="Someone Else", creator="SteakedGamer", cid="9999999", data=other
-    )
-    _write_existing(
-        cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data()
-    )
+    neighbour = _write_existing(cards, name="Someone Else", creator="SteakedGamer", cid="9999999", data=other)
+    _write_existing(cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data())
     (imports / "tsuko.png").write_bytes(_import_png(_chub_data()))
 
     assert _run_import(imports, cards, monkeypatch, "--overwrite") == 0
@@ -574,9 +584,7 @@ def _empty_import_dir(tmp_path: Path) -> Path:
 def test_scan_orphans_splits_unprocessed_from_misfiled(tmp_path):
     cards = tmp_path / "cards"
     orphan = _drop_orphan(cards, "Abigail.png", _datacat_data())
-    processed = _write_existing(
-        cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data()
-    )
+    processed = _write_existing(cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data())
     renamed = processed.rename(cards / "Tsuko the Second.png")
 
     unprocessed, misfiled = importer._scan_orphans(cards)
@@ -623,9 +631,7 @@ def test_orphan_pass_leaves_processed_cards_untouched(tmp_path, monkeypatch):
     """The whole archive is scanned every run -- a card we already wrote must
     come out byte-identical, not silently re-compressed or renamed."""
     cards = tmp_path / "cards"
-    existing = _write_existing(
-        cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data()
-    )
+    existing = _write_existing(cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data())
     before = existing.read_bytes()
 
     assert _run_import(_empty_import_dir(tmp_path), cards, monkeypatch) == 0
@@ -637,9 +643,7 @@ def test_misfiled_card_is_reported_but_never_touched(tmp_path, monkeypatch):
     """SillyTavern's own Rename drops the id fragment. That card is still fully
     processed, so the pass must not drag it back through and rename it."""
     cards = tmp_path / "cards"
-    processed = _write_existing(
-        cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data()
-    )
+    processed = _write_existing(cards, name="Tsuko", creator="SteakedGamer", cid="4937471", data=_chub_data())
     renamed = processed.rename(cards / "My Favourite Tsuko.png")
     before = renamed.read_bytes()
 
@@ -669,9 +673,7 @@ def test_orphan_duplicating_an_archived_card_is_retired_not_imported(tmp_path, m
     the good card wins untouched, the stray copy is moved aside."""
     cards = tmp_path / "cards"
     cid = _datacat_data()["extensions"]["datacat"]["id"]
-    existing = _write_existing(
-        cards, name="Abigail", creator="toraval", cid=cid, data=_datacat_data()
-    )
+    existing = _write_existing(cards, name="Abigail", creator="toraval", cid=cid, data=_datacat_data())
     before = existing.read_bytes()
     orphan = _drop_orphan(cards, "Abigail (1).png", _datacat_data())
 

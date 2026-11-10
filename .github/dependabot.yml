@@ -42,6 +42,19 @@ updates:
       python-security:
         applies-to: security-updates
         patterns: ['*']
+    # Exact pins in pyproject.toml. A new ty or jscpd can report findings across
+    # the tree, so they are bumped by hand with the fixes in the same PR.
+    ignore:
+      - dependency-name: ty
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: jscpd
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
 
   # React frontend.
   - package-ecosystem: npm
@@ -56,7 +69,7 @@ updates:
         patterns: ['*']
     ignore:
       # openapi-typescript peers on TS ^5 and crashes on 7 (`ts.factory`
-      # undefined), breaking `make api-schema`; TS7 also defaults `strict` on.
+      # undefined), breaking `task api-schema`; TS7 also defaults `strict` on.
       # Lift this once openapi-typescript supports 7.
       - dependency-name: typescript
         update-types: ['version-update:semver-major']

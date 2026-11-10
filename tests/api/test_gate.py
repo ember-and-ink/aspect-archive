@@ -84,13 +84,16 @@ def test_everything_the_server_answers_is_closed(gated, method, path):
 def test_what_stays_open(gated):
     assert gated.get("/health").status_code == 200
     assert gated.get("/api/v1/auth/session").json() == {"enabled": True, "authenticated": False}
-    assert gated.options(
-        "/api/v1/characters",
-        headers={"Origin": "https://janitorai.com", "Access-Control-Request-Method": "GET"},
-    ).status_code == 200
+    assert (
+        gated.options(
+            "/api/v1/characters",
+            headers={"Origin": "https://janitorai.com", "Access-Control-Request-Method": "GET"},
+        ).status_code
+        == 200
+    )
 
 
-@pytest.mark.skipif(not FRONTEND_DIST.is_dir(), reason="frontend/dist is not built (make frontend-build)")
+@pytest.mark.skipif(not FRONTEND_DIST.is_dir(), reason="frontend/dist is not built (task frontend-build)")
 def test_the_client_still_loads_so_it_can_ask_for_the_password(gated):
     assert gated.get("/").status_code == 200
     assert gated.get("/settings/security").status_code == 200
@@ -163,9 +166,7 @@ def test_the_token_outlives_a_password_change_and_leaves_sessions_alone(gated):
 
 def test_a_generated_userscript_carries_the_token(gated):
     token = _issue_token(gated)
-    body = gated.post(
-        "/api/v1/userscripts/jai", json={"server_url": "http://nas:8000"}, headers=_bearer(token)
-    ).json()
+    body = gated.post("/api/v1/userscripts/jai", json={"server_url": "http://nas:8000"}, headers=_bearer(token)).json()
     assert body["includes_token"] is True
     assert f'const DEFAULT_TOKEN = "{token}";' in body["source"]
 

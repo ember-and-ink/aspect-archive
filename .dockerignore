@@ -6,7 +6,7 @@
 data/
 state/
 
-# Host-side working directories: cards staged for `make import`, the legacy
+# Host-side working directories: cards staged for `task import`, the legacy
 # pre-`data/` output folder, run logs.
 import/
 cards/
@@ -61,4 +61,4 @@ __pycache__/
 Dockerfile
 .dockerignore
 compose.yaml
-Makefile
+Taskfile.yml

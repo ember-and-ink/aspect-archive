@@ -16,10 +16,12 @@ import sys
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from aspect import deps
@@ -32,12 +34,15 @@ from aspect.api.datacat import router as datacat_router
 from aspect.api.gate import GateMiddleware
 from aspect.api.v1 import _shared as v1_shared
 from aspect.archive import catalog
-from aspect.config import REQUIRED_DIRS, ROOT, STARTUP_DIR_ERRORS, settings
+from aspect.config import REQUIRED_DIRS
+from aspect.config import ROOT
+from aspect.config import STARTUP_DIR_ERRORS
+from aspect.config import settings
 from aspect.runtime import dashboard as dashboard_mod
 
 logger = logging.getLogger("aspect.server")
 
-# The browser client (docs/UI_REWRITE_PLAN.md). Built by `make frontend-build`
+# The browser client (docs/UI_REWRITE_PLAN.md). Built by `task frontend-build`
 # into frontend/dist -- present in the container image and in a checkout that
 # has run the build, absent otherwise, which is why everything below is
 # guarded. In dev it is served by Vite on :5173 instead, with /api proxied back
@@ -152,11 +157,9 @@ class QuietAccessFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        try:
-            status_code = record.args[-1]  # type: ignore[index]
-            return not (200 <= int(status_code) < 300)
-        except (TypeError, IndexError, ValueError):
-            return True
+        args = record.args
+        status_code = args[-1] if isinstance(args, tuple) and args else None
+        return not (isinstance(status_code, int) and 200 <= status_code < 300)
 
 
 logging.getLogger("uvicorn.access").addFilter(QuietAccessFilter())
@@ -236,10 +239,9 @@ if FRONTEND_DIST.is_dir():
             FRONTEND_DIST / "index.html",
             headers={"Cache-Control": "no-store, must-revalidate", "Content-Security-Policy": SHELL_CSP},
         )
-else:  # pragma: no cover -- a checkout that has not run `make frontend-build`
+else:  # pragma: no cover -- a checkout that has not run `task frontend-build`
     logger.warning(
-        "frontend/dist is missing at %s; the browser UI will not be served "
-        "(run `make frontend-build`)",
+        "frontend/dist is missing at %s; the browser UI will not be served (run `task frontend-build`)",
         FRONTEND_DIST,
     )
 
@@ -304,10 +306,7 @@ def _preflight() -> list[str]:
                 owners.setdefault((uid, gid), owner_path)
         problems.append(
             f"the server runs as uid={os.getuid()} gid={os.getgid()}; "
-            + "; ".join(
-                f"{owner_path} is owned by uid={uid} gid={gid}"
-                for (uid, gid), owner_path in owners.items()
-            )
+            + "; ".join(f"{owner_path} is owned by uid={uid} gid={gid}" for (uid, gid), owner_path in owners.items())
         )
         problems.append(
             "in a container, chown the host directory behind the /app/data mount "

@@ -9,7 +9,7 @@ into the PNG in place.
 
     uv run python scripts/backfill_gallery_ids.py            # report only
     uv run python scripts/backfill_gallery_ids.py --apply    # write the ids
-    make gallery-ids ARGS=--apply
+    task gallery-ids -- --apply
 
 Surgical, like check_cards.py --repair: the new id is re-embedded into the *same*
 PNG byte stream (only the tEXt chunks are rewritten), so avatar pixels and the
@@ -24,15 +24,15 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
-from aspect.cards import gallery, pngtools
+from aspect.cards import gallery
+from aspect.cards import pngtools
 from aspect.config import settings
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--cards-dir", type=Path, default=settings.archive_dir)
     parser.add_argument(
         "--apply",
@@ -47,7 +47,7 @@ def main() -> int:
         return 1
 
     cards = sorted(args.cards_dir.glob("**/*.png"))
-    stamped: list[tuple[str, str]] = []  # (path, id or "-" in report mode)
+    stamped: list[tuple[str, Any]] = []  # (path, id or "-" in report mode)
     present = unreadable = aborted = 0
 
     for path in cards:

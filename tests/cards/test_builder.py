@@ -6,14 +6,20 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+from PIL import PngImagePlugin
 
-from aspect.sources import janitor
 from aspect.cards import pngtools
-from aspect.cards.builder import CardBuilder, PngWriter
-from aspect.cards.naming import id_fragment, safe_filename
+from aspect.cards.builder import CardBuilder
+from aspect.cards.builder import PngWriter
+from aspect.cards.models import CaptureRecord
+from aspect.cards.models import CharacterBook
+from aspect.cards.models import LoreEntry
+from aspect.cards.models import ProfileFields
+from aspect.cards.naming import id_fragment
+from aspect.cards.naming import safe_filename
 from aspect.config import settings
+from aspect.sources import janitor
 from aspect.text.macros import MacroSanitizer
-from aspect.cards.models import CaptureRecord, CharacterBook, LoreEntry, ProfileFields
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -50,9 +56,7 @@ def test_build_maps_greetings_to_first_mes_and_alternates():
     # CardBuilder consumes authored greeting markdown straight from the JSON;
     # it only sanitizes macros here.
     profile = ProfileFields(name="Test", description="d", scenario="s")
-    card, _ = CardBuilder().build(
-        profile, greetings=["Hello **there**", "Second greeting"], capture=None, book=None
-    )
+    card, _ = CardBuilder().build(profile, greetings=["Hello **there**", "Second greeting"], capture=None, book=None)
     assert card.first_mes == "Hello **there**"
     assert card.alternate_greetings == ["Second greeting"]
 
@@ -158,9 +162,7 @@ def test_build_prepends_avatar_reference_to_creator_notes():
         book=None,
         avatar_url="https://ella.janitorai.com/bot-avatars/ari.webp",
     )
-    assert card.creator_notes == (
-        "![Ari](https://ella.janitorai.com/bot-avatars/ari.webp)\n\nSome creator notes."
-    )
+    assert card.creator_notes == ("![Ari](https://ella.janitorai.com/bot-avatars/ari.webp)\n\nSome creator notes.")
 
 
 def test_build_creator_notes_unchanged_without_avatar_url():
@@ -198,6 +200,7 @@ def test_id_fragment_takes_first_uuid_segment():
 def _decode(path: Path) -> dict:
     """The card envelope embedded in a written PNG."""
     with Image.open(path) as reopened:
+        assert isinstance(reopened, PngImagePlugin.PngImageFile)
         return json.loads(base64.b64decode(reopened.text["ccv3"]))
 
 
@@ -226,6 +229,7 @@ def test_png_writer_round_trips_card_json(tmp_path):
     assert path.exists()
 
     reopened = Image.open(path)
+    assert isinstance(reopened, PngImagePlugin.PngImageFile)
     assert reopened.text["chara"] == reopened.text["ccv3"]
     decoded = json.loads(base64.b64decode(reopened.text["ccv3"]))
     # The gallery_id is minted by the write itself; everything else round-trips.
@@ -247,6 +251,7 @@ def test_png_writer_converts_non_png_avatar_source(tmp_path):
 
     path = PngWriter(output_dir=tmp_path).write(card, webp_bytes)
     reopened = Image.open(path)
+    assert isinstance(reopened, PngImagePlugin.PngImageFile)
     assert reopened.format == "PNG"
     assert json.loads(base64.b64decode(reopened.text["chara"]))["data"]["name"] == "Webp Test"
 
@@ -359,9 +364,7 @@ def test_png_writer_keeps_a_gallery_id_the_payload_already_carries(tmp_path):
     payload = {"spec": "chara_card_v3", "spec_version": "3.0", "data": data}
     payload.update(data)
 
-    path = PngWriter(output_dir=tmp_path).write_payload(
-        payload, _png_bytes(), creator="dezea", name="Tsuko"
-    )
+    path = PngWriter(output_dir=tmp_path).write_payload(payload, _png_bytes(), creator="dezea", name="Tsuko")
     assert _decode(path)["data"]["extensions"]["gallery_id"] == "f1AMBFO5oPUr"
 
 
@@ -417,6 +420,7 @@ def test_inject_text_chunks_replaces_rather_than_duplicates():
     reinjected = pngtools.inject_text_chunks(injected, {"chara": "BBB", "ccv3": "BBB"})
 
     reopened = Image.open(io.BytesIO(reinjected))
+    assert isinstance(reopened, PngImagePlugin.PngImageFile)
     assert reopened.text["chara"] == "BBB"
     assert reopened.text["ccv3"] == "BBB"
 
@@ -437,6 +441,7 @@ def test_png_writer_card_survives_quantization(tmp_path):
     path = PngWriter(output_dir=tmp_path, compress=True).write(card, _noisy_png())
 
     reopened = Image.open(path)
+    assert isinstance(reopened, PngImagePlugin.PngImageFile)
     assert reopened.format == "PNG"
     assert reopened.text["chara"] == reopened.text["ccv3"]
     decoded = json.loads(base64.b64decode(reopened.text["ccv3"]))
@@ -466,6 +471,7 @@ def test_png_writer_falls_back_when_binary_missing(tmp_path):
     path = writer.write(card, _noisy_png())
 
     reopened = Image.open(path)
+    assert isinstance(reopened, PngImagePlugin.PngImageFile)
     assert reopened.format == "PNG"
     assert json.loads(base64.b64decode(reopened.text["chara"]))["data"]["name"] == "Fallback"
 

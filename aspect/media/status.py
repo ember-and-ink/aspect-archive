@@ -47,9 +47,7 @@ def gallery_dir_if_present(record) -> Path | None:
     `gallery_id`, rewrites the PNG and creates the directory. A read-only sweep
     over 3,868 cards must never do any of that.
     """
-    folder = gallery.resolve_folder(
-        settings.galleries_dir, gallery.folder_name(record.name, record.gallery_id)
-    )
+    folder = gallery.resolve_folder(settings.galleries_dir, gallery.folder_name(record.name, record.gallery_id))
     return settings.galleries_dir / folder if folder else None
 
 
@@ -101,8 +99,7 @@ def card_status_map(idx) -> dict[str, CardMediaStatus]:
         out[record.filename] = CardMediaStatus(
             files=len(manifest["files"]),
             bytes=sum(f.get("size", 0) for f in manifest["files"].values()),
-            complete=bool(last_run and last_run.get("errors", 0) == 0)
-            and not _has_newly_handleable_source(manifest),
+            complete=bool(last_run and last_run.get("errors", 0) == 0) and not _has_newly_handleable_source(manifest),
             dead=len(manifest["dead"]),
             last_run=last_run.get("at") if last_run else None,
         )

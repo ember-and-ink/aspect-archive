@@ -4,19 +4,27 @@ import base64
 import io
 import json
 import shutil
-from collections.abc import Container, Iterable
+from collections.abc import Container
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 from PIL import Image
 
-from aspect.cards import dates, gallery, pngtools
-from aspect.cards.naming import id_fragment, safe_filename
+from aspect.cards import dates
+from aspect.cards import gallery
+from aspect.cards import pngtools
 from aspect.cards.avatar_image import normalize_avatar
+from aspect.cards.models import CaptureRecord
+from aspect.cards.models import CharacterBook
+from aspect.cards.models import CharacterCardV3
+from aspect.cards.models import ProfileFields
+from aspect.cards.naming import id_fragment
+from aspect.cards.naming import safe_filename
 from aspect.config import settings
 from aspect.text.macros import MacroSanitizer
 from aspect.text.tags import normalize_tags
-from aspect.cards.models import CaptureRecord, CharacterBook, CharacterCardV3, ProfileFields
+
 
 def _gallery_id_on_disk(path: Path) -> Any | None:
     """The gallery_id of the card already written at `path`, if there is one.
@@ -188,7 +196,7 @@ class PngWriter:
         a raw dict (so its lorebook extras and int positions survive untouched).
 
         `filename` overrides the derived `<name>_<id8>.png`. Only an overwrite
-        has any business passing it: a card renamed on disk (`make names`) still
+        has any business passing it: a card renamed on disk (`task names`) still
         answers to its fragment, and writing it back under the *derived* name
         would leave two files sharing one id -- which is the archive's dedupe key.
 
@@ -295,7 +303,7 @@ class PngWriter:
 
     # There is deliberately no name+fragment lookup here. One existed, to pin a
     # gallery_id backfill to a card matching both the name and the id. It was a
-    # trap: `make names` renames a card in place (`Narrator_04355852.png` ->
+    # trap: `task names` renames a card in place (`Narrator_04355852.png` ->
     # `Angelica_04355852.png`) while the staged export it is matched against
     # still carries the old name, so the extra name term made the lookup miss
     # the exact card `existing` had just matched by id. Match on the fragment --

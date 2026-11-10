@@ -1,6 +1,6 @@
 """Write FastAPI's OpenAPI document to `frontend/openapi.json`.
 
-Step one of two in `make api-schema`; step two runs `openapi-typescript` over
+Step one of two in `task api-schema`; step two runs `openapi-typescript` over
 the file this writes to produce `frontend/src/lib/api-schema.ts`, which is the
 only description of the server the React client ever sees.
 

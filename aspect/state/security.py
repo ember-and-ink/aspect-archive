@@ -49,7 +49,8 @@ import json
 import logging
 import secrets
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -194,17 +195,13 @@ class SecurityStore:
         # A new secret whenever what the gate checks has changed, so sessions
         # opened under the old credentials end with them.
         unchanged = (
-            enabled == current.enabled
-            and username == current.username
-            and password_hash == current.password_hash
+            enabled == current.enabled and username == current.username and password_hash == current.password_hash
         )
         config = GateConfig(
             enabled=enabled,
             username=username,
             password_hash=password_hash,
-            session_secret=current.session_secret
-            if unchanged and current.session_secret
-            else secrets.token_hex(32),
+            session_secret=current.session_secret if unchanged and current.session_secret else secrets.token_hex(32),
             api_token=current.api_token,
         )
         self._write(config)

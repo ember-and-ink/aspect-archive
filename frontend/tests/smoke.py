@@ -14,6 +14,7 @@ mock would have answered happily.
 Exits non-zero on any console error, any failed request to our own origin, or
 any assertion below.
 """
+
 import json
 import re
 import sys
@@ -71,7 +72,10 @@ def shown_count(page) -> int:
     whole body: a card name that happens to contain a digit would otherwise
     satisfy a loose regex and make the comparison pass on the wrong text."""
     text = page.inner_text(".sticky span")
-    return int(re.match(r"([\d,]+)", text).group(1).replace(",", ""))
+    m = re.match(r"([\d,]+)", text)
+    if m is None:
+        raise AssertionError(f"no count in the toolbar: {text!r}")
+    return int(m.group(1).replace(",", ""))
 
 
 def main() -> int:
@@ -83,20 +87,32 @@ def main() -> int:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1600, "height": 1000})
 
-        page.on("console", lambda m: (
-            errors.append(f"{m.type}: {m.text}")
-            if m.type in ("error", "warning") and not ignored(m.text) else None))
+        page.on(
+            "console",
+            lambda m: (
+                errors.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") and not ignored(m.text) else None
+            ),
+        )
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
-        page.on("requestfailed", lambda r: (
-            failed.append(f"[{page.url.replace(BASE, '')}] {r.url} {r.failure}")
-            if not ignored(r.url) and not foreign(r.url)
-            and not aborted(r.failure) else None))
-        page.on("response", lambda r: (
-            failed.append(f"HTTP {r.status} {r.url}")
-            if r.status >= 400 and not ignored(r.url) and not foreign(r.url) else None))
+        page.on(
+            "requestfailed",
+            lambda r: (
+                failed.append(f"[{page.url.replace(BASE, '')}] {r.url} {r.failure}")
+                if not ignored(r.url) and not foreign(r.url) and not aborted(r.failure)
+                else None
+            ),
+        )
+        page.on(
+            "response",
+            lambda r: (
+                failed.append(f"HTTP {r.status} {r.url}")
+                if r.status >= 400 and not ignored(r.url) and not foreign(r.url)
+                else None
+            ),
+        )
 
         try:
-            drive(page, result)
+            drive(page, result, errors)
         except Exception as exc:  # keep the console log -- it names the cause
             result["ABORTED"] = f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
 
@@ -146,7 +162,7 @@ def find_card_with_notes_image(checked_limit: int = 400) -> str | None:
     return None
 
 
-def drive(page, result: dict) -> None:
+def drive(page, result: dict, errors: list[str]) -> None:
     page.goto(APP, wait_until="networkidle", timeout=60_000)
     page.wait_for_selector("a[href*='/characters/']", timeout=60_000)
     page.wait_for_timeout(1200)
@@ -158,7 +174,8 @@ def drive(page, result: dict) -> None:
     # the one class of failure that is invisible in a screenshot of a dark UI.
     result["thumbs_broken"] = page.evaluate(
         "() => [...document.images].filter(i => i.complete && i.naturalWidth === 0"
-        " && i.src && !i.src.startsWith('data:')).length")
+        " && i.src && !i.src.startsWith('data:')).length"
+    )
 
     # --- infinite scroll: the second page must arrive on its own ---
     before = tiles(page)
@@ -196,13 +213,12 @@ def drive(page, result: dict) -> None:
     page.click("button[aria-label='Filter by tag']")
     page.wait_for_timeout(900)
     result["tag_options"] = page.eval_on_selector_all(
-        "[role=dialog] button, [data-radix-popper-content-wrapper] button",
-        "els => els.length")
+        "[role=dialog] button, [data-radix-popper-content-wrapper] button", "els => els.length"
+    )
     every_tag = len(api("/api/v1/facets?limit=0")["tags"])
     result["tag_catalogue_complete"] = result["tag_options"] >= every_tag
     if not result["tag_catalogue_complete"]:
-        raise AssertionError(
-            f"Tags pill lists {result['tag_options']} entries for {every_tag} tags -- truncated")
+        raise AssertionError(f"Tags pill lists {result['tag_options']} entries for {every_tag} tags -- truncated")
     page.keyboard.press("Escape")
     page.wait_for_timeout(400)
 
@@ -214,8 +230,7 @@ def drive(page, result: dict) -> None:
     facets = api("/api/v1/facets?limit=0")
     platforms: dict[str, list[str]] = {}
     for source in facets["sources"]:
-        platforms.setdefault(re.sub(r"_(core|import)$", "", source["value"]), []).append(
-            source["value"])
+        platforms.setdefault(re.sub(r"_(core|import)$", "", source["value"]), []).append(source["value"])
     # A two-kind platform by preference -- folding those into one row is the
     # whole point of the pill, and a single-kind platform would pass this check
     # even if the fold were broken.
@@ -223,18 +238,15 @@ def drive(page, result: dict) -> None:
     kinds = platforms[platform]
     page.click("button[aria-label='Filter by source']")
     page.wait_for_timeout(700)
-    page.click("[data-radix-popper-content-wrapper] button:has-text('%s')"
-               % SOURCE_LABELS.get(platform, platform))
+    page.click(f"[data-radix-popper-content-wrapper] button:has-text('{SOURCE_LABELS.get(platform, platform)}')")
     page.wait_for_timeout(1500)
     page.keyboard.press("Escape")
     page.wait_for_timeout(400)
-    expected = api("/api/v1/characters?limit=0&"
-                   + "&".join(f"source={k}" for k in kinds))["total"]
+    expected = api("/api/v1/characters?limit=0&" + "&".join(f"source={k}" for k in kinds))["total"]
     result["source_kinds_ored"] = kinds
     result["source_pill_count"] = shown_count(page)
     if result["source_pill_count"] != expected:
-        raise AssertionError(
-            f"Source pill shows {result['source_pill_count']} for {kinds}, API says {expected}")
+        raise AssertionError(f"Source pill shows {result['source_pill_count']} for {kinds}, API says {expected}")
     page.click("button:text-is('All')")
     page.wait_for_timeout(800)
 
@@ -242,7 +254,7 @@ def drive(page, result: dict) -> None:
     top_creator = max(facets["creators"], key=lambda c: c["count"])
     page.click("button[aria-label='Filter by creator']")
     page.wait_for_timeout(700)
-    page.click("[data-radix-popper-content-wrapper] button:has-text('%s')" % top_creator["value"])
+    page.click(f"[data-radix-popper-content-wrapper] button:has-text('{top_creator['value']}')")
     page.wait_for_timeout(1500)
     page.keyboard.press("Escape")
     page.wait_for_timeout(400)
@@ -251,7 +263,8 @@ def drive(page, result: dict) -> None:
     if result["creator_pill_count"] != top_creator["count"]:
         raise AssertionError(
             f"Creator pill shows {result['creator_pill_count']} for {top_creator['value']}, "
-            f"facets say {top_creator['count']}")
+            f"facets say {top_creator['count']}"
+        )
     page.click("button:text-is('All')")
     page.wait_for_timeout(800)
 
@@ -267,8 +280,7 @@ def drive(page, result: dict) -> None:
     result["needs_media_cards"] = needs_media
     result["needs_media_chip_agrees"] = shown_count(page) == needs_media
     if not result["needs_media_chip_agrees"]:
-        raise AssertionError(
-            f"Needs media chip shows {shown_count(page)}, API says {needs_media}")
+        raise AssertionError(f"Needs media chip shows {shown_count(page)}, API says {needs_media}")
     page.click("button:text-is('All')")
     page.wait_for_timeout(800)
 
@@ -278,8 +290,7 @@ def drive(page, result: dict) -> None:
     page.fill("input[aria-label='Search query']", "abbie")
     page.wait_for_timeout(1500)
     result["search_matches"] = page.inner_text("[role=dialog] >> text=/matches/")
-    result["search_results"] = page.eval_on_selector_all(
-        "[role=dialog] a[href*='/characters/']", "els => els.length")
+    result["search_results"] = page.eval_on_selector_all("[role=dialog] a[href*='/characters/']", "els => els.length")
     page.keyboard.press("Escape")
     page.wait_for_timeout(400)
 
@@ -305,11 +316,11 @@ def drive(page, result: dict) -> None:
     result["detail_url"] = page.url
     result["detail_name"] = page.inner_text("h1")
     result["detail_tabs"] = page.eval_on_selector_all(
-        "nav button", "els => els.map(e => e.textContent.replace(/\\d+$/,'').trim())")
+        "nav button", "els => els.map(e => e.textContent.replace(/\\d+$/,'').trim())"
+    )
 
     # Each content tab must render without a console error (caught globally).
-    for tab in ("Greetings", "Dialogue", "Lorebook", "Gallery", "Expressions",
-                "Related", "Notes", "Info"):
+    for tab in ("Greetings", "Dialogue", "Lorebook", "Gallery", "Expressions", "Related", "Notes", "Info"):
         btn = page.query_selector(f"nav button:has-text('{tab}')")
         if btn:
             btn.click()
@@ -320,8 +331,7 @@ def drive(page, result: dict) -> None:
     # screenshot cannot vouch for; assert the iframe mounted.
     page.query_selector("nav button:has-text('Notes')").click()
     page.wait_for_timeout(800)
-    result["notes_iframe"] = page.eval_on_selector_all(
-        "iframe[title='Creator notes']", "els => els.length")
+    result["notes_iframe"] = page.eval_on_selector_all("iframe[title='Creator notes']", "els => els.length")
 
     # A real image actually decodes inside the notes iframe -- not just that
     # the frame mounted. Markdown-flattened notes (`![alt](url)`, the common
@@ -329,13 +339,11 @@ def drive(page, result: dict) -> None:
     # picture; this is the regression check for that.
     notes_card = find_card_with_notes_image()
     if notes_card:
-        page.goto(f"{BASE}/characters/{notes_card}?tab=notes",
-                   wait_until="networkidle", timeout=30_000)
+        page.goto(f"{BASE}/characters/{notes_card}?tab=notes", wait_until="networkidle", timeout=30_000)
         page.wait_for_selector("iframe[title='Creator notes']", timeout=15_000)
         page.wait_for_timeout(1200)
         frame = page.query_selector("iframe[title='Creator notes']").content_frame()
-        loaded = frame.eval_on_selector_all(
-            "img", "els => els.filter(e => e.complete && e.naturalWidth > 0).length")
+        loaded = frame.eval_on_selector_all("img", "els => els.filter(e => e.complete && e.naturalWidth > 0).length")
         total = frame.eval_on_selector_all("img", "els => els.length")
         result["notes_image_card"] = notes_card
         result["notes_images_found"] = total
@@ -381,10 +389,10 @@ def drive(page, result: dict) -> None:
         result["editor_survives_jk"] = (
             page.url == editing_url
             and page.query_selector("textarea") is not None
-            and len(page.input_value("textarea")) == grew_from + 13)
+            and len(page.input_value("textarea")) == grew_from + 13
+        )
         if not result["editor_survives_jk"]:
-            raise AssertionError(
-                f"typing in the editor navigated: {editing_url} -> {page.url}")
+            raise AssertionError(f"typing in the editor navigated: {editing_url} -> {page.url}")
 
         page.click("button:has-text('Cancel')")
         page.wait_for_timeout(400)
@@ -393,8 +401,7 @@ def drive(page, result: dict) -> None:
     # The Import menu opens and offers its live doors (no write).
     page.click("button[title='Import']")
     page.wait_for_timeout(500)
-    result["import_menu"] = page.eval_on_selector_all(
-        "[data-radix-popper-content-wrapper] button", "els => els.length")
+    result["import_menu"] = page.eval_on_selector_all("[data-radix-popper-content-wrapper] button", "els => els.length")
     page.keyboard.press("Escape")
     page.wait_for_timeout(300)
 
@@ -423,14 +430,13 @@ def drive(page, result: dict) -> None:
     page.wait_for_timeout(800)
     result["tags_categories"] = page.eval_on_selector_all("section h3", "els => els.length")
     result["tags_has_stats"] = "cards affected" in page.inner_text("body")
-    result["tags_has_buckets"] = (
-        "Unassigned" in page.inner_text("body") and "Removed" in page.inner_text("body"))
+    result["tags_has_buckets"] = "Unassigned" in page.inner_text("body") and "Removed" in page.inner_text("body")
 
     # Find narrows the categories shown.
-    page.fill("input[placeholder=\"Find a tag or variant…\"]", "romance")
+    page.fill('input[placeholder="Find a tag or variant…"]', "romance")
     page.wait_for_timeout(700)
     result["tags_find_categories"] = page.eval_on_selector_all("section h3", "els => els.length")
-    page.fill("input[placeholder=\"Find a tag or variant…\"]", "")
+    page.fill('input[placeholder="Find a tag or variant…"]', "")
     page.wait_for_timeout(500)
 
     # A variant chip opens its move menu (no move made).
@@ -438,8 +444,7 @@ def drive(page, result: dict) -> None:
     if chip:
         chip.click()
         page.wait_for_timeout(400)
-        result["tags_chip_menu"] = page.query_selector(
-            "[data-radix-popper-content-wrapper]") is not None
+        result["tags_chip_menu"] = page.query_selector("[data-radix-popper-content-wrapper]") is not None
         page.keyboard.press("Escape")
         page.wait_for_timeout(300)
 
@@ -466,13 +471,11 @@ def drive(page, result: dict) -> None:
     page.wait_for_selector("text=add straight to the archive", timeout=15_000)
     page.wait_for_selector("a[href*='/discover/chub/']", timeout=60_000)
     page.wait_for_timeout(1500)
-    result["discover_chub_results"] = len(
-        page.query_selector_all("a[href*='/discover/chub/']"))
+    result["discover_chub_results"] = len(page.query_selector_all("a[href*='/discover/chub/']"))
 
     # The sort control is present for every provider and every feed (the mock's
     # #discSort); it used to be a Chub-browse-only select.
-    result["discover_sort_label"] = page.inner_text(
-        "button:has-text('Sort')").replace("\n", " ")
+    result["discover_sort_label"] = page.inner_text("button:has-text('Sort')").replace("\n", " ")
 
     page.fill("input[placeholder='Search Chub…']", "elf")
     page.wait_for_timeout(2500)
@@ -480,16 +483,15 @@ def drive(page, result: dict) -> None:
 
     page.click("button:text-is('DataCat')")
     page.wait_for_selector("a[href*='/discover/datacat/']", timeout=60_000)
-    result["discover_datacat_results"] = len(
-        page.query_selector_all("a[href*='/discover/datacat/']"))
+    result["discover_datacat_results"] = len(page.query_selector_all("a[href*='/discover/datacat/']"))
     # DataCat had no sort control at all until the Discover rebuild.
-    result["discover_datacat_sort_label"] = page.inner_text(
-        "button:has-text('Sort')").replace("\n", " ")
+    result["discover_datacat_sort_label"] = page.inner_text("button:has-text('Sort')").replace("\n", " ")
 
     page.click("button:text-is('Hide cards I have')")
     page.wait_for_timeout(1000)
     result["discover_hide_have_toggled"] = "border-sage-line" in (
-        page.get_attribute("button:text-is('Hide cards I have')", "class") or "")
+        page.get_attribute("button:text-is('Hide cards I have')", "class") or ""
+    )
 
     # Open a provider card. This exercises the whole read path in one click:
     # the browser's capture (full node / detail + lorebook), the server's
@@ -503,14 +505,13 @@ def drive(page, result: dict) -> None:
     page.wait_for_timeout(1000)
     result["preview_url"] = page.url.replace(BASE, "")
     result["preview_title"] = page.inner_text("h1")
-    result["preview_tabs"] = page.eval_on_selector_all(
-        "nav button", "els => els.map(e => e.textContent.trim())")
+    result["preview_tabs"] = page.eval_on_selector_all("nav button", "els => els.map(e => e.textContent.trim())")
     # Read-only: the archive's Edit affordances must not appear on a card that
     # has nothing to write to yet.
-    result["preview_edit_buttons"] = len(
-        page.query_selector_all("button:has-text('Edit')"))
-    result["preview_can_add"] = page.query_selector(
-        "button:has-text('Add to archive'), button:has-text('Add again')") is not None
+    result["preview_edit_buttons"] = len(page.query_selector_all("button:has-text('Edit')"))
+    result["preview_can_add"] = (
+        page.query_selector("button:has-text('Add to archive'), button:has-text('Add again')") is not None
+    )
     if result["preview_edit_buttons"]:
         errors.append("preview offered Edit on a card not in the archive")
     if len(result["preview_tabs"]) != 4:
@@ -529,8 +530,7 @@ def drive(page, result: dict) -> None:
     page.goto(f"{APP}settings/library", wait_until="networkidle", timeout=30_000)
     page.wait_for_selector("h2", timeout=15_000)
     page.wait_for_timeout(500)
-    result["settings_sections"] = page.eval_on_selector_all(
-        "nav a", "els => els.map(e => e.textContent.trim())")[-5:]
+    result["settings_sections"] = page.eval_on_selector_all("nav a", "els => els.map(e => e.textContent.trim())")[-5:]
 
     page.click("nav a:has-text('Providers')")
     page.wait_for_timeout(500)
@@ -538,11 +538,9 @@ def drive(page, result: dict) -> None:
     # and a bare has-text('Test') was picking that one -- so this step had been
     # exercising the DataCat token check and then timing out waiting for a proxy
     # verdict that was never requested.
-    proxy_row = page.locator(
-        "div:has(> input[placeholder^='http://host:port'])").first
+    proxy_row = page.locator("div:has(> input[placeholder^='http://host:port'])").first
     proxy_row.locator("button:has-text('Test')").click()
-    page.wait_for_selector("text=/not configured|active|failed|IP did not change/",
-                            timeout=15_000)
+    page.wait_for_selector("text=/not configured|active|failed|IP did not change/", timeout=15_000)
     result["settings_proxy_test_ran"] = True
 
     page.click("nav a:has-text('Userscripts')")

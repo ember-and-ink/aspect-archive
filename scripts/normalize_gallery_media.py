@@ -30,10 +30,11 @@ import argparse
 import hashlib
 from pathlib import Path
 
-from aspect.cards import edit
 from aspect.archive import thumbs
-from aspect.media import manifest as media_manifest, writer as media_writer
+from aspect.cards import edit
 from aspect.config import settings
+from aspect.media import manifest as media_manifest
+from aspect.media import writer as media_writer
 
 _CANDIDATE_EXTS = frozenset((".jpg", ".jpeg", ".png"))
 
@@ -115,7 +116,10 @@ def main() -> int:
         print("read-only; pass --apply to write")
         return 0
 
-    print(f"converted {converted}, manifest entries repointed {manifest_updated}" + (f", failed {failed}" if failed else ""))
+    print(
+        f"converted {converted}, manifest entries repointed {manifest_updated}"
+        + (f", failed {failed}" if failed else "")
+    )
     return 0
 
 

@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from aspect.archive import catalog
 from aspect.config import settings
-from aspect.media import manifest as media_manifest, status as media_status
+from aspect.media import manifest as media_manifest
+from aspect.media import status as media_status
 
 
 def _index():
@@ -24,9 +25,7 @@ def _manifest(gallery_dir, *, errors: int = 0, dead: int = 0) -> None:
     media_manifest.record_saved(manifest, "https://cdn.example.com/ok.png", "localized_media_0_ok.webp", "abc")
     for n in range(dead):
         media_manifest.record_dead(manifest, f"https://cdn.example.com/gone{n}.png", "404")
-    media_manifest.append_run(
-        manifest, {"at": media_manifest.now_iso(), "saved": 1, "skipped": 0, "errors": errors}
-    )
+    media_manifest.append_run(manifest, {"at": media_manifest.now_iso(), "saved": 1, "skipped": 0, "errors": errors})
     media_manifest.save_manifest(gallery_dir, manifest)
 
 
@@ -100,9 +99,7 @@ def test_a_source_that_has_since_gained_a_handler_is_not_complete(populated_arch
     gallery_dir = populated_archive["galleries"] / "Abbie_kzbYR2QbpncC"
     _manifest(gallery_dir)
     manifest = media_manifest.load_manifest(gallery_dir)
-    media_manifest.record_source(
-        manifest, "https://civitai.com/posts/1981754", None, media_manifest.SOURCE_UNHANDLED
-    )
+    media_manifest.record_source(manifest, "https://civitai.com/posts/1981754", None, media_manifest.SOURCE_UNHANDLED)
     media_manifest.save_manifest(gallery_dir, manifest)
 
     entry = media_status.card_status_map(_index())["Abbie_0d162f5f.png"]
@@ -114,9 +111,7 @@ def test_a_source_nothing_still_handles_leaves_the_card_complete(populated_archi
     gallery_dir = populated_archive["galleries"] / "Abbie_kzbYR2QbpncC"
     _manifest(gallery_dir)
     manifest = media_manifest.load_manifest(gallery_dir)
-    media_manifest.record_source(
-        manifest, "https://rentry.co/lore", None, media_manifest.SOURCE_UNHANDLED
-    )
+    media_manifest.record_source(manifest, "https://rentry.co/lore", None, media_manifest.SOURCE_UNHANDLED)
     media_manifest.save_manifest(gallery_dir, manifest)
 
     entry = media_status.card_status_map(_index())["Abbie_0d162f5f.png"]

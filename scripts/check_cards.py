@@ -129,9 +129,9 @@ def main() -> int:
     sanitizer = MacroSanitizer(user_names=settings.user_names)
     cards = sorted(args.cards_dir.glob("**/*.png"))
 
-    changed = []       # {path, fields:[{field, snippet}]}
-    unresolved = []    # {path, macros:{name:count}}
-    artifacts = []     # {path, reasons:[...]}
+    changed = []  # {path, fields:[{field, snippet}]}
+    unresolved = []  # {path, macros:{name:count}}
+    artifacts = []  # {path, reasons:[...]}
     field_counter: Counter = Counter()
     macro_counter: Counter = Counter()
     unreadable = repaired = 0

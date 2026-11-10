@@ -13,8 +13,10 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from aspect.cards import avatar_refetch, pngtools
-from tests.conftest import card_png, jai_extensions
+from aspect.cards import avatar_refetch
+from aspect.cards import pngtools
+from tests.conftest import card_png
+from tests.conftest import jai_extensions
 
 FULL_PATH = "Drivai/mizuki-sayama-6f5ec0abafe8"
 CHUB_URL = f"https://avatars.charhub.io/avatars/{FULL_PATH}/chara_card_v2.png"

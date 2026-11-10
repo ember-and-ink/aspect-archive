@@ -19,7 +19,7 @@ def compiled(**kwargs) -> str:
 
 
 def test_unconfigured_output_matches_the_checked_in_bundle():
-    """`make compile` and the generator are the same code path -- if they drift,
+    """`task compile` and the generator are the same code path -- if they drift,
     the repo's .user.js stops matching its sources."""
     for spec in userscripts.SPECS.values():
         on_disk = (userscripts.USERSCRIPT_DIR / spec.filename).read_text(encoding="utf-8")

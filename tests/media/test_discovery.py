@@ -9,7 +9,9 @@ named in docs/UI_REWRITE_PLAN.md §1.3 for this salvage item.
 
 from __future__ import annotations
 
-from aspect.media.discovery import collect_card_text_chunks, extract_media_urls, find_character_media_urls
+from aspect.media.discovery import collect_card_text_chunks
+from aspect.media.discovery import extract_media_urls
+from aspect.media.discovery import find_character_media_urls
 
 
 def test_janitorai_random_macro_yields_each_url_not_one_run_on_string():

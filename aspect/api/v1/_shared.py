@@ -19,11 +19,16 @@ import logging
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import HTTPException, Request, Response
+from fastapi import HTTPException
+from fastapi import Request
+from fastapi import Response
 from fastapi.responses import FileResponse
 
-from aspect.archive import catalog, thumbs
-from aspect.cards import edit, gallery
+from aspect.archive import catalog
+from aspect.archive import thumbs
+from aspect.cards import edit
+from aspect.cards import gallery
+from aspect.cards import pngtools
 from aspect.config import settings
 from aspect.media import jobs as media_jobs
 
@@ -64,6 +69,18 @@ def require(idx: catalog.ArchiveIndex, card_id: str) -> catalog.CardSummary:
     if record is None:
         raise HTTPException(status_code=404, detail=f"no card named {card_id!r} in the archive")
     return record
+
+
+def read_envelope(path: Path) -> tuple[dict, dict]:
+    """A card's (outer, data) envelope off disk, or a 422 naming why not."""
+    try:
+        envelope = pngtools.read_envelope(path.read_bytes())
+    except (OSError, ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=f"cannot read card: {exc}") from exc
+    if envelope is None:
+        # Only reachable when the card changed between the index's scan and this read.
+        raise HTTPException(status_code=422, detail="file carries no character card")
+    return envelope
 
 
 def safe_child(root: Path, *parts: str) -> Path:
@@ -145,7 +162,7 @@ def content_disposition(name: str) -> str:
     form, because card and character names are full of curly apostrophes and
     em dashes that a bare `filename=` mangles."""
     ascii_name = name.encode("ascii", "replace").decode("ascii").replace('"', "_")
-    return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(name)}'
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"
 
 
 def serve_file(

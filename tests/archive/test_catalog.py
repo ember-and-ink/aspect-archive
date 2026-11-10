@@ -6,13 +6,20 @@ import os
 from pathlib import Path
 
 from aspect.archive import catalog
-from tests.conftest import card_png, jai_extensions
+from tests.conftest import card_png
+from tests.conftest import jai_extensions
 
 
 def _index(root: Path) -> catalog.ArchiveIndex:
     index = catalog.ArchiveIndex(root)
     index.refresh()
     return index
+
+
+def _must_get(index: catalog.ArchiveIndex, filename: str) -> catalog.CardSummary:
+    record = index.get(filename)
+    assert record is not None, f"{filename} is not in the index"
+    return record
 
 
 def test_summarizes_a_card(populated_archive):
@@ -33,16 +40,16 @@ def test_summarizes_a_card(populated_archive):
 
 
 def test_counts_greetings_as_a_reader_would(populated_archive):
-    """"3 greetings" has to mean the primary plus two alternates -- the number a
+    """ "3 greetings" has to mean the primary plus two alternates -- the number a
     user sees in the UI, not the length of the alternates array."""
     index = _index(populated_archive["characters"])
-    assert index.get("Bella_11112222.png").greeting_count == 3
+    assert _must_get(index, "Bella_11112222.png").greeting_count == 3
 
 
 def test_a_card_with_no_first_mes_has_no_greetings(archive_dirs):
     (archive_dirs["characters"] / "Empty_1.png").write_bytes(card_png("Empty", first_mes=""))
     index = _index(archive_dirs["characters"])
-    assert index.get("Empty_1.png").greeting_count == 0
+    assert _must_get(index, "Empty_1.png").greeting_count == 0
 
 
 def test_unreadable_cards_are_recorded_not_skipped(archive_dirs):
@@ -63,7 +70,7 @@ def test_unreadable_cards_are_recorded_not_skipped(archive_dirs):
     assert broken["PngWithNoCard.png"] == "no character card embedded"
     # A broken record still knows its file, so the UI can show it and a human can
     # act on it.
-    assert index.get("NotEvenAPng.png").size > 0
+    assert _must_get(index, "NotEvenAPng.png").size > 0
 
 
 def test_refresh_only_reparses_what_changed(populated_archive):
@@ -81,7 +88,7 @@ def test_refresh_only_reparses_what_changed(populated_archive):
     stats = index.refresh()
     assert stats.parsed == 1
     assert stats.unchanged == 2
-    assert index.get("Cleo_33334444.png").name == "Cleopatra Renamed"
+    assert _must_get(index, "Cleo_33334444.png").name == "Cleopatra Renamed"
 
 
 def test_refresh_picks_up_new_and_deleted_cards(populated_archive):
@@ -93,7 +100,7 @@ def test_refresh_picks_up_new_and_deleted_cards(populated_archive):
     (characters / "Dana_55556666.png").write_bytes(card_png("Dana"))
     stats = index.refresh()
     assert stats.parsed == 1
-    assert index.get("Dana_55556666.png").name == "Dana"
+    assert _must_get(index, "Dana_55556666.png").name == "Dana"
 
     (characters / "Dana_55556666.png").unlink()
     stats = index.refresh()
@@ -117,7 +124,7 @@ def test_lookup_tolerates_case_and_normalization(populated_archive):
     """A card's filename arrives from a URL, and the filesystem this archive
     lives on is both case- and NFC-insensitive. Exact match still wins."""
     index = _index(populated_archive["characters"])
-    assert index.get("ABBIE_0D162F5F.PNG").filename == "Abbie_0d162f5f.png"
+    assert _must_get(index, "ABBIE_0D162F5F.PNG").filename == "Abbie_0d162f5f.png"
 
 
 def test_lookup_normalizes_unicode(archive_dirs):
@@ -133,7 +140,9 @@ def test_path_of_refuses_anything_not_indexed(populated_archive):
     by joining user input onto the root."""
     index = _index(populated_archive["characters"])
     assert index.path_of("../../etc/passwd") is None
-    assert index.path_of("Abbie_0d162f5f.png").name == "Abbie_0d162f5f.png"
+    path = index.path_of("Abbie_0d162f5f.png")
+    assert path is not None
+    assert path.name == "Abbie_0d162f5f.png"
 
 
 def test_by_fragment(populated_archive):
@@ -175,12 +184,12 @@ def test_short_source_ids_yield_short_fragments(archive_dirs):
         card_png("Chubby", extensions=jai_extensions("16477", source_kind="chub_import"))
     )
     index = _index(archive_dirs["characters"])
-    assert index.get("Chubby_16477.png").fragment == "16477"
+    assert _must_get(index, "Chubby_16477.png").fragment == "16477"
 
 
 def test_haystack_covers_the_searchable_fields(populated_archive):
     index = _index(populated_archive["characters"])
-    haystack = index.get("Bella_11112222.png").haystack
+    haystack = _must_get(index, "Bella_11112222.png").haystack
     for term in ("bella", "someone else", "bella the second", "male", "11112222"):
         assert term in haystack
     assert "test character" not in haystack, "prose is deliberately not indexed"
@@ -194,6 +203,7 @@ def test_survives_a_card_with_junk_field_types(archive_dirs):
     )
     index = _index(archive_dirs["characters"])
     record = index.get("Junk_1.png")
+    assert record is not None
     assert record.ok
     assert record.tags == ("ok",)
     assert record.creator == ""
@@ -236,7 +246,7 @@ def _bare_png() -> bytes:
 
 
 def test_a_card_vanishing_mid_scan_is_survivable(populated_archive, monkeypatch):
-    """`make names` renames cards in place; a scan can race one."""
+    """`task names` renames cards in place; a scan can race one."""
     characters = populated_archive["characters"]
     index = catalog.ArchiveIndex(characters)
     real_stat = Path.stat

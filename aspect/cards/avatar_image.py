@@ -56,11 +56,12 @@ def _find_first_panel_break(image: Image.Image) -> int | None:
     """Return the row where the first composited panel ends, if detectable."""
     width, height = image.size
     sample_width = min(_SEAM_SAMPLE_WIDTH, width)
-    gray = image.convert("L").resize((sample_width, height), Image.BILINEAR)
-    pixels = gray.load()
+    gray = image.convert("L").resize((sample_width, height), Image.Resampling.BILINEAR)
+    # Mode "L" is one byte per pixel, row-major, so a row is a plain slice.
+    pixels = gray.tobytes()
 
     def is_seam_row(y: int) -> bool:
-        values = [pixels[x, y] for x in range(sample_width)]
+        values = pixels[y * sample_width : (y + 1) * sample_width]
         mean = sum(values) / sample_width
         if mean >= _SEAM_MAX_MEAN:
             return False
@@ -101,6 +102,6 @@ def normalize_avatar(image: Image.Image) -> Image.Image:
     if longest > _MAX_DIMENSION:
         scale = _MAX_DIMENSION / longest
         new_size = (max(1, round(width * scale)), max(1, round(height * scale)))
-        image = image.resize(new_size, Image.LANCZOS)
+        image = image.resize(new_size, Image.Resampling.LANCZOS)
 
     return image

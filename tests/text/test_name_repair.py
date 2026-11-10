@@ -4,17 +4,15 @@ The cases here are drawn from real archive names -- every literal name string
 below is one an actual imported card carried.
 """
 
-from aspect.text.name_repair import (
-    GENERIC,
-    JUNK,
-    OK,
-    TITLE,
-    diagnose,
-    name_score,
-    roster,
-    split_name,
-    strip_parentheticals,
-)
+from aspect.text.name_repair import GENERIC
+from aspect.text.name_repair import JUNK
+from aspect.text.name_repair import OK
+from aspect.text.name_repair import TITLE
+from aspect.text.name_repair import diagnose
+from aspect.text.name_repair import name_score
+from aspect.text.name_repair import roster
+from aspect.text.name_repair import split_name
+from aspect.text.name_repair import strip_parentheticals
 
 
 def card(name, description="", **kw):
@@ -75,8 +73,10 @@ def test_roster_joins_a_confident_surname():
 
 def test_roster_prefers_the_character_defined_first():
     body = (
-        "Yasmin is the captive. " + ("Yasmin waits. " * 12)
-        + "Later in the file: Cassian is her captor. " + ("Cassian watches. " * 12)
+        "Yasmin is the captive. "
+        + ("Yasmin waits. " * 12)
+        + "Later in the file: Cassian is her captor. "
+        + ("Cassian watches. " * 12)
     )
     assert roster(description=body)[0].token == "yasmin"
 
@@ -226,7 +226,7 @@ def test_diagnose_spots_a_multi_character_engine():
 
 
 def test_ordinary_prose_about_the_world_is_not_an_ensemble():
-    """"He represents the world of duty" is a person, not a world card."""
+    """ "He represents the world of duty" is a person, not a world card."""
     body = (
         "Anastasia 'Ana' Volkova is heiress to the Volkov casino empire. Ana is 23. "
         "Ana's father is a burden of legacy -- he represents the world of duty she "

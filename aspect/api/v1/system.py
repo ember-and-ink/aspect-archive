@@ -12,18 +12,18 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter
+from fastapi import HTTPException
+from fastapi import Query
 
-from aspect.api.schemas import (
-    CountOut,
-    FacetsOut,
-    FacetValue,
-    IndexStatsOut,
-    MediaExtStatOut,
-    MediaStatsOut,
-    StatsOut,
-    ThumbStatsOut,
-)
+from aspect.api.schemas import CountOut
+from aspect.api.schemas import FacetsOut
+from aspect.api.schemas import FacetValue
+from aspect.api.schemas import IndexStatsOut
+from aspect.api.schemas import MediaExtStatOut
+from aspect.api.schemas import MediaStatsOut
+from aspect.api.schemas import StatsOut
+from aspect.api.schemas import ThumbStatsOut
 from aspect.api.v1 import _shared
 from aspect.archive import catalog
 from aspect.cards import gallery
@@ -34,6 +34,7 @@ from aspect.state import ui_settings
 logger = logging.getLogger("aspect.api")
 
 router = APIRouter()
+
 
 def _settings_store() -> ui_settings.SettingsStore:
     """Built per call so a test that repoints `settings.settings_file` -- or a
@@ -118,8 +119,7 @@ def stats() -> StatsOut:
     galleries = sum(
         1
         for r in healthy
-        if r.gallery_id
-        and (settings.galleries_dir / gallery.folder_name(r.name, r.gallery_id)).is_dir()
+        if r.gallery_id and (settings.galleries_dir / gallery.folder_name(r.name, r.gallery_id)).is_dir()
     )
     last = idx.last_stats
     return StatsOut(

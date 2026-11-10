@@ -1,0 +1,351 @@
+---
+# Task runner for local development and CI (https://taskfile.dev).
+# `task` with no arguments lists everything; `task --list` does the same.
+#
+# Task is pinned in the dev dependency group (go-task-bin), so `uv run task <name>`
+# always runs the locked version. `uv tool install go-task-bin` puts a bare
+# `task` on your PATH for day-to-day use.
+#
+# Every task reads .env (see .env.template) via aspect/config.py -- most
+# importantly ASPECT_ARCHIVE_DIR, the cards folder they all read and write.
+#
+# Anything after `--` is forwarded to the underlying command:
+#   task test -- -k gallery -x
+#   task names -- --interactive
+version: '3'
+
+set: [errexit, nounset, pipefail]
+
+vars:
+  # The server never rescans the archive on its own, so a running one cannot see
+  # what the maintenance scripts write until the top bar's Rescan button is pressed.
+  RESCAN_HINT: >-
+    If cards were written, press Rescan in the UI (or POST /api/v1/refresh) --
+    a running server won't see them until then.
+
+tasks:
+  default:
+    desc: List every task
+    silent: true
+    cmds:
+      - '{{.TASK_EXE}} --list --sort none'
+
+  # ---- Setup ----
+
+  install:
+    desc: Install the Python dev environment from uv.lock
+    cmds:
+      - uv sync --locked
+
+  # prek reads .pre-commit-config.yaml as-is. --force replaces a hook script left
+  # by the old pre-commit, which prek would otherwise keep chaining to.
+  pre-commit-install:
+    desc: Install the git pre-commit hooks (prek)
+    cmds:
+      - uv run prek install --force
+
+  pre-commit:
+    desc: Run every pre-commit hook against all files, not just staged ones
+    cmds:
+      - uv run prek run --all-files
+
+  # ---- Build and test ----
+
+  # Concatenate userscript/src_jai/*.js   -> userscript/jai-proxy-bridge.user.js
+  # and userscript/src_saucepan/*.js       -> userscript/saucepan-proxy-bridge.user.js
+  compile:
+    desc: Build the userscripts from userscript/src_*/
+    cmds:
+      - uv run python scripts/compile_userscript_jai.py
+      - uv run python scripts/compile_userscript_saucepan.py
+
+  test:
+    desc: Run the Python test suite
+    cmds:
+      - uv run pytest -q {{.CLI_ARGS}}
+
+  # node:test, no deps. Resolves its fixtures relative to userscript/, hence the
+  # dir. The browser client has its own suite -- `task frontend-test`, vitest.
+  test-js:
+    desc: Run the userscript unit tests (node:test)
+    dir: userscript
+    cmds:
+      - node --test
+
+  run:
+    desc: Start the server on :8000
+    cmds:
+      - uv run python -m aspect.server
+
+  # ---- Linting ----
+
+  lint-format:
+    desc: Format Python with ruff
+    cmds:
+      - uv run ruff format .
+
+  lint-check:
+    desc: Run ruff checks and auto-fix issues
+    cmds:
+      - uv run ruff check . --fix
+
+  # Scope and settings live in [tool.ty] in pyproject.toml; the version is pinned in uv.lock.
+  lint-typing:
+    desc: Run static type checking with ty
+    cmds:
+      - uv run ty check
+
+  # Settings in .jscpd.json. The two userscripts are scanned one at a time: they
+  # compile to separate standalone bundles with no shared module, so the code
+  # they have in common (banner, server client, overlay) is expected; a clone
+  # inside one bundle is not.
+  lint-dupes:
+    desc: Check source for copy-pasted code (jscpd)
+    cmds:
+      - uv run jscpd --no-tips --config .jscpd.json
+      - for: [userscript/src_jai, userscript/src_saucepan]
+        cmd: uv run jscpd --no-tips --config .jscpd.json --format javascript {{.ITEM}}
+
+  # Sequential on purpose: `deps:` would run these in parallel, and ruff format
+  # and ruff check --fix rewriting the same files at once is a race.
+  lint:
+    desc: Run all linters and auto-fix issues
+    cmds:
+      - task: lint-format
+      - task: lint-check
+      - task: lint-typing
+      - task: lint-dupes
+      - task: frontend-lint
+
+  test-lint:
+    desc: Check formatting/lint/types without modifying files (CI mode)
+    cmds:
+      - uv run ruff format . --check
+      - uv run ruff check .
+      - uv run ty check
+      - task: lint-dupes
+      - uv lock --check
+
+  # ---- Browser client ----
+  # frontend/ is served by Vite on :5173 in dev, and from frontend/dist by the
+  # server itself otherwise, at the root.
+
+  frontend-install:
+    desc: Install the browser client deps (npm ci)
+    dir: frontend
+    cmds:
+      - npm ci
+
+  frontend-lint:
+    desc: Format and lint the browser client, auto-fixing issues
+    dir: frontend
+    cmds:
+      - npm run format
+      - npm run lint
+
+  frontend-typing:
+    desc: Type-check the browser client
+    dir: frontend
+    cmds:
+      - npx tsc -b --noEmit
+
+  frontend-test-lint:
+    desc: Check browser client formatting/lint/types without modifying files (CI mode)
+    dir: frontend
+    cmds:
+      - npm run format:check
+      - npm run lint:check
+      - task: frontend-typing
+
+  frontend-test:
+    desc: Run the browser client tests (vitest)
+    dir: frontend
+    cmds:
+      - npm run test
+
+  frontend-build:
+    desc: Build frontend/dist, which the server serves
+    dir: frontend
+    cmds:
+      - npm run build
+
+  # The client dev server. `task run` in another terminal supplies the API --
+  # vite.config.ts proxies /api, /proxy, /health and /existing to :8000.
+  frontend-dev:
+    desc: Run the Vite dev server on :5173
+    dir: frontend
+    cmds:
+      - npm run dev
+
+  # The browser gate: drives the real app against a running server (`task run`)
+  # and fails on any console error, any failed request to our own origin, or any
+  # broken thumbnail. Not part of `task test` -- it needs a server and a browser.
+  # Playwright is pulled in for this run only rather than locked into the dev
+  # group; `uvx playwright install chromium` once if the browser is missing.
+  frontend-smoke:
+    desc: Browser gate against a running server
+    cmds:
+      - uv run --with playwright python frontend/tests/smoke.py http://127.0.0.1:8000 task
+
+  # Regenerate the typed client from FastAPI. The intermediate openapi.json is
+  # gitignored; src/lib/api-schema.ts is committed, and CI re-runs this task and
+  # fails on a diff -- that check is what keeps the client honest about the
+  # routes, so an API change is a schema change first and a UI change second.
+  api-schema:
+    desc: Regenerate the typed client from FastAPI
+    cmds:
+      - uv run python -m scripts.export_openapi_schema
+      - cd frontend && npx openapi-typescript openapi.json -o src/lib/api-schema.ts
+
+  # ---- Container ----
+  # The same server in a container: one image, one mount (./data), one port.
+  # The tasks below still run on the host, against that same ./data.
+
+  docker-build:
+    desc: Build the container image locally
+    cmds:
+      - docker compose build
+
+  docker-up:
+    desc: Start the locally built container
+    cmds:
+      - docker compose up -d
+
+  # The published image instead of a local build -- what a server runs. Defaults
+  # in compose.prod.yaml target unraid (/mnt/user/appdata/aspect-archive, uid
+  # 99:100). Useful on the Mac too, to check what :latest actually does before
+  # the server pulls it.
+  docker-pull:
+    desc: Pull the published image (compose.prod.yaml)
+    cmds:
+      - docker compose -f compose.prod.yaml pull
+
+  docker-up-prod:
+    desc: Start the published image
+    cmds:
+      - docker compose -f compose.prod.yaml up -d
+
+  # ---- Archive maintenance ----
+  # Each is a read-only report unless its flag says otherwise; flags go after `--`.
+
+  # Bulk-import card PNGs from ./import into the cards folder -- datacat, JannyAI
+  # and Chub.ai exports are auto-detected (see scripts/import_cards.py). Cards
+  # already on disk are skipped, never overwritten. The same run also sweeps the
+  # cards folder for orphans (cards dropped in by hand, with no extensions.jai
+  # stamp), imports them in place and retires the originals to state/orphans.
+  # e.g. `task import -- --no-compress`.
+  import:
+    desc: Bulk-import card PNGs from ./import
+    cmds:
+      - uv run python scripts/import_cards.py {{.CLI_ARGS}} --fetch-datacat-images
+      - cmd: echo "{{.RESCAN_HINT}}"
+        silent: true
+
+  # Backfill `extensions.gallery_id` (SillyTavern-CharacterLibrary's per-character
+  # gallery handle) into any card missing one.
+  gallery-ids:
+    desc: Backfill extensions.gallery_id (-- --apply)
+    cmds:
+      - uv run python scripts/backfill_gallery_ids.py {{.CLI_ARGS}}
+      - cmd: echo "{{.RESCAN_HINT}}"
+        silent: true
+
+  datacat-ids:
+    desc: Backfill extensions.datacat ids (-- --apply)
+    cmds:
+      - uv run python scripts/backfill_datacat_ids.py {{.CLI_ARGS}}
+      - cmd: echo "{{.RESCAN_HINT}}"
+        silent: true
+
+  # Re-audit built cards against the current macro/formatting rules.
+  check:
+    desc: Re-audit built cards (-- --repair)
+    cmds:
+      - uv run python scripts/check_cards.py {{.CLI_ARGS}}
+      - cmd: echo "{{.RESCAN_HINT}}"
+        silent: true
+
+  # Find card names that aren't names -- a tagline welded on (`Mia, your desperate
+  # roommate`) or a generic placeholder hiding the real character (`Narrator`).
+  # SillyTavern feeds data.name to the model as "You are <name>", so both wreck
+  # the roleplay. `-- --interactive` walks the findings and applies the renames
+  # you confirm. Nothing is ever renamed automatically -- the suggestions are
+  # ~87% right, not 100%. Interactive decisions are appended to
+  # logs/name_repair.jsonl (diagnosis + what you actually chose), which is the
+  # ground truth for improving the rules: `-- --stats` scores them against it.
+  names:
+    desc: Find card names that are not names (-- --interactive)
+    cmds:
+      - uv run python scripts/fix_names.py {{.CLI_ARGS}}
+      - cmd: echo "{{.RESCAN_HINT}}"
+        silent: true
+
+  # Tidy the browse grid's thumbnail cache (data/cache/thumbs/avatar): render the
+  # cards that have no thumb, retire the thumbs whose card is gone, and fix the
+  # ones whose name differs from their card's only by case -- macOS resolves those
+  # anyway, so they look fine here and would silently miss in a Linux container.
+  # The API also generates on miss, so this only ever moves work off first paint.
+  thumbs:
+    desc: Tidy the browse thumbnail cache (-- --apply)
+    cmds:
+      - uv run python scripts/sync_thumbs.py {{.CLI_ARGS}}
+
+  # Seed data/settings.json from an existing SillyTavern install: lifts the
+  # Character Library blob (provider tokens, followed creators, display prefs)
+  # out of its settings.json so the standalone browser stops depending on
+  # origin-keyed browser storage -- which silently held a copy left behind by
+  # SillyTavern itself, since its stock port is also 8000.
+  settings-import:
+    desc: Seed data/settings.json from SillyTavern (-- --apply)
+    cmds:
+      - uv run python scripts/import_st_settings.py {{.CLI_ARGS}}
+
+  # ---- Dependencies ----
+
+  update:
+    desc: Upgrade locked dependencies within the declared constraints (quick CVE fix)
+    cmds:
+      - uv sync --upgrade
+      - cd frontend && npm update
+      - task: audit
+
+  # Sequential so the two reports don't interleave. Both report rather than
+  # fail: a finding here is something to read, not a broken build.
+  audit:
+    desc: Report known vulnerabilities in all dependencies
+    cmds:
+      - task: audit-python
+      - task: audit-frontend
+
+  audit-python:
+    desc: Report known vulnerabilities in Python dependencies
+    silent: true
+    cmds:
+      - echo "== Python =="
+      - cmd: uv export --format requirements-txt --no-emit-project -q | uvx pip-audit -r /dev/stdin --disable-pip
+        ignore_error: true
+
+  audit-frontend:
+    desc: Report known vulnerabilities in frontend dependencies
+    silent: true
+    dir: frontend
+    cmds:
+      - echo "== Frontend =="
+      - cmd: npm audit
+        ignore_error: true
+
+  # ---- Release ----
+  # Patch releases need nothing: the publish workflow assigns the patch number
+  # from the git tags on every merge to main. These raise the version in
+  # pyproject.toml (and uv.lock), which makes the next release start a new minor
+  # (0.3.x -> 0.4.0) or major (0.3.x -> 1.0.0) series.
+
+  bump-minor:
+    desc: Make the next release a new minor version
+    cmds:
+      - uv version --bump minor
+
+  bump-major:
+    desc: Make the next release a new major version
+    cmds:
+      - uv version --bump major

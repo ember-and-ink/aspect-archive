@@ -91,25 +91,56 @@ def _write_log(path, records):
 
 def _decision(ts, file, action, name, chosen, card_id):
     return {
-        "ts": ts, "session": "s1", "card_id": card_id, "dir": "/cards", "file": file,
-        "new_file": f"{chosen}.png", "verdict": "junk", "reason": "", "ensemble": False,
-        "name": name, "suggestion": chosen, "kept": [], "dropped": [], "candidates": [],
-        "action": action, "chosen": chosen, "top1_hit": True, "chosen_rank": None,
-        "error": None, "excerpt": "",
+        "ts": ts,
+        "session": "s1",
+        "card_id": card_id,
+        "dir": "/cards",
+        "file": file,
+        "new_file": f"{chosen}.png",
+        "verdict": "junk",
+        "reason": "",
+        "ensemble": False,
+        "name": name,
+        "suggestion": chosen,
+        "kept": [],
+        "dropped": [],
+        "candidates": [],
+        "action": action,
+        "chosen": chosen,
+        "top1_hit": True,
+        "chosen_rank": None,
+        "error": None,
+        "excerpt": "",
     }
 
 
 def test_stats_drops_a_reverted_decision(tmp_path, capsys):
     log = tmp_path / "log.jsonl"
-    _write_log(log, [
-        _decision("2026-08-11T01:00:00+00:00", "A.png", "accept", "A Tagline | Ana", "Ana", "id-a"),
-        _decision("2026-08-11T01:22:23+00:00", "B.png", "typed", "Ayame - Feral", "yy", "id-b"),
-        {"ts": "2026-08-11T02:00:00+00:00", "session": "s2", "card_id": "id-b", "dir": "/cards",
-         "file": "yy.png", "new_file": "B.png", "verdict": "junk", "action": "undo",
-         "undid": "2026-08-11T01:22:23+00:00|B.png", "name": "yy", "chosen": "Ayame - Feral",
-         "suggestion": "Ayame", "top1_hit": False, "chosen_rank": None, "candidates": [],
-         "error": None},
-    ])
+    _write_log(
+        log,
+        [
+            _decision("2026-08-11T01:00:00+00:00", "A.png", "accept", "A Tagline | Ana", "Ana", "id-a"),
+            _decision("2026-08-11T01:22:23+00:00", "B.png", "typed", "Ayame - Feral", "yy", "id-b"),
+            {
+                "ts": "2026-08-11T02:00:00+00:00",
+                "session": "s2",
+                "card_id": "id-b",
+                "dir": "/cards",
+                "file": "yy.png",
+                "new_file": "B.png",
+                "verdict": "junk",
+                "action": "undo",
+                "undid": "2026-08-11T01:22:23+00:00|B.png",
+                "name": "yy",
+                "chosen": "Ayame - Feral",
+                "suggestion": "Ayame",
+                "top1_hit": False,
+                "chosen_rank": None,
+                "candidates": [],
+                "error": None,
+            },
+        ],
+    )
     assert fix_names._stats(log) == 0
     out = capsys.readouterr().out
     assert "1 decision(s)" in out  # the slip and its undo both vanish
@@ -119,10 +150,13 @@ def test_stats_drops_a_reverted_decision(tmp_path, capsys):
 def test_stats_scores_only_the_latest_judgement_of_a_card(tmp_path, capsys):
     """Judging a staging copy and then its archive twin is one card, not two."""
     log = tmp_path / "log.jsonl"
-    _write_log(log, [
-        _decision("2026-08-11T00:15:00+00:00", "Narrator_04355852.png", "accept", "Narrator", "Brigid", "id-x"),
-        _decision("2026-08-11T00:23:00+00:00", "Narrator_04355852.png", "accept", "Narrator", "Chief", "id-x"),
-    ])
+    _write_log(
+        log,
+        [
+            _decision("2026-08-11T00:15:00+00:00", "Narrator_04355852.png", "accept", "Narrator", "Brigid", "id-x"),
+            _decision("2026-08-11T00:23:00+00:00", "Narrator_04355852.png", "accept", "Narrator", "Chief", "id-x"),
+        ],
+    )
     assert fix_names._stats(log) == 0
     out = capsys.readouterr().out
     assert "1 re-judged card(s) collapsed" in out
@@ -134,14 +168,18 @@ def test_rejudge_scores_the_current_rules_not_the_logged_ones(tmp_path, capsys):
     cards = tmp_path / "cards"
     cards.mkdir()
     body = "Ana Volkova runs the casino. Ana's temper is short. Ana counts the take."
-    (cards / "Ana_Volkova_1a2b3c4d.png").write_bytes(
-        _png_with_card({"name": "Ana Volkova", "description": body})
-    )
+    (cards / "Ana_Volkova_1a2b3c4d.png").write_bytes(_png_with_card({"name": "Ana Volkova", "description": body}))
     log = tmp_path / "log.jsonl"
     # Logged as a miss ("Bianca"); the rules now say "Ana Volkova", which is
     # what the human chose, so re-judging must score it as a hit.
-    row = _decision("2026-08-11T01:00:00+00:00", "Tagline_Ana_1a2b3c4d.png", "typed",
-                    "At Your Mercy | Ana Volkova", "Ana Volkova", "id-a")
+    row = _decision(
+        "2026-08-11T01:00:00+00:00",
+        "Tagline_Ana_1a2b3c4d.png",
+        "typed",
+        "At Your Mercy | Ana Volkova",
+        "Ana Volkova",
+        "id-a",
+    )
     row["new_file"] = "Ana_Volkova_1a2b3c4d.png"
     row["suggestion"] = "Bianca"
     _write_log(log, [row])
@@ -158,9 +196,12 @@ def test_rejudge_skips_a_card_that_no_longer_exists(tmp_path, capsys):
     cards = tmp_path / "cards"
     cards.mkdir()
     log = tmp_path / "log.jsonl"
-    _write_log(log, [
-        _decision("2026-08-11T01:00:00+00:00", "Gone_deadbeef.png", "accept", "Narrator", "Ana", "id-z"),
-    ])
+    _write_log(
+        log,
+        [
+            _decision("2026-08-11T01:00:00+00:00", "Gone_deadbeef.png", "accept", "Narrator", "Ana", "id-z"),
+        ],
+    )
     assert fix_names._rejudge(log, cards) == 0
     assert "1 skipped -- card deleted" in capsys.readouterr().out
 
@@ -176,12 +217,17 @@ def test_apply_handles_a_case_only_rename(tmp_path):
     src.write_bytes(_png_with_card({"name": "kate", "description": "Kate waits by the door."}))
 
     raw = src.read_bytes()
-    envelope, data = pngtools.read_envelope(raw)
+    assert pngtools.read_envelope is not None
+    parsed = pngtools.read_envelope(raw)
+    assert parsed is not None
+    envelope, data = parsed
     assert fix_names._apply(src, raw, envelope, data, "Kate") is None
 
     target = tmp_path / "Kate_d3f402fa.png"
     assert target.exists()
-    assert pngtools.read_envelope(target.read_bytes())[1]["name"] == "Kate"
+    parsed = pngtools.read_envelope(target.read_bytes())
+    assert parsed is not None
+    assert parsed[1]["name"] == "Kate"
 
 
 def test_apply_still_refuses_a_real_collision(tmp_path):
@@ -191,7 +237,10 @@ def test_apply_still_refuses_a_real_collision(tmp_path):
     src.write_bytes(_png_with_card({"name": "Katie", "description": "Kate waits."}))
 
     raw = src.read_bytes()
-    envelope, data = pngtools.read_envelope(raw)
+    assert pngtools.read_envelope is not None
+    parsed = pngtools.read_envelope(raw)
+    assert parsed is not None
+    envelope, data = parsed
     err = fix_names._apply(src, raw, envelope, data, "Kate")
     assert err is not None and "already exists" in err
     assert src.exists()  # left where it was
@@ -218,7 +267,10 @@ def test_apply_keeps_a_short_chub_id_fragment(tmp_path):
     )
 
     raw = src.read_bytes()
-    envelope, data = pngtools.read_envelope(raw)
+    assert pngtools.read_envelope is not None
+    parsed = pngtools.read_envelope(raw)
+    assert parsed is not None
+    envelope, data = parsed
     assert fix_names._apply(src, raw, envelope, data, "Aria") is None
     assert (tmp_path / "Aria_1911.png").exists()
     assert not (tmp_path / "Aria.png").exists()
@@ -239,7 +291,10 @@ def test_apply_recovers_a_fragment_the_filename_lost(tmp_path):
     )
 
     raw = src.read_bytes()
-    envelope, data = pngtools.read_envelope(raw)
+    assert pngtools.read_envelope is not None
+    parsed = pngtools.read_envelope(raw)
+    assert parsed is not None
+    envelope, data = parsed
     assert fix_names._apply(src, raw, envelope, data, "Angelica") is None
     assert (tmp_path / "Angelica_04355852.png").exists()
 
@@ -256,9 +311,7 @@ def test_ensemble_excuses_a_generic_name_but_not_a_title(tmp_path, capsys, monke
         "world -- not a single person. It plays all the background characters. "
         "Sylthiel walks the deck. Azerai holds the wheel. Sylthiel's eyes narrow."
     )
-    (tmp_path / "Narrator_aaaaaaaa.png").write_bytes(
-        _png_with_card({"name": "Narrator", "description": world})
-    )
+    (tmp_path / "Narrator_aaaaaaaa.png").write_bytes(_png_with_card({"name": "Narrator", "description": world}))
     (tmp_path / "A_Mothers_Claim_bbbbbbbb.png").write_bytes(
         _png_with_card({"name": "A Mother's Claim, A Daughter's Hunger", "description": world})
     )
@@ -284,10 +337,20 @@ def test_prune_moves_decisions_about_deleted_cards_to_a_sidecar(tmp_path, monkey
     (cards / "Ana_aaaaaaaa.png").write_bytes(_png_with_card({"name": "Ana"}))
 
     log = tmp_path / "log.jsonl"
-    _write_log(log, [
-        _decision("2026-08-11T01:00:00+00:00", "Tagline_Ana_aaaaaaaa.png", "accept", "T | Ana", "Ana", "id-a"),
-        _decision("2026-08-11T01:05:00+00:00", "Tomboy_GF_CUCKS_You_bbbbbbbb.png", "fine", "Tomboy GF CUCKS You", None, "id-b"),
-    ])
+    _write_log(
+        log,
+        [
+            _decision("2026-08-11T01:00:00+00:00", "Tagline_Ana_aaaaaaaa.png", "accept", "T | Ana", "Ana", "id-a"),
+            _decision(
+                "2026-08-11T01:05:00+00:00",
+                "Tomboy_GF_CUCKS_You_bbbbbbbb.png",
+                "fine",
+                "Tomboy GF CUCKS You",
+                None,
+                "id-b",
+            ),
+        ],
+    )
     monkeypatch.setattr("builtins.input", lambda *_: "y")
     assert fix_names._prune(log, cards) == 0
 
@@ -304,9 +367,14 @@ def test_prune_keeps_a_card_that_was_only_renamed(tmp_path, monkeypatch, capsys)
     (cards / "Ana_aaaaaaaa.png").write_bytes(_png_with_card({"name": "Ana"}))
 
     log = tmp_path / "log.jsonl"
-    _write_log(log, [
-        _decision("2026-08-11T01:00:00+00:00", "Some_Long_Tagline_aaaaaaaa.png", "accept", "T | Ana", "Ana", "id-a"),
-    ])
+    _write_log(
+        log,
+        [
+            _decision(
+                "2026-08-11T01:00:00+00:00", "Some_Long_Tagline_aaaaaaaa.png", "accept", "T | Ana", "Ana", "id-a"
+            ),
+        ],
+    )
     monkeypatch.setattr("builtins.input", lambda *_: "y")
     assert fix_names._prune(log, cards) == 0
     assert "nothing to prune" in capsys.readouterr().out

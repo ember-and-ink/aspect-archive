@@ -27,13 +27,15 @@ import io
 import logging
 import os
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from PIL import Image
 
-from aspect.cards import gallery, pngtools
+from aspect.cards import gallery
+from aspect.cards import pngtools
 from aspect.cards.avatar_image import normalize_avatar
 from aspect.config import settings
 
@@ -184,7 +186,7 @@ def _trash_root() -> Path:
     """Today's bin, created on first use. Dated so a delete can be undone by
     looking at when it happened, which is how anyone actually remembers it, and
     so one bad afternoon's deletes stay together."""
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    stamp = datetime.now(UTC).strftime("%Y-%m-%d")
     root = settings.trash_dir / stamp
     root.mkdir(parents=True, exist_ok=True)
     return root

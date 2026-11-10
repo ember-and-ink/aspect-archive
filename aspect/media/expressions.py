@@ -89,9 +89,7 @@ def rejection_reason(filename: str) -> str | None:
 
 
 def _files(directory: Path) -> list[Path]:
-    return sorted(
-        p for p in directory.iterdir() if p.is_file() and not p.name.startswith(".")
-    )
+    return sorted(p for p in directory.iterdir() if p.is_file() and not p.name.startswith("."))
 
 
 def zip_one(directory: Path) -> bytes:

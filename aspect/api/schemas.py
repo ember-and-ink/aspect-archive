@@ -10,9 +10,12 @@ make an incidental change to a build payload look like a breaking API change.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
+from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel
+from pydantic import Field
+from pydantic import model_validator
 
 
 class CardOut(BaseModel):
@@ -29,7 +32,9 @@ class CardOut(BaseModel):
     creator: str
     page_name: str = Field(description="The source page's title blurb, e.g. `Offer You Can't Refuse | Abbie`.")
     tags: list[str]
-    source_kind: str = Field(description="Which importer wrote it: janitor_core, chub_import, datacat_import, saucepan_core, jannyai_import.")
+    source_kind: str = Field(
+        description="Which importer wrote it: janitor_core, chub_import, datacat_import, saucepan_core, jannyai_import."
+    )
     source_url: str
     card_id: str = Field(description="The source's own id for the character.")
     fragment: str = Field(description="The `_<id8>` slice of card_id that the filename carries.")
@@ -39,41 +44,68 @@ class CardOut(BaseModel):
     lore_entries: int
     description_chars: int
     prompt_chars: int = Field(
-        description="Characters across description, personality, scenario, first_mes and system_prompt -- the card's prompt weight. Roughly four characters to a token."
+        description=(
+            "Characters across description, personality, scenario, first_mes and system_prompt -- the card's prompt "
+            "weight. Roughly four characters to a token."
+        )
     )
     has_creator_notes: bool
     has_example_dialogue: bool
     favorite: bool = Field(
         default=False,
-        description="Starred, out of the card's own `extensions.fav` -- so it travels with the PNG and round-trips through SillyTavern rather than living in this server's settings.",
+        description=(
+            "Starred, out of the card's own `extensions.fav` -- so it travels with the PNG and round-trips through "
+            "SillyTavern rather than living in this server's settings."
+        ),
     )
     is_fork: bool = Field(
         default=False,
-        description="Whether the card carries an `extensions.fork` block -- for the tile badge and the Forks filter chip, without paying for the whole `extensions` blob on a list request.",
+        description=(
+            "Whether the card carries an `extensions.fork` block -- for the tile badge and the Forks filter chip, "
+            "without paying for the whole `extensions` blob on a list request."
+        ),
     )
     size: int = Field(description="Card PNG size in bytes.")
     avatar_width: int = Field(default=0, description="The card image's width in pixels, from the PNG header.")
     avatar_height: int = Field(default=0, description="The card image's height in pixels, from the PNG header.")
     modified: datetime = Field(
-        description="The file's mtime. Says when the card was last *written*, which on this archive is dominated by bulk repair passes -- see `linked_at` for when it arrived."
+        description=(
+            "The file's mtime. Says when the card was last *written*, which on this archive is dominated by bulk "
+            "repair passes -- see `linked_at` for when it arrived."
+        )
     )
     linked_at: str = Field(
         default="",
-        description="When this card was acquired, stamped by the importer into `extensions.jai.linkedAt`. Present on every card in the archive and the only trustworthy 'date added': mtimes were flattened by the bulk passes. A raw ISO-8601 string, passed through exactly as the card carries it.",
+        description=(
+            "When this card was acquired, stamped by the importer into `extensions.jai.linkedAt`. Present on every "
+            "card in the archive and the only trustworthy 'date added': mtimes were flattened by the bulk passes. A "
+            "raw ISO-8601 string, passed through exactly as the card carries it."
+        ),
     )
     create_date: str = Field(
         default="",
-        description="When the card was created, as SillyTavern means it: the root-level `create_date` the card carries, or the earliest provider `linkedAt` it is derived from for a card written before this archive stamped the field. Distinct from `linked_at`, which is `extensions.jai`'s stamp and is rewritten by bulk passes -- this one is stable. Raw ISO-8601, or empty for a card with no provenance at all.",
+        description=(
+            "When the card was created, as SillyTavern means it: the root-level `create_date` the card carries, or "
+            "the earliest provider `linkedAt` it is derived from for a card written before this archive stamped the "
+            "field. Distinct from `linked_at`, which is `extensions.jai`'s stamp and is rewritten by bulk passes -- "
+            "this one is stable. Raw ISO-8601, or empty for a card with no provenance at all."
+        ),
     )
     thumb_url: str
     png_url: str
     extensions: dict[str, Any] | None = Field(
         default=None,
-        description="The card's `data.extensions` verbatim, only when asked for with `include=extensions`. Off by default: it is ~790 bytes a card, which doubles a whole-archive listing.",
+        description=(
+            "The card's `data.extensions` verbatim, only when asked for with `include=extensions`. Off by default: it "
+            "is ~790 bytes a card, which doubles a whole-archive listing."
+        ),
     )
     error: str | None = Field(
         default=None,
-        description="Why this card could not be parsed. Null for healthy cards; a card with an error has only its file fields filled in.",
+        description=(
+            "Why this card could not be parsed. Null for healthy cards; a card with an error has only its file fields "
+            "filled in."
+        ),
     )
 
 
@@ -193,22 +225,34 @@ class CardDetailOut(CardOut):
     card: dict[str, Any]
     avatar_origin: Literal["chub", "datacat"] | None = Field(
         default=None,
-        description="Where `POST /characters/{id}/avatar/refetch` would ask for this card's original image -- null when the card carries no id any source can resolve.",
+        description=(
+            "Where `POST /characters/{id}/avatar/refetch` would ask for this card's original image -- null when the "
+            "card carries no id any source can resolve."
+        ),
     )
     gallery: GalleryOut
     media: dict[str, str | None] = Field(
         default_factory=dict,
-        description="Source URL -> URL of the gallery file holding it, or null when the URL is known dead. Keyed both as found in the card's text and HTML-unescaped. A URL absent from the map has not been downloaded. The creator-notes renderer loads images from here only, never from the source.",
+        description=(
+            "Source URL -> URL of the gallery file holding it, or null when the URL is known dead. Keyed both as "
+            "found in the card's text and HTML-unescaped. A URL absent from the map has not been downloaded. The "
+            "creator-notes renderer loads images from here only, never from the source."
+        ),
     )
-    expressions: GalleryOut = Field(
-        description="Same shape as `gallery`, measured against data/expressions/ instead."
-    )
+    expressions: GalleryOut = Field(description="Same shape as `gallery`, measured against data/expressions/ instead.")
     expressions_zip_url: str | None = Field(
-        description="GET this to download the character's expressions as a flat zip. Null when `expressions.exists` is false -- the client must never build this path itself."
+        description=(
+            "GET this to download the character's expressions as a flat zip. Null when `expressions.exists` is false "
+            "-- the client must never build this path itself."
+        )
     )
     forked_from: ForkParentOut | None = Field(
         default=None,
-        description="The card `extensions.fork.of` resolves to right now, when this card is a fork. Null both for a card that isn't a fork and for a fork whose original has since been deleted -- the UI shows the latter as 'original no longer in archive', not as an error.",
+        description=(
+            "The card `extensions.fork.of` resolves to right now, when this card is a fork. Null both for a card that "
+            "isn't a fork and for a fork whose original has since been deleted -- the UI shows the latter as "
+            "'original no longer in archive', not as an error."
+        ),
     )
 
 
@@ -253,7 +297,10 @@ class BulkTagsOut(BaseModel):
     unchanged: int
     failed: dict[str, str] = Field(
         default={},
-        description="Card id to the reason it could not be written. Partial success is normal and reported rather than rolled back: the cards that worked stay worked.",
+        description=(
+            "Card id to the reason it could not be written. Partial success is normal and reported rather than rolled "
+            "back: the cards that worked stay worked."
+        ),
     )
 
 
@@ -266,9 +313,7 @@ class TagsApplyIn(BaseModel):
     different job `BulkTagsIn` covers.
     """
 
-    rename: dict[str, str] = Field(
-        default={}, description="Exact card tag -> exact canonical it becomes."
-    )
+    rename: dict[str, str] = Field(default={}, description="Exact card tag -> exact canonical it becomes.")
     remove: list[str] = Field(default=[], description="Exact card tags to drop.")
 
 
@@ -280,7 +325,10 @@ class TagsApplyOut(BaseModel):
     unchanged: int
     failed: dict[str, str] = Field(
         default={},
-        description="Card id to the reason it could not be written. Partial success is normal and reported rather than rolled back.",
+        description=(
+            "Card id to the reason it could not be written. Partial success is normal and reported rather than rolled "
+            "back."
+        ),
     )
 
 
@@ -309,16 +357,21 @@ class DuplicatePairOut(BaseModel):
     a: str
     b: str
     avatar_distance: int | None = Field(
-        description="Hamming distance between the two avatars' 256-bit average-hash, or null if either thumb could not be read."
+        description=(
+            "Hamming distance between the two avatars' 256-bit average-hash, or null if either thumb could not be read."
+        )
     )
     name_score: float = Field(description="difflib ratio over the casefolded names, 0-1.")
-    text_score: float = Field(
-        description="Best of description/first_mes/creator_notes difflib ratio, 0-1."
-    )
+    text_score: float = Field(description="Best of description/first_mes/creator_notes difflib ratio, 0-1.")
     strength: Literal["strong", "weak"] = Field(
-        description="'strong' when the avatar alone proves it or the name match is backed by real text overlap; 'weak' when only the name matches -- e.g. two different characters sharing a recurring name."
+        description=(
+            "'strong' when the avatar alone proves it or the name match is backed by real text overlap; 'weak' when "
+            "only the name matches -- e.g. two different characters sharing a recurring name."
+        )
     )
-    reasons: list[str] = Field(description="Human-readable match evidence, e.g. 'identical avatar', '92% text overlap'.")
+    reasons: list[str] = Field(
+        description="Human-readable match evidence, e.g. 'identical avatar', '92% text overlap'."
+    )
 
 
 class DuplicateGroupOut(BaseModel):
@@ -326,7 +379,11 @@ class DuplicateGroupOut(BaseModel):
     character. Always one creator -- cards from different creators are never
     compared, let alone grouped."""
 
-    group_id: str = Field(description="Stable across scans as long as membership doesn't change -- derived from the sorted member filenames.")
+    group_id: str = Field(
+        description=(
+            "Stable across scans as long as membership doesn't change -- derived from the sorted member filenames."
+        )
+    )
     creator: str
     members: list[DuplicateMemberOut]
     pairs: list[DuplicatePairOut]
@@ -352,14 +409,13 @@ class CardImportOut(BaseModel):
     name: str
     creator: str = ""
     source: str = Field(
-        description="Where the card was judged to come from: `archive` for one of our own being re-adopted, else `chub`/`datacat`/`jannyai`/`png`."
+        description=(
+            "Where the card was judged to come from: `archive` for one of our own being re-adopted, else "
+            "`chub`/`datacat`/`jannyai`/`png`."
+        )
     )
-    duplicate: bool = Field(
-        default=False, description="The fragment was already on disk and nothing was written."
-    )
-    overwritten: bool = Field(
-        default=False, description="An existing card of the same id was replaced in place."
-    )
+    duplicate: bool = Field(default=False, description="The fragment was already on disk and nothing was written.")
+    overwritten: bool = Field(default=False, description="An existing card of the same id was replaced in place.")
     warnings: list[str] = Field(default=[])
 
 
@@ -492,7 +548,9 @@ class IndexStatsOut(BaseModel):
 
 
 class MediaExtStatOut(BaseModel):
-    ext: str = Field(description="Lowercase file extension without the dot, e.g. 'png'. 'other' for anything unrecognized.")
+    ext: str = Field(
+        description="Lowercase file extension without the dot, e.g. 'png'. 'other' for anything unrecognized."
+    )
     count: int
     bytes: int
 
@@ -555,7 +613,10 @@ class MediaDownloadIn(BaseModel):
     items: list[MediaItemIn]
     prefix: str = Field(
         default="localized_media",
-        description="Filename prefix and dedupe-priority class: localized_media, lorebook_media, extgallery, or <provider>gallery.",
+        description=(
+            "Filename prefix and dedupe-priority class: localized_media, lorebook_media, extgallery, or "
+            "<provider>gallery."
+        ),
     )
     phase: str = Field(default="embedded", description="Label only, recorded in the manifest's run history.")
 
@@ -626,6 +687,8 @@ class MediaBytesOut(BaseModel):
 
     status: Literal["saved", "skipped", "error"]
     file: str | None = None
+    reason: str | None = None
+    bytes: int | None = None
 
 
 class MediaHaveIn(BaseModel):
@@ -669,7 +732,9 @@ class MediaJobSubmitIn(BaseModel):
     )
     card_id: str | None = Field(default=None, description='Required when scope is "card".')
     items: list[MediaItemIn] = Field(default_factory=list)
-    discover: bool = Field(default=False, description="Scan the card server-side instead of taking an explicit item list.")
+    discover: bool = Field(
+        default=False, description="Scan the card server-side instead of taking an explicit item list."
+    )
     mode: Literal["pending", "everything", "broken"] = Field(
         default="pending",
         description=(
@@ -680,12 +745,15 @@ class MediaJobSubmitIn(BaseModel):
     )
     prefix: str = Field(
         default="localized_media",
-        description="Filename prefix and dedupe-priority class: localized_media, lorebook_media, extgallery, or <provider>gallery.",
+        description=(
+            "Filename prefix and dedupe-priority class: localized_media, lorebook_media, extgallery, or "
+            "<provider>gallery."
+        ),
     )
     phase: str = Field(default="embedded", description="Label only, recorded in the manifest's run history.")
 
     @model_validator(mode="after")
-    def _card_id_required_for_card_scope(self) -> "MediaJobSubmitIn":
+    def _card_id_required_for_card_scope(self) -> MediaJobSubmitIn:
         if self.scope == "card" and not self.card_id:
             raise ValueError('card_id is required when scope is "card"')
         return self
@@ -771,13 +839,14 @@ class MediaJobStatusOut(BaseModel):
     )
     cards_total: int = 0
     cards_done: int = 0
-    cards_skipped: int = Field(
-        default=0, description="Cards passed over because their last run was clean."
-    )
+    cards_skipped: int = Field(default=0, description="Cards passed over because their last run was clean.")
     current_card_id: str | None = None
     events_dropped: int = Field(
         default=0,
-        description="Events discarded by the ring buffer on a long run; the manifest, not this list, is the record of what happened.",
+        description=(
+            "Events discarded by the ring buffer on a long run; the manifest, not this list, is the record of what "
+            "happened."
+        ),
     )
 
 

@@ -14,30 +14,38 @@ behaviour that should not apply to the other does not belong in this module.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
-from typing import Callable
 from urllib.parse import quote
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi import APIRouter
+from fastapi import File
+from fastapi import HTTPException
+from fastapi import Query
+from fastapi import Request
+from fastapi import Response
+from fastapi import UploadFile
 
-from aspect.api.schemas import (
-    GalleryBulkDeleteIn,
-    GalleryBulkDeleteOut,
-    GalleryFileOut,
-    GalleryFilesOut,
-    GalleryFileWrittenOut,
-    GalleryFolderOut,
-    MediaUploadOut,
-    MediaUploadSkippedOut,
-    ThumbsPrunedOut,
-)
+from aspect.api.schemas import GalleryBulkDeleteIn
+from aspect.api.schemas import GalleryBulkDeleteOut
+from aspect.api.schemas import GalleryFileOut
+from aspect.api.schemas import GalleryFilesOut
+from aspect.api.schemas import GalleryFileWrittenOut
+from aspect.api.schemas import GalleryFolderOut
+from aspect.api.schemas import MediaUploadOut
+from aspect.api.schemas import MediaUploadSkippedOut
+from aspect.api.schemas import ThumbsPrunedOut
 from aspect.api.v1 import _shared
-from aspect.archive import catalog, thumbs
-from aspect.cards import edit, gallery
+from aspect.archive import catalog
+from aspect.archive import thumbs
+from aspect.cards import edit
+from aspect.cards import gallery
 from aspect.config import settings
-from aspect.media import expressions, uploads
+from aspect.media import expressions
+from aspect.media import uploads
 
 # Which element a file is for, by extension. Sniffing the bytes would be more
 # honest but needs an open per file, and this list exists so a folder of 400
@@ -121,7 +129,9 @@ def register_folder_routes(kind: FolderKind, router: APIRouter) -> None:
     """Register `kind`'s list/get/thumb/upload/delete routes onto `router`."""
 
     @router.get(
-        f"/{kind.segment}", response_model=list[GalleryFolderOut], summary=f"{kind.singular.capitalize()} folders on disk"
+        f"/{kind.segment}",
+        response_model=list[GalleryFolderOut],
+        summary=f"{kind.singular.capitalize()} folders on disk",
     )
     def list_folders() -> list[GalleryFolderOut]:
         """Every folder in the directory, each paired with the cards that
@@ -148,9 +158,7 @@ def register_folder_routes(kind: FolderKind, router: APIRouter) -> None:
             return []
         return [GalleryFolderOut(folder=f, card_ids=claimed.get(gallery.id_of(f), [])) for f in folders]
 
-    @router.get(
-        f"/{kind.segment}/{{folder}}", response_model=GalleryFilesOut, summary=f"Files in one {kind.singular}"
-    )
+    @router.get(f"/{kind.segment}/{{folder}}", response_model=GalleryFilesOut, summary=f"Files in one {kind.singular}")
     def list_folder_files(folder: str) -> GalleryFilesOut:
         """A folder's contents. 404 when the folder is not there -- unlike
         SillyTavern's `/api/images/list`, which creates the directory as a
@@ -180,7 +188,7 @@ def register_folder_routes(kind: FolderKind, router: APIRouter) -> None:
                     name=entry.name,
                     kind=_GALLERY_KINDS.get(suffix, "other"),
                     size=st.st_size,
-                    modified=datetime.fromtimestamp(st.st_mtime, tz=timezone.utc),
+                    modified=datetime.fromtimestamp(st.st_mtime, tz=UTC),
                     url=base,
                     thumb_url=f"{base}/thumb" if suffix in _THUMBABLE else None,
                 )
@@ -197,7 +205,9 @@ def register_folder_routes(kind: FolderKind, router: APIRouter) -> None:
             cache_control=_shared.THUMB_CACHE_CONTROL,
         )
 
-    @router.get(f"/{kind.segment}/{{folder}}/files/{{filename}}/thumb", summary=f"{kind.singular.capitalize()} file thumbnail")
+    @router.get(
+        f"/{kind.segment}/{{folder}}/files/{{filename}}/thumb", summary=f"{kind.singular.capitalize()} file thumbnail"
+    )
     def get_thumb(
         folder: str,
         filename: str,
@@ -292,7 +302,9 @@ def register_folder_routes(kind: FolderKind, router: APIRouter) -> None:
                 skipped.append(MediaUploadSkippedOut(name=name, reason=str(exc)))
         return MediaUploadOut(folder=directory.name, written=written, skipped=skipped)
 
-    @router.delete(f"/{kind.segment}/{{folder}}/files/{{filename}}", status_code=204, summary=f"Bin a {kind.singular} file")
+    @router.delete(
+        f"/{kind.segment}/{{folder}}/files/{{filename}}", status_code=204, summary=f"Bin a {kind.singular} file"
+    )
     def delete_file(folder: str, filename: str) -> Response:
         """Move one file to the bin. Binned rather than unlinked for the same
         reason cards are -- see `aspect.cards.edit`."""
@@ -346,7 +358,9 @@ def register_folder_routes(kind: FolderKind, router: APIRouter) -> None:
         return GalleryBulkDeleteOut(deleted=deleted, failed=failed)
 
     @router.post(
-        f"/{kind.segment}/{{folder}}/thumbs/prune", response_model=ThumbsPrunedOut, summary=f"Drop orphaned {kind.singular} thumbs"
+        f"/{kind.segment}/{{folder}}/thumbs/prune",
+        response_model=ThumbsPrunedOut,
+        summary=f"Drop orphaned {kind.singular} thumbs",
     )
     def prune_thumbs(folder: str) -> ThumbsPrunedOut:
         """Thumbs are generated at write time, so the only orphans left are

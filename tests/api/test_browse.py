@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import os
 
-from tests.conftest import card_png, jai_extensions
+from tests.conftest import card_png
+from tests.conftest import jai_extensions
 
 
 def _names(payload) -> list[str]:
@@ -80,7 +81,7 @@ def test_extensions_are_opt_in(client):
 
 
 def test_sorting_by_added_uses_acquisition_time_not_the_files_mtime(client, populated_archive):
-    """"Recently added" has to mean when the card arrived.
+    """ "Recently added" has to mean when the card arrived.
 
     mtime is the obvious-looking source and the wrong one: the bulk repair
     passes rewrote 84% of the real archive within a single day, which collapses
@@ -89,17 +90,13 @@ def test_sorting_by_added_uses_acquisition_time_not_the_files_mtime(client, popu
     """
     extensions = jai_extensions("99990000-0000-0000-0000-000000000000", creator_name="Late")
     extensions["jai"]["linkedAt"] = "2026-08-10T09:00:00.000Z"  # after the fixtures' shared date
-    (populated_archive["characters"] / "Zoe_99990000.png").write_bytes(
-        card_png("Zoe", extensions=extensions)
-    )
+    (populated_archive["characters"] / "Zoe_99990000.png").write_bytes(card_png("Zoe", extensions=extensions))
     # Every *other* card looks freshly written, so mtime and linkedAt disagree.
     # Stamped rather than touched: Linux takes mtimes from the coarse clock, so
     # four writes in a row can share one timestamp, and the tie-break (filename,
     # reversed along with the sort) would hand `-modified` to Zoe anyway.
     zoe_mtime = (populated_archive["characters"] / "Zoe_99990000.png").stat().st_mtime
-    for offset, name in enumerate(
-        ("Abbie_0d162f5f.png", "Bella_11112222.png", "Cleo_33334444.png"), start=1
-    ):
+    for offset, name in enumerate(("Abbie_0d162f5f.png", "Bella_11112222.png", "Cleo_33334444.png"), start=1):
         path = populated_archive["characters"] / name
         os.utime(path, (zoe_mtime + offset, zoe_mtime + offset))
     client.post("/api/v1/refresh")
@@ -201,9 +198,7 @@ def test_favorite_filter_reads_the_card_not_a_sidecar(client, populated_archive)
     migration in between."""
     extensions = jai_extensions("55556666-0000-0000-0000-000000000000")
     extensions["fav"] = True
-    (populated_archive["characters"] / "Dora_55556666.png").write_bytes(
-        card_png("Dora", extensions=extensions)
-    )
+    (populated_archive["characters"] / "Dora_55556666.png").write_bytes(card_png("Dora", extensions=extensions))
     client.post("/api/v1/refresh")
 
     assert _names(client.get("/api/v1/characters?favorite=true").json()) == ["Dora"]
@@ -259,9 +254,7 @@ def test_added_after_compares_against_acquisition_time(client, populated_archive
     sorts lexically, so the chip and the sort cannot disagree."""
     extensions = jai_extensions("12341234-0000-0000-0000-000000000000")
     extensions["jai"]["linkedAt"] = "2026-08-10T09:00:00.000Z"
-    (populated_archive["characters"] / "Gwen_12341234.png").write_bytes(
-        card_png("Gwen", extensions=extensions)
-    )
+    (populated_archive["characters"] / "Gwen_12341234.png").write_bytes(card_png("Gwen", extensions=extensions))
     client.post("/api/v1/refresh")
 
     assert _names(client.get("/api/v1/characters?added_after=2026-08-01").json()) == ["Gwen"]
@@ -447,9 +440,7 @@ def test_png_is_the_card_byte_for_byte(client, populated_archive):
 
 
 def test_png_is_offered_as_a_download_under_its_own_name(client):
-    disposition = client.get("/api/v1/characters/Abbie_0d162f5f.png/png").headers[
-        "content-disposition"
-    ]
+    disposition = client.get("/api/v1/characters/Abbie_0d162f5f.png/png").headers["content-disposition"]
     assert disposition.startswith("attachment;")
     assert 'filename="Abbie_0d162f5f.png"' in disposition
     assert "filename*=UTF-8''Abbie_0d162f5f.png" in disposition
@@ -487,9 +478,7 @@ def test_conditional_get_answers_304_with_no_body(client):
     """A grid re-asks for hundreds of thumbs on every navigation."""
     first = client.get("/api/v1/characters/Abbie_0d162f5f.png/thumb")
     etag = first.headers["etag"]
-    again = client.get(
-        "/api/v1/characters/Abbie_0d162f5f.png/thumb", headers={"If-None-Match": etag}
-    )
+    again = client.get("/api/v1/characters/Abbie_0d162f5f.png/thumb", headers={"If-None-Match": etag})
     assert again.status_code == 304
     assert again.content == b""
     assert again.headers["etag"] == etag

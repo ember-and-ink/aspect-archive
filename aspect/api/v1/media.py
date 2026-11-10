@@ -12,44 +12,45 @@ import logging
 import time
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter
+from fastapi import File
+from fastapi import Form
+from fastapi import HTTPException
+from fastapi import Query
+from fastapi import UploadFile
 from fastapi.responses import StreamingResponse
 
-from aspect.api.schemas import (
-    MediaBytesOut,
-    MediaDedupeOut,
-    MediaDownloadIn,
-    MediaHaveIn,
-    MediaHaveOut,
-    MediaItemIn,
-    MediaJobEventOut,
-    MediaJobOut,
-    MediaJobStatusOut,
-    MediaJobSubmitIn,
-    MediaManifestOut,
-    MediaScanOut,
-    MediaScanSourceOut,
-    MediaStatusEntryOut,
-    MediaStatusOut,
-)
+from aspect.api.schemas import MediaBytesOut
+from aspect.api.schemas import MediaDedupeOut
+from aspect.api.schemas import MediaDownloadIn
+from aspect.api.schemas import MediaHaveIn
+from aspect.api.schemas import MediaHaveOut
+from aspect.api.schemas import MediaJobEventOut
+from aspect.api.schemas import MediaJobOut
+from aspect.api.schemas import MediaJobStatusOut
+from aspect.api.schemas import MediaJobSubmitIn
+from aspect.api.schemas import MediaManifestOut
+from aspect.api.schemas import MediaScanOut
+from aspect.api.schemas import MediaScanSourceOut
+from aspect.api.schemas import MediaStatusEntryOut
+from aspect.api.schemas import MediaStatusOut
 from aspect.api.v1 import _shared
-from aspect.cards import gallery, pngtools
+from aspect.cards import gallery
 from aspect.config import settings
-from aspect.media import (
-    dedupe as media_dedupe,
-    discovery as media_discovery,
-    extractors as media_extractors,
-    jobs as media_jobs,
-    manifest as media_manifest,
-    status as media_status,
-    writer as media_writer,
-)
+from aspect.media import dedupe as media_dedupe
+from aspect.media import discovery as media_discovery
+from aspect.media import extractors as media_extractors
+from aspect.media import jobs as media_jobs
+from aspect.media import manifest as media_manifest
+from aspect.media import status as media_status
+from aspect.media import writer as media_writer
 from aspect.runtime import net
 from aspect.sources import chub as chub_source
 
 router = APIRouter()
 
 logger = logging.getLogger("aspect.api.media")
+
 
 def _job_status_out(job: media_jobs.MediaJob, *, after: int = 0, include_events: bool = True) -> MediaJobStatusOut:
     events = [MediaJobEventOut(**e) for e in job.events_after(after)] if include_events else []
@@ -128,23 +129,22 @@ def get_character_media(card_id: str) -> MediaManifestOut:
     record = _shared.require(idx, card_id)
     wanted = gallery.folder_name(record.name, record.gallery_id)
     folder = gallery.resolve_folder(settings.galleries_dir, wanted) or wanted
-    manifest = media_manifest.load_manifest(settings.galleries_dir / folder) if folder else media_manifest.empty_manifest()
+    manifest = (
+        media_manifest.load_manifest(settings.galleries_dir / folder) if folder else media_manifest.empty_manifest()
+    )
     return MediaManifestOut(folder=folder, files=manifest["files"], dead=manifest["dead"], runs=manifest["runs"])
 
 
 def _card_data(idx, card_id: str) -> dict:
     record = _shared.require(idx, card_id)
-    path = idx.root / record.filename
-    try:
-        envelope = pngtools.read_envelope(path.read_bytes())
-    except (OSError, ValueError, TypeError) as exc:
-        raise HTTPException(status_code=422, detail=f"cannot read card: {exc}") from exc
-    if envelope is None:
-        raise HTTPException(status_code=422, detail="file carries no character card")
-    return envelope[1]
+    return _shared.read_envelope(idx.root / record.filename)[1]
 
 
-@router.post("/characters/{card_id}/media/scan", response_model=MediaScanOut, summary="Discover a card's remote media URLs, without downloading")
+@router.post(
+    "/characters/{card_id}/media/scan",
+    response_model=MediaScanOut,
+    summary="Discover a card's remote media URLs, without downloading",
+)
 def scan_character_media(card_id: str) -> MediaScanOut:
     """Salvage item 1 (UI_REWRITE_PLAN.md §1.3, §3.4) -- the server-side walk
     that replaces the browser scanning a card's own fields. A dry run: it
@@ -195,9 +195,7 @@ def download_character_media(card_id: str, body: MediaDownloadIn) -> StreamingRe
         # A millisecond timestamp as the starting file index, same scheme the
         # JS loop used -- unique across runs without a persistent counter.
         start_index = int(time.time() * 1000)
-        async with net.async_client(
-            timeout=30.0, headers={"User-Agent": "Mozilla/5.0"}
-        ) as client:
+        async with net.async_client(timeout=30.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
             batch = media_writer.download_batch(
                 client,
                 gallery_dir,
@@ -244,9 +242,7 @@ def download_character_media(card_id: str, body: MediaDownloadIn) -> StreamingRe
         media_manifest.save_manifest(gallery_dir, manifest)
         media_manifest.save_dead_ledger(ledger)
         yield (
-            json.dumps(
-                {"type": "done", "saved": saved, "skipped": skipped, "errors": errors, "total": len(body.items)}
-            )
+            json.dumps({"type": "done", "saved": saved, "skipped": skipped, "errors": errors, "total": len(body.items)})
             + "\n"
         )
 
@@ -269,6 +265,8 @@ def submit_media_job(body: MediaJobSubmitIn) -> MediaJobOut:
     if body.scope == "all":
         return _submit_batch_job(idx, body)
 
+    # MediaJobSubmitIn's validator rejects scope="card" without a card_id.
+    assert body.card_id is not None
     record = _shared.require(idx, body.card_id)
     if body.discover:
         # Same walk the batch uses, album pages included, so a single-card
@@ -489,7 +487,12 @@ def _discovered_items(data: dict) -> tuple[list[dict], list[dict]]:
     # A card can reference the same image in prose, in an album, and in its
     # own provider gallery all at once.
     seen: set[str] = set()
-    items = [i for i in items if not (i["url"] in seen or seen.add(i["url"]))]
+    unique = []
+    for i in items:
+        if i["url"] not in seen:
+            seen.add(i["url"])
+            unique.append(i)
+    items = unique
     return items, records
 
 
@@ -562,7 +565,9 @@ def _submit_batch_job(idx, body: MediaJobSubmitIn) -> MediaJobOut:
 
 
 @router.get("/media/jobs/{job_id}", response_model=MediaJobStatusOut, summary="Poll a background media-download job")
-def get_media_job(job_id: str, after: int = Query(default=0, ge=0, description="Skip events before this index.")) -> MediaJobStatusOut:
+def get_media_job(
+    job_id: str, after: int = Query(default=0, ge=0, description="Skip events before this index.")
+) -> MediaJobStatusOut:
     job = _shared.job_store.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
@@ -585,7 +590,11 @@ def list_media_jobs(
     return [_job_status_out(job, include_events=False) for job in jobs]
 
 
-@router.post("/characters/{card_id}/media/have", response_model=MediaHaveOut, summary="Which of these URLs the gallery already has")
+@router.post(
+    "/characters/{card_id}/media/have",
+    response_model=MediaHaveOut,
+    summary="Which of these URLs the gallery already has",
+)
 def check_character_media_have(card_id: str, body: MediaHaveIn) -> MediaHaveOut:
     """The local-only skips of `media_writer.download_item` (its manifest hit
     and name index), split out so a caller that has to fetch bytes *itself*
@@ -643,7 +652,9 @@ def check_character_media_have(card_id: str, body: MediaHaveIn) -> MediaHaveOut:
     return MediaHaveOut(have=have)
 
 
-@router.post("/characters/{card_id}/media/bytes", response_model=MediaBytesOut, summary="Save one already-fetched media item")
+@router.post(
+    "/characters/{card_id}/media/bytes", response_model=MediaBytesOut, summary="Save one already-fetched media item"
+)
 def upload_character_media_bytes(
     card_id: str,
     file: UploadFile = File(description="The media bytes, already fetched by the browser."),

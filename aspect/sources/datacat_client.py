@@ -23,7 +23,8 @@ from typing import Any
 
 import httpx
 
-from aspect.config import ROOT, settings
+from aspect.config import ROOT
+from aspect.config import settings
 from aspect.runtime import net
 
 logger = logging.getLogger(__name__)
@@ -235,7 +236,7 @@ class DatacatSession:
     """A server-held DataCat session backing /api/v1/datacat/* -- the live
     counterpart to DatacatImageResolver above (which is a one-shot, .env-
     persisted token for offline batch scripts). This one is in-memory only:
-    a browse session is ephemeral, not something a later `make import` run
+    a browse session is ephemeral, not something a later `task import` run
     should inherit."""
 
     def __init__(self, client: httpx.AsyncClient | None = None) -> None:
@@ -329,6 +330,8 @@ class DatacatSession:
     async def _public_session_id(self) -> str | None:
         """A logged-in, non-background public session id datacat's extraction
         endpoint wants when the result should land on the public feed."""
+        if not self._token:
+            return None
         try:
             resp = await (await self._clients.get()).get(
                 f"{DATACAT_API_BASE}/api/users", headers={"X-Session-Token": self._token}

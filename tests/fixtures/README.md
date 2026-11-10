@@ -51,7 +51,7 @@ Proof that the primary greeting rides in as the first `assistant` message — th
 The base64-decoded character card embedded in two real datacat PNG exports (the `ccv3`
 chunk of `import/*.png`, captured 2026-07-21). Primary fixtures for `sources.datacat.py`.
 datacat writes a full `chara_card_v3` with macros intact and no `character_book`, so these
-back the `make import` path.
+back the `task import` path.
 
 - `abigail.json` (toraval) — single greeting, no alternates; HTML `creator_notes`.
 - `alt_greetings.json` (Aoi, AlissaOne) — a `first_mes` plus 5 `alternate_greetings`.

@@ -10,9 +10,7 @@ FIXTURES = Path(__file__).parent.parent / "fixtures"
 def _real_request() -> dict:
     """A real captured JanitorAI chat request: [system(hidden def), user ".",
     assistant(rendered greeting), user "USER: hello"]."""
-    return json.loads(
-        (FIXTURES / "chat_request_hidden_ari.json").read_text(encoding="utf-8")
-    )
+    return json.loads((FIXTURES / "chat_request_hidden_ari.json").read_text(encoding="utf-8"))
 
 
 def _messages(system: str = "<Ari's Persona>cold</Ari's Persona>", user: str = "hello"):
@@ -50,9 +48,7 @@ def test_persona_prefix_is_stripped_before_reading_the_user_turn():
     """Real requests carry "USER: hello", not "hello" -- with the prefix left on,
     every greeting reads as a statement about a topic called "USER"."""
     responder = MockResponder(seed=4)
-    replies = [
-        responder.reply({"messages": _messages(user="USER: hello")}) for _ in range(20)
-    ]
+    replies = [responder.reply({"messages": _messages(user="USER: hello")}) for _ in range(20)]
     assert not any("USER" in r or "hello" in r.lower() for r in replies)
     assert any(line in r for r in replies for line in ("Hey yourself.", "There you are"))
 
@@ -88,9 +84,7 @@ def test_small_max_tokens_drops_the_trailing_beat():
 
 def test_a_user_action_gets_a_reaction_beat():
     responder = MockResponder(seed=5)
-    replies = [
-        responder.reply({"messages": _messages(user="*waves*")}) for _ in range(10)
-    ]
+    replies = [responder.reply({"messages": _messages(user="*waves*")}) for _ in range(10)]
     assert any("without" in r or "watches that happen" in r or "still" in r for r in replies)
 
 

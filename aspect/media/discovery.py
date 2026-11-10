@@ -217,7 +217,9 @@ def enumerate_sources(data: dict[str, Any]) -> list[SourceRef]:
     for url in lorebook:
         handlers[url] = "lorebook"
     for url in extractors.find_gallery_urls("\n".join([*main_chunks, *lorebook_chunks])):
-        handlers.setdefault(url, extractors.extractor_for(url).id)
+        extractor = extractors.extractor_for(url)
+        if extractor is not None:
+            handlers.setdefault(url, extractor.id)
 
     refs: list[SourceRef] = []
     seen: set[str] = set()

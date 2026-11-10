@@ -13,8 +13,8 @@ test_datacat_mapper's.
 import json
 from pathlib import Path
 
-from aspect.sources import jannyai as mapper
 from aspect.cards.builder import CardBuilder
+from aspect.sources import jannyai as mapper
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "jannyai"
 
@@ -79,16 +79,15 @@ def test_provenance_accessors():
     assert mapper.creator(data) == "MathiDoos"
     assert mapper.page_name(data) == "Abby"
     assert mapper.source_url(data) == (
-        "https://jannyai.com/characters/"
-        "c9630bdc-c851-4d90-a6e2-fc96a19b3e1a_character-abby"
+        "https://jannyai.com/characters/c9630bdc-c851-4d90-a6e2-fc96a19b3e1a_character-abby"
     )
     assert mapper.is_jannyai(data) is True
 
 
 def test_source_url_carries_hyphenated_slug():
-    assert mapper.source_url(load_data("alexandra")).endswith(
-        "_character-alexandra-defamed-cheerleader"
-    )
+    source_url = mapper.source_url(load_data("alexandra"))
+    assert source_url is not None
+    assert source_url.endswith("_character-alexandra-defamed-cheerleader")
 
 
 def test_is_jannyai_false_without_block():
@@ -109,9 +108,7 @@ def test_source_url_none_without_id():
 def test_builds_card_with_macros_intact_and_no_book():
     data = load_data("abby")
     profile = mapper.to_profile_fields(data)
-    card, warnings = CardBuilder().build(
-        profile, mapper.greetings(data), capture=None, book=None
-    )
+    card, warnings = CardBuilder().build(profile, mapper.greetings(data), capture=None, book=None)
     assert card.name == "Abby"
     assert card.description
     assert card.first_mes

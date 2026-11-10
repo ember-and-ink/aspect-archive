@@ -74,7 +74,7 @@ jobs:
           fi
 
           # ...unless pyproject.toml asks for something higher, which is how a
-          # minor or major release is made (`make bump-minor` / `bump-major`).
+          # minor or major release is made (`task bump-minor` / `bump-major`).
           FLOOR=$(grep -E '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
           VERSION=$(printf '%s\n' "$NEXT" "$FLOOR" | sort -V | tail -n1)
           echo "Latest release: ${LATEST:-none}, pyproject.toml: $FLOOR, releasing: $VERSION"

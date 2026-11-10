@@ -36,10 +36,8 @@ from aspect.sources.prompts.janitor import SystemPromptParser
 _BEATS = [
     "{char} looks up, unhurried, and lets the pause stretch a beat too long.",
     "{char} leans back against the nearest solid thing, arms folded.",
-    "There's a slow breath from {char} -- the kind that means a thought is "
-    "being turned over.",
-    "{char} tilts a glance your way, mouth curving into something that isn't "
-    "quite a smile.",
+    "There's a slow breath from {char} -- the kind that means a thought is being turned over.",
+    "{char} tilts a glance your way, mouth curving into something that isn't quite a smile.",
     "{char} turns something small over in one hand, not really looking at it.",
     "{char} closes the distance by half a step and stops there, deliberate.",
     "{char} makes a noncommittal sound and shifts to face you properly.",
@@ -177,9 +175,7 @@ class MockResponder:
         meaning ("greenhouse" over "night"), and a reply built around the
         specific noun is the whole reason this exists."""
         words = [w.lower() for w in _WORD_RE.findall(last_user)]
-        candidates = sorted(
-            {w for w in words if w not in _STOPWORDS}, key=len, reverse=True
-        )
+        candidates = sorted({w for w in words if w not in _STOPWORDS}, key=len, reverse=True)
         return self._rng.choice(candidates[:3]) if candidates else None
 
     def _dialogue(self, last_user: str) -> str:
@@ -187,9 +183,7 @@ class MockResponder:
         # A topic line only sometimes, so consecutive turns don't all read as
         # the same trick.
         if topic and self._rng.random() < 0.45:
-            return self._pick(_TOPIC_LINES).format(
-                topic=topic, topic_title=topic.capitalize()
-            )
+            return self._pick(_TOPIC_LINES).format(topic=topic, topic_title=topic.capitalize())
         if _GREETING_RE.match(last_user.strip()):
             return self._pick(_GREETING_LINES)
         if "?" in last_user:
@@ -199,9 +193,7 @@ class MockResponder:
     def reply(self, req: dict[str, Any]) -> str:
         messages = req.get("messages") or []
         char = self._char_name(messages)
-        last_user = _PERSONA_PREFIX_RE.sub(
-            "", _content_of_role(messages, "user", last=True)
-        )
+        last_user = _PERSONA_PREFIX_RE.sub("", _content_of_role(messages, "user", last=True))
         is_action = last_user.strip().startswith("*")
 
         beats = _REACTION_BEATS if is_action else _BEATS
@@ -221,9 +213,7 @@ class MockResponder:
 
     async def complete(self, req: dict[str, Any]) -> dict[str, Any]:
         text = self.reply(req)
-        prompt_tokens = sum(
-            _approx_tokens(str(m.get("content", ""))) for m in req.get("messages") or []
-        )
+        prompt_tokens = sum(_approx_tokens(str(m.get("content", ""))) for m in req.get("messages") or [])
         completion_tokens = _approx_tokens(text)
         return {
             "id": _completion_id(),
@@ -270,9 +260,7 @@ class MockResponder:
         yield b"data: [DONE]\n\n"
 
 
-def _content_of_role(
-    messages: list[dict[str, Any]], role: str, last: bool = False
-) -> str:
+def _content_of_role(messages: list[dict[str, Any]], role: str, last: bool = False) -> str:
     matches = [m for m in messages if m.get("role") == role]
     if not matches:
         return ""

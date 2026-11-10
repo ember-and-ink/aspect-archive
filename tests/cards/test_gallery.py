@@ -80,7 +80,9 @@ def test_ensure_id_falls_back_to_a_fresh_id_for_an_empty_preferred():
 def test_ensure_id_creates_extensions_when_missing_or_not_a_dict():
     for data in ({}, {"extensions": None}, {"extensions": "junk"}):
         gid = gallery.ensure_id(data)
-        assert data["extensions"]["gallery_id"] == gid
+        extensions = data["extensions"]
+        assert isinstance(extensions, dict)
+        assert extensions["gallery_id"] == gid
 
 
 # --- folder_name ------------------------------------------------------------
@@ -98,9 +100,7 @@ def test_folder_name_replaces_only_the_reserved_characters():
     file `A_D_A_<id8>.png` but the gallery folder `A.D.A_<gallery_id>`, and dots,
     spaces, commas and curly apostrophes all survive."""
     assert gallery.folder_name("A.D.A", "x" * 12) == "A.D.A_xxxxxxxxxxxx"
-    assert gallery.folder_name("A Mother’s Claim, A Hunger", "y" * 12) == (
-        "A Mother’s Claim, A Hunger_yyyyyyyyyyyy"
-    )
+    assert gallery.folder_name("A Mother’s Claim, A Hunger", "y" * 12) == ("A Mother’s Claim, A Hunger_yyyyyyyyyyyy")
     assert gallery.folder_name('Bad<>:"/\\|?*Name', "z" * 12) == "Bad_________Name_zzzzzzzzzzzz"
 
 

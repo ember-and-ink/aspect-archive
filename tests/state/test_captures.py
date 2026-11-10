@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from aspect.state.captures import CaptureStore, normalize
+from aspect.state.captures import CaptureStore
+from aspect.state.captures import normalize
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -102,6 +103,7 @@ def test_re_recording_same_character_overwrites_the_record(tmp_path):
     store.record(_load("system_prompt_hidden_lyra_2.txt"))
 
     record = store.get("Lyra")
+    assert record is not None
     assert record.raw_system_prompt == _load("system_prompt_hidden_lyra_2.txt")
 
 
@@ -149,6 +151,7 @@ def test_record_captures_primary_greeting_alongside_definition(tmp_path):
     store.record(_load("system_prompt_hidden_ari.txt"), primary_greeting="Hello there, USER")
 
     record = store.get("Ari")
+    assert record is not None
     assert record.greetings == ["Hello there, USER"]
     assert "Location: USA" in record.personality
 
@@ -158,18 +161,26 @@ def test_record_without_greeting_leaves_greetings_empty(tmp_path):
 
     store.record(_load("system_prompt_hidden_ari.txt"))
 
-    assert store.get("Ari").greetings == []
+    ari = store.get("Ari")
+
+    assert ari is not None
+
+    assert ari.greetings == []
 
 
 def test_record_strips_greeting_whitespace_and_treats_blank_as_none(tmp_path):
     store = CaptureStore(captures_dir=tmp_path)
 
     store.record(_load("system_prompt_hidden_ari.txt"), primary_greeting="  Hi USER  ")
-    assert store.get("Ari").greetings == ["Hi USER"]
+    ari = store.get("Ari")
+    assert ari is not None
+    assert ari.greetings == ["Hi USER"]
 
     # A blank greeting on a later capture doesn't overwrite the good one.
     store.record(_load("system_prompt_hidden_ari.txt"), primary_greeting="   ")
-    assert store.get("Ari").greetings == ["Hi USER"]
+    ari = store.get("Ari")
+    assert ari is not None
+    assert ari.greetings == ["Hi USER"]
 
 
 def test_re_record_with_new_greeting_replaces_prior(tmp_path):
@@ -178,7 +189,11 @@ def test_re_record_with_new_greeting_replaces_prior(tmp_path):
 
     store.record(_load("system_prompt_hidden_ari.txt"), primary_greeting="Second greeting")
 
-    assert store.get("Ari").greetings == ["Second greeting"]
+    ari = store.get("Ari")
+
+    assert ari is not None
+
+    assert ari.greetings == ["Second greeting"]
 
 
 def test_definition_only_recapture_preserves_prior_greeting(tmp_path):
@@ -190,6 +205,7 @@ def test_definition_only_recapture_preserves_prior_greeting(tmp_path):
     store.record(_load("system_prompt_hidden_ari.txt"))
 
     record = store.get("Ari")
+    assert record is not None
     assert record.greetings == ["Kept greeting"]
     assert "Location: USA" in record.personality
 

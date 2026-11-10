@@ -25,14 +25,15 @@ is missing, so renaming a constant in the source breaks the build loudly instead
 of silently emitting an unconfigured script.
 
 With no overrides the output is byte-identical to the source concatenation --
-that is what `make compile` writes into the repo.
+that is what `task compile` writes into the repo.
 """
 
 from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 
 from aspect.config import ROOT
@@ -166,9 +167,7 @@ def _apply_server(source: str, server_url: str) -> str:
     replacement = rf"\g<head>{json.dumps(server_url)};"
     patched, count = _SERVER_RE.subn(replacement, source)
     if count != 1:
-        raise UserscriptError(
-            f"expected exactly one `const DEFAULT_SERVER = \"...\";` in config.js, found {count}"
-        )
+        raise UserscriptError(f'expected exactly one `const DEFAULT_SERVER = "...";` in config.js, found {count}')
     return patched
 
 
@@ -178,7 +177,7 @@ def _apply_token(source: str, api_token: str) -> str:
         raise UserscriptError("the API token holds characters a token never has; regenerate it")
     patched, count = _TOKEN_RE.subn(rf"\g<head>{json.dumps(api_token)};", source)
     if count != 1:
-        raise UserscriptError(f"expected exactly one `const DEFAULT_TOKEN = \"...\";` in config.js, found {count}")
+        raise UserscriptError(f'expected exactly one `const DEFAULT_TOKEN = "...";` in config.js, found {count}')
     return patched
 
 
@@ -195,15 +194,11 @@ def _apply_tag_filter(source: str, include: list[str], exclude: list[str]) -> st
 
     patched, count = _TAG_FILTER_RE.subn(render, source)
     if count != 1:
-        raise UserscriptError(
-            f"expected exactly one `const BULK_TAG_FILTER = {{...}};` in config.js, found {count}"
-        )
+        raise UserscriptError(f"expected exactly one `const BULK_TAG_FILTER = {{...}};` in config.js, found {count}")
     return patched
 
 
-def _config_note(
-    spec: ScriptSpec, server_url: str, include: list[str], exclude: list[str], has_token: bool
-) -> str:
+def _config_note(spec: ScriptSpec, server_url: str, include: list[str], exclude: list[str], has_token: bool) -> str:
     """A short comment recording what was baked in, so a script pasted into
     Tampermonkey months ago can still be read back."""
     lines = [
@@ -231,7 +226,7 @@ def compile_userscript(
     """The full `.user.js` for one bridge.
 
     With every override left as None the result is the plain source
-    concatenation -- what `make compile` writes back into the repo. Pass any of
+    concatenation -- what `task compile` writes back into the repo. Pass any of
     them and the corresponding constant in `config.js` is replaced and a short
     `GENERATED` note is added under the banner. `api_token` is the login gate's
     token (Settings -> Security), sent as a Bearer header on every request.
@@ -277,7 +272,7 @@ def compile_userscript(
 
 def write_userscript(spec: ScriptSpec | str) -> Path:
     """Compile the unconfigured script and write it next to its sources. What
-    `make compile` does; nothing at runtime calls this."""
+    `task compile` does; nothing at runtime calls this."""
     if isinstance(spec, str):
         spec = SPECS[spec]
     out = USERSCRIPT_DIR / spec.filename

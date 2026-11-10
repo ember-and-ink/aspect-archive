@@ -1,11 +1,12 @@
-import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 
-from aspect.config import ensure_dir, settings
 from aspect.cards.models import CaptureRecord
+from aspect.config import ensure_dir
+from aspect.config import settings
 from aspect.sources.prompts.janitor import SystemPromptParser
 
 logger = logging.getLogger("aspect.state.captures")
@@ -13,7 +14,7 @@ logger = logging.getLogger("aspect.state.captures")
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 
-def normalize(name: str) -> str:
+def normalize(name: str | None) -> str:
     """Lookup key for CaptureStore: lowercase, trimmed."""
     return (name or "").strip().lower()
 
@@ -69,8 +70,7 @@ class CaptureStore:
         key = normalize(parsed.name)
         if not key:
             logger.warning(
-                "capture #%d: parser found no character name; raw prompt archived "
-                "but no CaptureRecord upserted",
+                "capture #%d: parser found no character name; raw prompt archived but no CaptureRecord upserted",
                 n,
             )
             return
@@ -117,7 +117,7 @@ class CaptureStore:
         return {"system": system, "greetings": greetings}
 
     def _write_raw(self, n: int, system_prompt: str) -> Path:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         path = self._captures_dir / f"system_prompt_{n:03d}_{timestamp}.txt"
         path.write_text(system_prompt, encoding="utf-8")
         return path

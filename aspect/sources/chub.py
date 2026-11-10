@@ -36,8 +36,8 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from aspect.text.notes_html import clean_creator_notes
 from aspect.text.macros import MacroSanitizer
+from aspect.text.notes_html import clean_creator_notes
 from aspect.text.tags import normalize_tags
 
 # Reconstruct the canonical Chub character URL from the card's full_path so an
@@ -116,9 +116,7 @@ def avatar_url(node: dict[str, Any]) -> str | None:
     )
 
 
-def build_v2_from_chub(
-    node: dict[str, Any], linked_lorebook: dict[str, Any] | None = None
-) -> dict[str, Any]:
+def build_v2_from_chub(node: dict[str, Any], linked_lorebook: dict[str, Any] | None = None) -> dict[str, Any]:
     """Build the V2 `data` object clean_card() consumes, straight from the raw
     Chub API node (GET /api/characters/{fullPath}?full=true) -- the same shape
     the browser's importCharacter posts to /build-chub. `linked_lorebook` is
@@ -176,9 +174,7 @@ def build_v2_from_chub(
     }
 
 
-def clean_card(
-    data: dict[str, Any], sanitizer: MacroSanitizer
-) -> tuple[dict[str, Any], list[str]]:
+def clean_card(data: dict[str, Any], sanitizer: MacroSanitizer) -> tuple[dict[str, Any], list[str]]:
     """Return a cleaned deep copy of the parsed Chub `data` object plus any
     unresolved-macro warnings.
 
@@ -202,9 +198,7 @@ def clean_card(
             card[field] = scrub(card[field])
 
     if isinstance(card.get("alternate_greetings"), list):
-        card["alternate_greetings"] = [
-            scrub(g) if isinstance(g, str) else g for g in card["alternate_greetings"]
-        ]
+        card["alternate_greetings"] = [scrub(g) if isinstance(g, str) else g for g in card["alternate_greetings"]]
 
     # creator_notes: a laid-out Chub blurb keeps its structure (minus the CSS),
     # plainer notes flatten to markdown; then sanitize any macros in the prose.

@@ -7,8 +7,9 @@ and tag filter substituted in). This script is the repo-side half: the
 unconfigured bundle, checked in so the file in the tree always matches its
 sources.
 
-Run via `make compile`.
+Run via `task compile`.
 """
+
 from __future__ import annotations
 
 import sys
@@ -16,7 +17,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aspect.userscripts import SPECS, UserscriptError, write_userscript  # noqa: E402
+from aspect.userscripts import SPECS  # noqa: E402
+from aspect.userscripts import UserscriptError  # noqa: E402
+from aspect.userscripts import write_userscript  # noqa: E402
 
 
 def main() -> None:

@@ -1,5 +1,5 @@
 # Running the published image, rather than building it: compose.yaml is the
-# local build (`make docker-build`), this one pulls from GHCR and is what a
+# local build (`task docker-build`), this one pulls from GHCR and is what a
 # server -- unraid or otherwise -- actually runs.
 #
 #   docker compose -f compose.prod.yaml pull

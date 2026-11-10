@@ -14,9 +14,11 @@ import json
 
 import pytest
 
+from aspect.api.v1 import media as v1_media
 from aspect.config import settings
-from aspect.media import extractors as media_extractors, manifest as media_manifest, writer as media_writer
-from aspect.api.v1 import _shared as v1_shared, media as v1_media
+from aspect.media import extractors as media_extractors
+from aspect.media import manifest as media_manifest
+from aspect.media import writer as media_writer
 
 
 def _ndjson(response) -> list[dict]:
@@ -32,11 +34,33 @@ def stub_download_item(monkeypatch):
 
     calls: list[dict] = []
 
-    async def fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None, retry_dead=False):
+    async def fake(
+        client,
+        gallery_dir,
+        folder_name,
+        *,
+        url,
+        filename_hint,
+        prefix,
+        index,
+        index_state,
+        manifest,
+        ledger,
+        thumbnail_store,
+        fetch_gate=None,
+        retry_dead=False,
+    ):
         calls.append(
-            {"gallery_dir": gallery_dir, "folder_name": folder_name, "url": url, "prefix": prefix, "retry_dead": retry_dead}
+            {
+                "gallery_dir": gallery_dir,
+                "folder_name": folder_name,
+                "url": url,
+                "prefix": prefix,
+                "retry_dead": retry_dead,
+            }
         )
         outcome = media_writer.DownloadOutcome("saved", url, file=f"localized_media_{index}_x.webp", bytes=123)
+        assert outcome.file is not None
         media_manifest.record_saved(manifest, url, outcome.file, "deadbeef")
         return outcome
 
@@ -66,7 +90,9 @@ def test_download_creates_gallery_folder_for_a_card_with_no_folder_yet(client, p
     assert (folder / media_manifest.MANIFEST_NAME).is_file()
 
 
-def test_download_resolves_existing_folder_for_a_card_that_already_has_one(client, populated_archive, stub_download_item):
+def test_download_resolves_existing_folder_for_a_card_that_already_has_one(
+    client, populated_archive, stub_download_item
+):
     resp = client.post(
         "/api/v1/characters/Abbie_0d162f5f.png/media",
         json={"items": [{"url": "https://cdn.example.com/x/a.png"}]},
@@ -75,8 +101,11 @@ def test_download_resolves_existing_folder_for_a_card_that_already_has_one(clien
     assert stub_download_item[0]["folder_name"] == "Abbie_kzbYR2QbpncC"
 
 
-def test_download_mints_a_gallery_id_for_a_card_that_has_none(client, populated_archive, stub_download_item, monkeypatch):
-    from tests.conftest import card_png, jai_extensions
+def test_download_mints_a_gallery_id_for_a_card_that_has_none(
+    client, populated_archive, stub_download_item, monkeypatch
+):
+    from tests.conftest import card_png
+    from tests.conftest import jai_extensions
 
     (populated_archive["characters"] / "NoGallery_55556666.png").write_bytes(
         card_png("NoGallery", extensions=jai_extensions("55556666-0000-0000-0000-000000000000", gallery_id=None))
@@ -125,13 +154,31 @@ def test_get_media_manifest_reflects_a_completed_run(client, populated_archive, 
 
 
 def test_download_totals_count_mixed_outcomes(client, populated_archive, monkeypatch):
-    async def fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None, retry_dead=False):
+    async def fake(
+        client,
+        gallery_dir,
+        folder_name,
+        *,
+        url,
+        filename_hint,
+        prefix,
+        index,
+        index_state,
+        manifest,
+        ledger,
+        thumbnail_store,
+        fetch_gate=None,
+        retry_dead=False,
+    ):
         if "ok" in url:
             outcome = media_writer.DownloadOutcome("saved", url, file="localized_media_0_ok.webp", bytes=1)
+            assert outcome.file is not None
             media_manifest.record_saved(manifest, url, outcome.file, "abc")
             return outcome
         if "dup" in url:
-            return media_writer.DownloadOutcome("skipped", url, file="localized_media_0_ok.webp", reason="filename match")
+            return media_writer.DownloadOutcome(
+                "skipped", url, file="localized_media_0_ok.webp", reason="filename match"
+            )
         return media_writer.DownloadOutcome("error", url, reason="boom", permanent=False)
 
     monkeypatch.setattr(v1_media.media_writer, "download_item", fake)
@@ -331,7 +378,22 @@ def test_media_status_reflects_a_completed_run(client, populated_archive, stub_d
 
 
 def test_media_status_incomplete_when_last_run_had_errors(client, populated_archive, monkeypatch):
-    async def fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None, retry_dead=False):
+    async def fake(
+        client,
+        gallery_dir,
+        folder_name,
+        *,
+        url,
+        filename_hint,
+        prefix,
+        index,
+        index_state,
+        manifest,
+        ledger,
+        thumbnail_store,
+        fetch_gate=None,
+        retry_dead=False,
+    ):
         return media_writer.DownloadOutcome("error", url, reason="boom", permanent=False)
 
     monkeypatch.setattr(v1_media.media_writer, "download_item", fake)
@@ -388,7 +450,8 @@ def test_prune_thumbs_unknown_folder_removes_nothing(client, populated_archive):
 
 
 def test_scan_finds_embedded_and_lorebook_urls_separately(client, archive_dirs):
-    from tests.conftest import card_png, jai_extensions
+    from tests.conftest import card_png
+    from tests.conftest import jai_extensions
 
     (archive_dirs["characters"] / "Scan_77778888.png").write_bytes(
         card_png(
@@ -517,10 +580,26 @@ def test_cancel_stops_a_job_before_it_finishes_every_item(client, populated_arch
 
     calls: list[str] = []
 
-    async def slow_fake(client, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None, retry_dead=False):
+    async def slow_fake(
+        client,
+        gallery_dir,
+        folder_name,
+        *,
+        url,
+        filename_hint,
+        prefix,
+        index,
+        index_state,
+        manifest,
+        ledger,
+        thumbnail_store,
+        fetch_gate=None,
+        retry_dead=False,
+    ):
         calls.append(url)
         await asyncio.sleep(0.05)
         outcome = media_writer.DownloadOutcome("saved", url, file=f"localized_media_{index}_x.webp", bytes=1)
+        assert outcome.file is not None
         media_manifest.record_saved(manifest, url, outcome.file, "deadbeef")
         return outcome
 
@@ -548,7 +627,8 @@ def test_cancel_stops_a_job_before_it_finishes_every_item(client, populated_arch
 
 
 def test_media_job_discover_scans_the_card_instead_of_taking_items(client, archive_dirs, stub_download_item):
-    from tests.conftest import card_png, jai_extensions
+    from tests.conftest import card_png
+    from tests.conftest import jai_extensions
 
     (archive_dirs["characters"] / "Scan_77778888.png").write_bytes(
         card_png(
@@ -562,7 +642,11 @@ def test_media_job_discover_scans_the_card_instead_of_taking_items(client, archi
 
     resp = client.post(
         "/api/v1/media/jobs",
-        json={"card_id": "Scan_77778888.png", "discover": True, "items": [{"url": "https://ignored.example.com/x.png"}]},
+        json={
+            "card_id": "Scan_77778888.png",
+            "discover": True,
+            "items": [{"url": "https://ignored.example.com/x.png"}],
+        },
     )
     assert resp.status_code == 200
     assert resp.json()["total"] == 2
@@ -719,16 +803,14 @@ def _account_for_abbies_media(galleries) -> None:
     """A manifest that accounts for exactly the URL `stub_discovery` puts on
     Abbie -- the state a finished run leaves behind."""
     manifest = media_manifest.empty_manifest()
-    media_manifest.record_saved(
-        manifest, "https://cdn.example.com/Abbie.png", "localized_media_0_Abbie.webp", "abc"
-    )
-    media_manifest.append_run(
-        manifest, {"at": media_manifest.now_iso(), "saved": 1, "skipped": 0, "errors": 0}
-    )
+    media_manifest.record_saved(manifest, "https://cdn.example.com/Abbie.png", "localized_media_0_Abbie.webp", "abc")
+    media_manifest.append_run(manifest, {"at": media_manifest.now_iso(), "saved": 1, "skipped": 0, "errors": 0})
     media_manifest.save_manifest(galleries / "Abbie_kzbYR2QbpncC", manifest)
 
 
-def test_batch_skips_a_card_whose_sources_are_all_accounted_for(client, populated_archive, stub_download_item, stub_discovery):
+def test_batch_skips_a_card_whose_sources_are_all_accounted_for(
+    client, populated_archive, stub_download_item, stub_discovery
+):
     _account_for_abbies_media(populated_archive["galleries"])
 
     body = _poll_job(client, _submit_batch(client))
@@ -739,7 +821,9 @@ def test_batch_skips_a_card_whose_sources_are_all_accounted_for(client, populate
     assert all("Abbie" not in call["url"] for call in stub_download_item)
 
 
-def test_batch_visits_a_clean_card_whose_source_is_unaccounted_for(client, populated_archive, stub_download_item, stub_discovery):
+def test_batch_visits_a_clean_card_whose_source_is_unaccounted_for(
+    client, populated_archive, stub_download_item, stub_discovery
+):
     """The regression this replaced a `complete` check to catch. A run with no
     errors used to mean "done forever", so a card whose gallery link nothing
     could resolve at the time -- a Civitai post, before `media/civitai.py` --
@@ -753,7 +837,9 @@ def test_batch_visits_a_clean_card_whose_source_is_unaccounted_for(client, popul
     assert any("Abbie" in call["url"] for call in stub_download_item)
 
 
-def test_batch_re_arms_a_source_that_has_since_gained_a_handler(client, populated_archive, stub_download_item, stub_discovery, monkeypatch):
+def test_batch_re_arms_a_source_that_has_since_gained_a_handler(
+    client, populated_archive, stub_download_item, stub_discovery, monkeypatch
+):
     """The whole point of recording `unhandled`: the card carries a URL a
     previous build could not fetch, this build can, and nobody has to press
     "Rescan everything" for it to be noticed."""
@@ -763,16 +849,12 @@ def test_batch_re_arms_a_source_that_has_since_gained_a_handler(client, populate
         lambda data: (["gallery: https://catbox.moe/c/abc123"], []),
     )
     monkeypatch.setattr(v1_media.media_discovery, "find_character_media_urls", lambda data: ([], []))
-    monkeypatch.setattr(
-        media_extractors, "resolve_gallery_url", lambda client_, url: []
-    )
+    monkeypatch.setattr(media_extractors, "resolve_gallery_url", lambda client_, url: [])
 
     galleries = populated_archive["galleries"]
     manifest = media_manifest.empty_manifest()
     media_manifest.record_source(manifest, "https://catbox.moe/c/abc123", None, media_manifest.SOURCE_UNHANDLED)
-    media_manifest.append_run(
-        manifest, {"at": media_manifest.now_iso(), "saved": 0, "skipped": 0, "errors": 0}
-    )
+    media_manifest.append_run(manifest, {"at": media_manifest.now_iso(), "saved": 0, "skipped": 0, "errors": 0})
     media_manifest.save_manifest(galleries / "Abbie_kzbYR2QbpncC", manifest)
 
     body = _poll_job(client, _submit_batch(client))
@@ -783,7 +865,9 @@ def test_batch_re_arms_a_source_that_has_since_gained_a_handler(client, populate
     assert reloaded["sources"]["https://catbox.moe/c/abc123"]["h"] == "catbox"
 
 
-def test_batch_settles_a_card_whose_album_is_gone(client, populated_archive, stub_download_item, stub_discovery, monkeypatch):
+def test_batch_settles_a_card_whose_album_is_gone(
+    client, populated_archive, stub_download_item, stub_discovery, monkeypatch
+):
     """A 404'd album is recorded `failed` and the card stops re-arming over
     it. Before, it recorded nothing, so the card -- and every other gallery
     on it -- was re-resolved on every Localize all."""
@@ -815,7 +899,9 @@ def test_batch_settles_a_card_whose_album_is_gone(client, populated_archive, stu
     assert second["cards_skipped"] == first["cards_done"]
 
 
-def test_batch_everything_visits_the_accounted_for_card_anyway(client, populated_archive, stub_download_item, stub_discovery):
+def test_batch_everything_visits_the_accounted_for_card_anyway(
+    client, populated_archive, stub_download_item, stub_discovery
+):
     _account_for_abbies_media(populated_archive["galleries"])
 
     body = _poll_job(client, _submit_batch(client, mode="everything"))
@@ -829,8 +915,16 @@ def test_batch_everything_visits_the_accounted_for_card_anyway(client, populated
 
 # Real `dead` entries, from a dev-archive card (Vespera's file.garden images).
 _VESPERA_DEAD = {
-    "https://file.garden/akviCfKE-zqjKa2t/ves_job.jpg": {"reason": "HTTP 404", "attempts": 1, "at": "2026-08-30T10:49:12Z"},
-    "https://file.garden/akviCfKE-zqjKa2t/ves_medic.png": {"reason": "HTTP 404", "attempts": 1, "at": "2026-08-30T10:49:12Z"},
+    "https://file.garden/akviCfKE-zqjKa2t/ves_job.jpg": {
+        "reason": "HTTP 404",
+        "attempts": 1,
+        "at": "2026-08-30T10:49:12Z",
+    },
+    "https://file.garden/akviCfKE-zqjKa2t/ves_medic.png": {
+        "reason": "HTTP 404",
+        "attempts": 1,
+        "at": "2026-08-30T10:49:12Z",
+    },
 }
 _FAILED_ALBUM = "https://imgchest.com/p/m9yx53zvq7q"
 _DONE_ALBUM = "https://imgchest.com/p/ej7mjmm597d"
@@ -845,7 +939,9 @@ def _broken_abbie(galleries, *, dead=_VESPERA_DEAD, failed_album=False) -> None:
     manifest["dead"].update({url: dict(entry) for url, entry in dead.items()})
     media_manifest.record_source(manifest, _DONE_ALBUM, "imgchest", media_manifest.SOURCE_DONE, count=10)
     if failed_album:
-        media_manifest.record_source(manifest, _FAILED_ALBUM, "imgchest", media_manifest.SOURCE_FAILED, reason="HTTP 404")
+        media_manifest.record_source(
+            manifest, _FAILED_ALBUM, "imgchest", media_manifest.SOURCE_FAILED, reason="HTTP 404"
+        )
     media_manifest.append_run(manifest, {"at": media_manifest.now_iso(), "saved": 1, "skipped": 0, "errors": 0})
     media_manifest.save_manifest(galleries / "Abbie_kzbYR2QbpncC", manifest)
 
@@ -869,7 +965,9 @@ def albums_on_every_card(monkeypatch):
     return resolved
 
 
-def test_broken_visits_only_cards_with_broken_entries(client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card):
+def test_broken_visits_only_cards_with_broken_entries(
+    client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card
+):
     _broken_abbie(populated_archive["galleries"])
 
     body = _poll_job(client, _submit_batch(client, mode="broken"))
@@ -879,7 +977,9 @@ def test_broken_visits_only_cards_with_broken_entries(client, populated_archive,
     assert all(c["gallery_dir"].name == "Abbie_kzbYR2QbpncC" for c in stub_download_item)
 
 
-def test_broken_retries_only_dead_links_and_failed_albums(client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card):
+def test_broken_retries_only_dead_links_and_failed_albums(
+    client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card
+):
     galleries = populated_archive["galleries"]
     _broken_abbie(galleries, failed_album=True)
 
@@ -907,7 +1007,9 @@ def test_broken_infers_each_dead_links_prefix(client, populated_archive, stub_do
     )
     _broken_abbie(
         populated_archive["galleries"],
-        dead={url: {"reason": "HTTP 404", "attempts": 1, "at": "x"} for url in (embedded, lore, chub_child, mega_child)},
+        dead={
+            url: {"reason": "HTTP 404", "attempts": 1, "at": "x"} for url in (embedded, lore, chub_child, mega_child)
+        },
     )
 
     _poll_job(client, _submit_batch(client, mode="broken"))
@@ -931,7 +1033,9 @@ def test_broken_never_mints_a_folder(client, populated_archive, stub_download_it
     assert sorted(p.name for p in galleries.iterdir()) == before
 
 
-def test_everything_re_resolves_every_album_and_retries_every_dead_link(client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card):
+def test_everything_re_resolves_every_album_and_retries_every_dead_link(
+    client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card
+):
     _broken_abbie(populated_archive["galleries"], failed_album=True)
 
     _poll_job(client, _submit_batch(client, mode="everything"))
@@ -943,7 +1047,9 @@ def test_everything_re_resolves_every_album_and_retries_every_dead_link(client, 
     assert set(albums_on_every_card) == {_DONE_ALBUM, _FAILED_ALBUM, _UNSEEN_ALBUM}
 
 
-def test_pending_never_retries_dead_links(client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card):
+def test_pending_never_retries_dead_links(
+    client, populated_archive, stub_download_item, stub_discovery, albums_on_every_card
+):
     _broken_abbie(populated_archive["galleries"])
 
     _poll_job(client, _submit_batch(client))
@@ -952,7 +1058,9 @@ def test_pending_never_retries_dead_links(client, populated_archive, stub_downlo
     assert not set(_VESPERA_DEAD) & {c["url"] for c in stub_download_item}
 
 
-def test_batch_creates_no_gallery_folder_for_a_card_with_no_media(client, populated_archive, stub_download_item, monkeypatch):
+def test_batch_creates_no_gallery_folder_for_a_card_with_no_media(
+    client, populated_archive, stub_download_item, monkeypatch
+):
     """Trap 1: `_shared.gallery_dir_for_card` mints a gallery_id, rewrites the
     PNG and mkdirs. Calling it per card would leave an empty folder behind for
     every card in the archive, so the planner must resolve it only *after*
@@ -995,9 +1103,25 @@ def test_batch_cancel_stops_on_a_card_boundary(client, populated_archive, stub_d
     run keeps its manifest."""
     started: list[str] = []
 
-    async def fake(client_, gallery_dir, folder_name, *, url, filename_hint, prefix, index, index_state, manifest, ledger, thumbnail_store, fetch_gate=None, retry_dead=False):
+    async def fake(
+        client_,
+        gallery_dir,
+        folder_name,
+        *,
+        url,
+        filename_hint,
+        prefix,
+        index,
+        index_state,
+        manifest,
+        ledger,
+        thumbnail_store,
+        fetch_gate=None,
+        retry_dead=False,
+    ):
         started.append(url)
         outcome = media_writer.DownloadOutcome("saved", url, file=f"localized_media_{index}_x.webp", bytes=1)
+        assert outcome.file is not None
         media_manifest.record_saved(manifest, url, outcome.file, "deadbeef")
         return outcome
 
@@ -1033,7 +1157,9 @@ def test_single_card_job_still_counts_items_not_cards(client, populated_archive,
     assert body["cards_total"] == 0
 
 
-def test_discover_resolves_external_album_pages_into_the_job(client, populated_archive, stub_download_item, monkeypatch):
+def test_discover_resolves_external_album_pages_into_the_job(
+    client, populated_archive, stub_download_item, monkeypatch
+):
     """Stage 6B C3: the extGallery phase. A card linking a catbox album should
     download the album's files, not the album page."""
     from aspect.media import extractors as media_extractors
@@ -1043,9 +1169,7 @@ def test_discover_resolves_external_album_pages_into_the_job(client, populated_a
         "collect_card_text_chunks",
         lambda data: (["gallery: https://catbox.moe/c/abc123"], []),
     )
-    monkeypatch.setattr(
-        v1_media.media_discovery, "find_character_media_urls", lambda data: ([], [])
-    )
+    monkeypatch.setattr(v1_media.media_discovery, "find_character_media_urls", lambda data: ([], []))
     monkeypatch.setattr(
         media_extractors,
         "resolve_gallery_url",
@@ -1082,8 +1206,7 @@ def test_discover_resolves_a_chub_sourced_cards_own_gallery(client, populated_ar
         media_extractors,
         "resolve_chub_gallery",
         lambda client_, project_id: (
-            seen_ids.append(project_id)
-            or [media_extractors.GalleryImage("https://cdn.chub.ai/a.webp", "a.webp")]
+            seen_ids.append(project_id) or [media_extractors.GalleryImage("https://cdn.chub.ai/a.webp", "a.webp")]
         ),
     )
 
@@ -1137,7 +1260,8 @@ def test_dedupe_trashes_a_stale_redownload_and_leaves_live_files_alone(
 
 
 def _add_card(archive_dirs, client, filename: str, **fields) -> None:
-    from tests.conftest import card_png, jai_extensions
+    from tests.conftest import card_png
+    from tests.conftest import jai_extensions
 
     fragment = filename.rsplit("_", 1)[1].removesuffix(".png")
     (archive_dirs["characters"] / filename).write_bytes(

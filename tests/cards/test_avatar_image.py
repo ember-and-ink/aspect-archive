@@ -72,7 +72,7 @@ def test_normalize_avatar_crops_to_true_panel_break_with_uneven_panels():
     total = sum(panel_heights) + divider * (len(panel_heights) - 1)
     stacked = Image.new("RGBA", (width, total), (0, 0, 0, 255))
     y = 0
-    for i, (h, color) in enumerate(zip(panel_heights, colors)):
+    for i, (h, color) in enumerate(zip(panel_heights, colors, strict=True)):
         stacked.paste(_image(width, h, color), (0, y))
         y += h
         if i < len(panel_heights) - 1:

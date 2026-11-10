@@ -51,13 +51,15 @@ import html as html_module
 import json
 import logging
 import re
+from collections.abc import Callable
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Callable, Iterable
 
 import httpx
 
 from aspect.config import settings
-from aspect.media import civitai as media_civitai, mega as media_mega
+from aspect.media import civitai as media_civitai
+from aspect.media import mega as media_mega
 from aspect.state import ui_settings
 
 logger = logging.getLogger("aspect.media.extractors")
@@ -88,7 +90,7 @@ class Extractor:
     # (text already fetched by `resolve_gallery_urls`), `fetch` for a source
     # that has to talk to its own API instead of scraping HTML (mega).
     parse: Parser | None = None
-    fetch: Callable[[httpx.Client, str], list["GalleryImage"]] | None = None
+    fetch: Callable[[httpx.Client, str], list[GalleryImage]] | None = None
 
 
 def _get_text(client: httpx.Client, url: str) -> str:
@@ -120,25 +122,20 @@ _CATBOX_FILE = re.compile(r">https://files\.catbox\.moe/([^<]+)<")
 def _parse_catbox(text: str) -> list[GalleryImage]:
     """Album pages list their files as bare text links between tags."""
     return _dedupe(
-        GalleryImage(f"https://files.catbox.moe/{name.strip()}", name.strip())
-        for name in _CATBOX_FILE.findall(text)
+        GalleryImage(f"https://files.catbox.moe/{name.strip()}", name.strip()) for name in _CATBOX_FILE.findall(text)
     )
 
 
 # ---- postimg ---------------------------------------------------------------
 
-_POSTIMG_CARD = re.compile(
-    r'data-hotlink="([^"]+)"\s+data-name="([^"]+)"\s+data-ext="([^"]+)"'
-)
+_POSTIMG_CARD = re.compile(r'data-hotlink="([^"]+)"\s+data-name="([^"]+)"\s+data-ext="([^"]+)"')
 
 
 def _parse_postimg(text: str) -> list[GalleryImage]:
     images = []
     for hotlink, name, ext in _POSTIMG_CARD.findall(text):
         filename = f"{name}.{ext}"
-        images.append(
-            GalleryImage(f"https://i.postimg.cc/{hotlink}/{filename}", filename)
-        )
+        images.append(GalleryImage(f"https://i.postimg.cc/{hotlink}/{filename}", filename))
     return _dedupe(images)
 
 
@@ -178,9 +175,7 @@ def _parse_imgchest(text: str) -> list[GalleryImage]:
         except (ValueError, AttributeError, TypeError):
             pass
 
-    return _dedupe(
-        GalleryImage(found, _basename(found)) for found in _IMGCHEST_CDN.findall(text)
-    )
+    return _dedupe(GalleryImage(found, _basename(found)) for found in _IMGCHEST_CDN.findall(text))
 
 
 # ---- imgbb -----------------------------------------------------------------
@@ -414,6 +409,7 @@ def resolve_gallery_url(client: httpx.Client, url: str) -> list[GalleryImage] | 
     try:
         if extractor.fetch is not None:
             return _dedupe(extractor.fetch(client, url))
+        assert extractor.parse is not None  # exactly one of parse/fetch is set
         return _dedupe(extractor.parse(_get_text(client, url)))
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code in _GONE_STATUSES:

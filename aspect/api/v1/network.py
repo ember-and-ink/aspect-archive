@@ -21,7 +21,8 @@ import logging
 import time
 
 import httpx
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
+from fastapi import Query
 
 from aspect.api.schemas import ProxyStatusOut
 from aspect.runtime import net

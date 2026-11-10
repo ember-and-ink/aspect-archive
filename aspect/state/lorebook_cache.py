@@ -29,7 +29,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from aspect.config import ensure_dir, settings
+from aspect.config import ensure_dir
+from aspect.config import settings
 
 logger = logging.getLogger("aspect.state.lorebook_cache")
 
@@ -52,7 +53,7 @@ class LorebookCache:
         # A readable prefix (real ids are filesystem-safe uuids) for eyeballing
         # the cache dir, plus a hash of the exact (source, id) so two distinct
         # ids can never slug onto the same file.
-        digest = hashlib.sha1(f"{source}\x00{lorebook_id}".encode("utf-8")).hexdigest()[:16]
+        digest = hashlib.sha1(f"{source}\x00{lorebook_id}".encode()).hexdigest()[:16]
         return self._dir / f"{_slug(source)}_{_slug(lorebook_id)[:48]}_{digest}.json"
 
     def has(self, source: str, lorebook_id: str) -> bool:

@@ -92,9 +92,7 @@ def test_mega_folder_links_are_matched():
 
 
 def test_mega_legacy_format_is_matched():
-    assert extractors.find_gallery_urls("https://mega.nz/#F!6YMGHRCR!A2jl") == [
-        "https://mega.nz/#F!6YMGHRCR!A2jl"
-    ]
+    assert extractors.find_gallery_urls("https://mega.nz/#F!6YMGHRCR!A2jl") == ["https://mega.nz/#F!6YMGHRCR!A2jl"]
 
 
 # ---- catbox ----------------------------------------------------------------
@@ -137,7 +135,7 @@ def test_postimg_builds_cdn_urls_from_card_data_attributes():
 def test_imgchest_prefers_the_embedded_json_blob():
     body = (
         '<div data-page="{&quot;props&quot;:{&quot;post&quot;:{&quot;files&quot;:'
-        '[{&quot;link&quot;:&quot;https://cdn.imgchest.com/files/aaa.webp&quot;},'
+        "[{&quot;link&quot;:&quot;https://cdn.imgchest.com/files/aaa.webp&quot;},"
         '{&quot;link&quot;:&quot;https://cdn.imgchest.com/files/bbb.png&quot;}]}}}"></div>'
     )
     images = extractors._parse_imgchest(body)
@@ -151,10 +149,7 @@ def test_imgchest_prefers_the_embedded_json_blob():
 def test_imgchest_falls_back_to_scraping_when_the_blob_is_unusable():
     # The blob's shape follows imgchest's frontend and has changed before; the
     # regex still finds the images when it does.
-    body = (
-        '<div data-page="{not json"></div>'
-        '<img src="https://cdn.imgchest.com/files/ccc.png">'
-    )
+    body = '<div data-page="{not json"></div><img src="https://cdn.imgchest.com/files/ccc.png">'
     images = extractors._parse_imgchest(body)
 
     assert [i.url for i in images] == ["https://cdn.imgchest.com/files/ccc.png"]
@@ -282,6 +277,7 @@ def test_chub_gallery_reads_nodes():
     with _client(handler) as client:
         images = extractors.resolve_chub_gallery(client, "555")
 
+    assert images is not None
     assert [i.url for i in images] == [
         "https://cdn.chub.ai/a.webp",
         "https://cdn.chub.ai/b.webp",
